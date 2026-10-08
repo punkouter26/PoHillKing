@@ -43,8 +43,9 @@ def default_cfg(rung: str = "r0") -> dict:
         reward=dict(tracking_lin_vel=1.0, tracking_ang_vel=0.75, alive=0.5, upright=0.5, orientation=-2.0, ang_vel_xy=-0.05,
                     lin_vel_z=-0.5, feet_air_time=2.0, feet_slip=-0.1, feet_phase=1.0, pose=-0.1, joint_deviation_hip=-0.25,
                     joint_deviation_knee=-0.1, dof_pos_limits=-1.0, action_rate=-0.01, joint_vel=-2e-4, stand_still=-0.1,
-                    tracking_heading=1.0, plateau=0.0, off_rim=0.0, ring_advantage=0.0, push_out=0.0, win=0.0, termination=-1.0),
+                    tracking_heading=1.0, plateau=0.0, off_rim=0.0, ring_advantage=0.0, opp_radius=0.0, self_edge=0.0, push_out=0.0, win=0.0, draw=0.0, termination=-1.0),
         tracking_sigma=0.25, swing_height=0.12, terminate_on_leg_contact=True, max_radius=8.0, combat=False,
+        frozen_opponent=None,      # checkpoint path: robot b_ is driven by this policy and only robot a_ learns
     )
     if rung == "r0":                       # stand only: zero command, disturbances on
         cfg["command"].update(zero_prob=1.0)
@@ -63,14 +64,49 @@ def default_cfg(rung: str = "r0") -> dict:
         cfg["spawn"].update(r=[0.5, 1.3])
         cfg["goal_cmd"].update(stop_dist=0.0, vmax=1.0)
         cfg["projectile"].update(enabled=False); cfg["push"].update(interval_s=[1e6, 1e6])
-        cfg["reward"].update(tracking_lin_vel=0.5, tracking_ang_vel=0.3, tracking_heading=0.3, stand_still=0.0,
-                             ring_advantage=1.0, push_out=1.0, win=10.0, termination=-10.0)
+        # A win must be worth more than surviving to the bell. Run r4_a (alive 0.5, upright 0.5, win 10) converged in
+        # 130 iterations to both robots leaning on each other for the full 20 s: 40 reward for a draw vs 10 for a win.
+        cfg["episode_length_s"] = 15.0
+        cfg["reward"].update(tracking_lin_vel=0.3, tracking_ang_vel=0.1, tracking_heading=0.1, stand_still=0.0, alive=0.1, upright=0.2,
+                             feet_air_time=0.5, feet_phase=0.3, ring_advantage=2.0, push_out=3.0, win=20.0, termination=-20.0, draw=-10.0)
+    elif rung == "r4att":                  # attacker curriculum: a_ learns to drive a plateau-holding b_ off the summit
+        cfg.update(default_cfg("r4"))
+        # Defender = frozen policy with a zero command, standing near the rim. A defender that walks back to the
+        # centre (goal "center") is the same robot with the same friction limit and survives 98 % of 2 m/s kicks:
+        # runs r4att_a/b never produced a win against it.
+        cfg.update(goal=["opponent", "stand"])
+        # ring_advantage is flat while pushing from the inside (both radii grow together), so run r4att_a learned
+        # only to stop falling. Reward the opponent's radius directly; a draw costs the same as a loss so that
+        # engaging is never worse than stalling.
+        cfg["reward"].update(ring_advantage=0.0, opp_radius=3.0, self_edge=-3.0, push_out=3.0, win=30.0, termination=-10.0, draw=-10.0)
+        cfg["spawn"].update(r=[[0.0, 0.9], [0.9, 1.35]])
+        cfg["goal_cmd"].update(stop_dist=[0.0, 0.3], vmax=[1.0, 0.8])
     elif rung == "r4probe":               # a_ walks into b_ (no stop distance); b_ holds the plateau, starts at the rim
         cfg.update(scene="scene_koth_2p_train.xml", robots=["a_", "b_"], arena=True, goal=["opponent", "center"])
         cfg["spawn"].update(r=[[0.0, 0.5], [1.25, 1.35]])
         cfg["goal_cmd"].update(stop_dist=[0.0, 0.3], vmax=[1.0, 0.8])
         cfg["projectile"].update(enabled=False)
     return cfg
+
+
+class FrozenPolicy(torch.nn.Module):
+    """Deterministic actor rebuilt from an rsl_rl checkpoint (obs normalizer + ELU MLP). Used for opponents that do
+    not learn. Reads only as many observation columns as it was trained on."""
+    def __init__(self, ckpt: str, device):
+        super().__init__()
+        sd = torch.load(ckpt, map_location=device, weights_only=False)["actor_state_dict"]
+        self.mean, self.std = sd["obs_normalizer._mean"], sd["obs_normalizer._std"]
+        idx = sorted(int(k.split(".")[1]) for k in sd if k.startswith("mlp.") and k.endswith(".weight"))
+        self.layers = [(sd[f"mlp.{i}.weight"], sd[f"mlp.{i}.bias"]) for i in idx]
+        self.obs_dim = self.mean.shape[1]
+
+    @torch.no_grad()
+    def forward(self, obs: torch.Tensor) -> torch.Tensor:
+        x = (obs[:, :self.obs_dim] - self.mean) / (self.std + 1e-2)
+        for i, (w, b) in enumerate(self.layers):
+            x = torch.nn.functional.linear(x, w, b)
+            if i < len(self.layers) - 1: x = torch.nn.functional.elu(x)
+        return x
 
 
 class KothEnv:
@@ -87,7 +123,9 @@ class KothEnv:
         self.arena = bool(cfg["arena"])
         prefixes = cfg["robots"]
         N = self.N = num_envs; A = self.A = len(prefixes); M = self.M = N * A
-        self.num_envs = M
+        self.frozen = FrozenPolicy(cfg["frozen_opponent"], self.device) if cfg["frozen_opponent"] else None
+        assert self.frozen is None or A == 2
+        self.num_envs = N if self.frozen is not None else M      # rows rsl_rl sees (learner = robot a_ only when b_ is frozen)
 
         mjm = mujoco.MjModel.from_xml_path(os.path.join(ASSETS, cfg["scene"]))
         mjd = mujoco.MjData(mjm); mujoco.mj_resetDataKeyframe(mjm, mjd, 0); mujoco.mj_forward(mjm, mjd)
@@ -156,6 +194,7 @@ class KothEnv:
         self.reward_terms: dict[str, torch.Tensor] = {}
         per = lambda v: (v if isinstance(v, (list, tuple)) else [v] * A)          # scalar or one value per robot
         self.goal_is_opp = torch.tensor([g == "opponent" for g in per(cfg["goal"])], device=device).repeat(N)
+        self.goal_is_none = torch.tensor([g == "stand" for g in per(cfg["goal"])], device=device).repeat(N)
         self.goal_stop = torch.tensor(per(cfg["goal_cmd"]["stop_dist"]), device=device, dtype=torch.float32).repeat(N)
         self.goal_vmax = torch.tensor(per(cfg["goal_cmd"]["vmax"]), device=device, dtype=torch.float32).repeat(N)
 
@@ -217,7 +256,9 @@ class KothEnv:
     def _update_goal_commands(self):
         if self.cfg["goal"] is None: return
         pos, quat, _, _ = self._root()
-        self.command[:] = goal_command(quat, self._goal_vec(pos), self.goal_stop, self.goal_vmax)
+        cmd = goal_command(quat, self._goal_vec(pos), self.goal_stop, self.goal_vmax)
+        cmd[self.goal_is_none] = 0.0                       # "stand": zero command, the robot just holds its ground
+        self.command[:] = cmd
 
     # ------------------------------------------------------------------ reset / randomization
     def _randomize(self, ids):
@@ -328,6 +369,9 @@ class KothEnv:
 
     def step(self, actions: torch.Tensor):
         N, A, M = self.N, self.A, self.M
+        if self.frozen is not None:
+            full = torch.empty(M, 29, device=self.device); full[0::2] = actions.to(self.device)
+            full[1::2] = self.frozen(self._obs_full["policy"][1::2]); actions = full
         self.action = torch.clamp(actions.to(self.device), -1, 1)
         target = torch.clamp(self.default_pose + self.action_scale * self.action, self.ctrl_lo, self.ctrl_hi)
         # one-step actuation latency on a random subset of robots (DR)
@@ -354,7 +398,12 @@ class KothEnv:
         if self.A == 2 and self.cfg["reward"]["win"] != 0.0:
             won = self._opp(fallen) & ~fallen; win = self.cfg["reward"]["win"] * won.float()
             rew += win; self.reward_terms["win"] = win
-        self.extras = {"time_outs": done & ~fallen, "log": {f"rew/{k}": v.mean() for k, v in self.reward_terms.items()},
+        draw_on = self.A == 2 and self.cfg["reward"]["draw"] != 0.0
+        if draw_on:                                  # the bell is a real terminal state in a duel, not a truncation
+            drew = (timeout & ~fallen.view(N, A).any(1)).repeat_interleave(A); d_r = self.cfg["reward"]["draw"] * drew.float()
+            rew += d_r; self.reward_terms["draw"] = d_r
+        lr = slice(0, None, 2) if self.frozen is not None else slice(None)          # log the learner rows only
+        self.extras = {"time_outs": (done & ~fallen) if not draw_on else (done & ~fallen & ~drew), "log": {f"rew/{k}": v[lr].mean() for k, v in self.reward_terms.items()},
                        "fallen": fallen, "nan": nan, "radius": radius}
         self.extras["log"]["ep/leg_contact_term"] = leg.float().mean(); self.extras["log"]["ep/fallen"] = fallen.float().mean()
         if self.arena: self.extras["log"]["ep/on_plateau"] = (radius < PLATEAU_R).float().mean()
@@ -370,6 +419,9 @@ class KothEnv:
         self._update_goal_commands()
         obs = self.get_observations()
         self.extras["observations"] = obs
+        if self.frozen is not None:
+            self.extras["time_outs"] = self.extras["time_outs"][0::2]
+            return obs, rew[0::2], done[0::2], self.extras
         return obs, rew, done, self.extras
 
     # ------------------------------------------------------------------ rewards
@@ -420,6 +472,8 @@ class KothEnv:
             opos = self._opp(pos); ovel = self._opp(linv_w); orad = opos[:, :2].norm(dim=1)
             near = ((opos[:, :2] - pos[:, :2]).norm(dim=1) < 0.9).float()
             t["ring_advantage"] = (orad - radius).clamp(-1.0, 1.0)                     # be more central than the opponent
+            t["opp_radius"] = orad.clamp(max=1.7) / 1.7                                # how far out the opponent is
+            t["self_edge"] = (radius - 1.2).clamp(min=0.0)                             # my own margin to the rim
             t["push_out"] = ((ovel[:, :2] * opos[:, :2]).sum(1) / orad.clamp(min=0.1)).clamp(-1.0, 2.0) * near   # its outward speed while I am on it
         t["plateau"] = (radius < 1.2).float()
         t["off_rim"] = (radius - PLATEAU_R).clamp(min=0)
@@ -431,6 +485,11 @@ class KothEnv:
 
     # ------------------------------------------------------------------ observations
     def get_observations(self) -> TensorDict:
+        """Observations for the rows rsl_rl trains. The full per-robot set is cached for the frozen opponent."""
+        self._obs_full = self._observe()
+        return self._obs_full[0::2] if self.frozen is not None else self._obs_full
+
+    def _observe(self) -> TensorDict:
         pos, quat, linv_w, angv = self._root(); jpos, jvel = self._joints()
         clean = build_obs(quat, linv_w, angv, jpos, jvel, self.default_pose, self.last_action, self.command, self.phase)
         nz = self.cfg["noise"]; u = lambda n, sc: (torch.rand(self.M, n, device=self.device) * 2 - 1) * sc

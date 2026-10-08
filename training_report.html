@@ -1,0 +1,283 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>PoKingHill training report</title>
+<style>
+:root {
+  color-scheme: light;
+  --page: #f4f3ef; --surface: #fcfcfb; --ink: #0b0b0b; --ink2: #52514e; --ink3: #7b7a74;
+  --grid: #e1e0d9; --axis: #c3c2b7; --ring: rgba(11,11,11,0.10);
+  --s1: #2a78d6; --s2: #eb6834;
+  --good: #0ca30c; --warn: #fab219; --serious: #ec835a; --crit: #d03b3b; --none: #c3c2b7;
+  --note: #fff6d8;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    color-scheme: dark;
+    --page: #111110; --surface: #1a1a19; --ink: #ffffff; --ink2: #c3c2b7; --ink3: #908f88;
+    --grid: #2c2c2a; --axis: #383835; --ring: rgba(255,255,255,0.10);
+    --s1: #3987e5; --s2: #d95926; --none: #4a4a46; --note: #2b2716;
+  }
+}
+:root[data-theme="dark"] {
+  color-scheme: dark;
+  --page: #111110; --surface: #1a1a19; --ink: #ffffff; --ink2: #c3c2b7; --ink3: #908f88;
+  --grid: #2c2c2a; --axis: #383835; --ring: rgba(255,255,255,0.10);
+  --s1: #3987e5; --s2: #d95926; --none: #4a4a46; --note: #2b2716;
+}
+* { box-sizing: border-box; }
+body { margin: 0; background: var(--page); color: var(--ink); font: 16px/1.55 system-ui, -apple-system, "Segoe UI", sans-serif; }
+main { max-width: 1280px; margin: 0 auto; padding: 32px 16px 64px; }
+h1 { font-size: 30px; line-height: 1.15; margin: 0 0 6px; letter-spacing: -0.01em; }
+h2 { font-size: 21px; margin: 44px 0 6px; }
+h3 { font-size: 17px; margin: 0 0 4px; }
+p { margin: 8px 0; max-width: 72ch; }
+.sub { color: var(--ink2); }
+.small { font-size: 13.5px; color: var(--ink2); }
+.card { background: var(--surface); border: 1px solid var(--ring); border-radius: 12px; padding: 18px; margin: 14px 0; }
+.kpis { display: grid; grid-template-columns: repeat(auto-fit, minmax(190px, 1fr)); gap: 12px; margin: 18px 0; }
+.kpi { background: var(--surface); border: 1px solid var(--ring); border-radius: 12px; padding: 14px 16px; }
+.kpi b { display: block; font-size: 30px; line-height: 1.1; font-variant-numeric: tabular-nums; }
+.kpi span { color: var(--ink2); font-size: 14px; }
+
+/* ladder */
+.ladder { display: grid; grid-template-columns: repeat(6, 1fr); gap: 8px; margin: 14px 0 4px; }
+.step { background: var(--surface); border: 1px solid var(--ring); border-radius: 10px; padding: 10px 12px; border-top: 5px solid var(--none); }
+.step.pass { border-top-color: var(--good); } .step.part { border-top-color: var(--warn); } .step.todo { border-top-color: var(--none); }
+.step .n { font-size: 12.5px; color: var(--ink3); letter-spacing: .04em; }
+.step .t { font-weight: 600; font-size: 14.5px; line-height: 1.25; margin: 2px 0 4px; }
+.step .s { font-size: 13px; color: var(--ink2); }
+@media (max-width: 760px) { .ladder { grid-template-columns: repeat(2, 1fr); } }
+
+/* ability grid */
+.scroll { overflow-x: auto; }
+table.grid { border-collapse: separate; border-spacing: 0; width: 100%; min-width: 1080px; table-layout: fixed; }
+table.grid th, table.grid td { padding: 10px 10px; text-align: left; vertical-align: top; border-bottom: 1px solid var(--grid); }
+table.grid thead th { font-size: 13px; font-weight: 600; color: var(--ink2); vertical-align: bottom; }
+table.grid thead th:first-child { width: 168px; }
+table.grid tbody th { font-weight: 600; }
+table.grid tbody th small { display: block; font-weight: 400; color: var(--ink2); font-size: 12.5px; line-height: 1.35; margin-top: 2px; }
+.cell { min-width: 0; }
+.meter { height: 8px; border-radius: 4px; background: var(--grid); overflow: hidden; margin: 4px 0 5px; }
+.meter i { display: block; height: 100%; border-radius: 4px; }
+.lvl { font-size: 12.5px; font-weight: 600; }
+.lvl::before { content: ""; display: inline-block; width: 9px; height: 9px; border-radius: 50%; margin-right: 6px; vertical-align: 0; background: var(--c); }
+.val { font-size: 15px; font-weight: 600; font-variant-numeric: tabular-nums; }
+.why { font-size: 12.5px; color: var(--ink2); line-height: 1.35; }
+.strong { --c: var(--good); } .okay { --c: var(--warn); } .weak { --c: var(--serious); } .fail { --c: var(--crit); } .na { --c: var(--none); }
+.meter i { background: var(--c); }
+tr.retired th, tr.retired td { opacity: .72; }
+.legend { display: flex; flex-wrap: wrap; gap: 6px 18px; font-size: 13px; color: var(--ink2); margin: 10px 0 0; }
+
+/* charts */
+.chart { position: relative; }
+.chart svg { display: block; width: 100%; height: auto; overflow: visible; }
+.chart .tip { position: absolute; pointer-events: none; background: var(--ink); color: var(--surface); font-size: 12.5px; padding: 6px 9px; border-radius: 6px; white-space: nowrap; transform: translate(-50%, -115%); opacity: 0; transition: opacity .1s; z-index: 2; }
+.clegend { display: flex; gap: 18px; font-size: 13.5px; color: var(--ink2); margin: 2px 0 6px; flex-wrap: wrap; }
+.clegend i { display: inline-block; width: 18px; height: 3px; border-radius: 2px; vertical-align: middle; margin-right: 6px; }
+.explain { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-top: 10px; }
+.explain div { background: var(--page); border-radius: 10px; padding: 12px 14px; font-size: 14.5px; }
+.explain b { display: block; font-size: 12.5px; letter-spacing: .05em; text-transform: uppercase; color: var(--ink3); margin-bottom: 3px; }
+@media (max-width: 760px) { .explain { grid-template-columns: 1fr; } }
+details { margin-top: 10px; font-size: 13.5px; color: var(--ink2); }
+details table { border-collapse: collapse; margin-top: 6px; font-variant-numeric: tabular-nums; }
+details td, details th { padding: 2px 12px 2px 0; text-align: right; }
+.callout { background: var(--note); border-radius: 10px; padding: 12px 14px; font-size: 14.5px; margin: 12px 0; }
+ul { padding-left: 20px; margin: 8px 0; max-width: 72ch; } li { margin: 4px 0; }
+text { font-family: inherit; }
+</style>
+</head>
+<body>
+<main>
+<h1>PoKingHill training report</h1>
+<p class="sub">Unitree G1 robots learning king-of-the-hill, trained in MuJoCo Warp and checked inside Unity. Snapshot taken 08 October 2026, 12:29.</p>
+
+<div class="kpis">
+  <div class="kpi"><b>3 of 6</b><span>behaviour rungs fully passing</span></div>
+  <div class="kpi"><b>99.4%</b><span>of shoves and thrown boxes the walker survives</span></div>
+  <div class="kpi"><b>98.7%</b><span>of rounds the attacker pushes a standing opponent off the summit</span></div>
+  <div class="kpi"><b>2.0 s</b><span>typical time for the attacker to finish a round</span></div>
+</div>
+
+<h2>Where the ladder stands</h2>
+<p class="sub">Each rung is a behaviour with a numeric pass bar. Green passed, yellow is partly there, grey has not started.</p>
+<div class="ladder">
+  <div class="step pass"><div class="n">RUNG 0</div><div class="t">Stand and take hits</div><div class="s">Passed. Also verified in Unity.</div></div>
+  <div class="step pass"><div class="n">RUNG 1</div><div class="t">Walk and turn</div><div class="s">Passed. Also verified in Unity.</div></div>
+  <div class="step part"><div class="n">RUNG 2</div><div class="t">Hold the summit, climb back</div><div class="s">Training now. Holding works, climbing is being learned.</div></div>
+  <div class="step pass"><div class="n">RUNG 3</div><div class="t">Walk up to the opponent</div><div class="s">Passed. Also verified in Unity.</div></div>
+  <div class="step part"><div class="n">RUNG 4</div><div class="t">Push the opponent off</div><div class="s">Works on a standing opponent. Not on one that fights back.</div></div>
+  <div class="step todo"><div class="n">RUNG 5</div><div class="t">Full match with rising sea</div><div class="s">Not started.</div></div>
+</div>
+
+<h2>Agents and what each can do</h2>
+<p class="sub">An "agent" here is one trained brain. All of them drive the same robot body. Each bar shows how close that agent is to perfect on that skill, with the measured number underneath.</p>
+<div class="card scroll">
+<table class="grid">
+<thead><tr>
+  <th>Agent</th><th>Stay up when shoved</th><th>Walk where told</th><th>Turn where told</th><th>Hold the summit</th><th>Climb back up the slope</th><th>Walk up to the opponent</th><th>Push a standing opponent off</th><th>Beat an opponent that resists</th><th>Same behaviour in Unity</th>
+</tr></thead>
+<tbody id="grid"></tbody>
+</table>
+<div class="legend">
+  <span class="lvl strong">Strong: meets its pass bar</span><span class="lvl okay">Getting there</span><span class="lvl weak">Weak</span><span class="lvl fail">Cannot do it</span><span class="lvl na">Not tested or not applicable</span>
+</div>
+</div>
+<p class="small">Where a cell says "inherited", the agent started as a copy of the Walker and has not been re-measured on that skill since.</p>
+
+<h2>The three charts that matter most</h2>
+<p class="sub">These are the three most telling curves from the TensorBoard logs. They are redrawn here from the same logged numbers so the notes could be placed directly on them; they are not literal screenshots. Hover a chart to read exact values. Live versions are at <code>http://localhost:6006</code> while TensorBoard is running.</p>
+
+<div class="card">
+  <h3>1. How long the robot stays on its feet</h3>
+  <p class="small">TensorBoard name: <code>Train/mean_episode_length</code>, for the Walker and its predecessors. Each practice round lasts up to 20 seconds, with shoves and thrown boxes throughout.</p>
+  <div class="chart" id="c1"></div>
+  <div class="explain">
+    <div><b>What it means</b>The line is the average time a robot lasts before falling. The top of the chart, 20 seconds, means it survived the whole round. Higher is better.</div>
+    <div><b>Where it is now</b>Robots now last about 19.4 of 20 seconds on average while being kicked every few seconds. The two sharp dips are not the robot getting worse. Training was stopped and restarted there to add a new skill, and the counter begins again from short rounds before catching up within a few dozen rounds.</div>
+  </div>
+  <details><summary>Data table</summary><div id="t1"></div></details>
+</div>
+
+<div class="card">
+  <h3>2. How well it follows walking and turning instructions</h3>
+  <p class="small">TensorBoard names: <code>rew/tracking_lin_vel</code> and <code>rew/tracking_ang_vel</code>, shown as a share of the best possible score.</p>
+  <div class="clegend"><span><i style="background:var(--s1)"></i>Walking speed and direction</span><span><i style="background:var(--s2)"></i>Turning</span></div>
+  <div class="chart" id="c2"></div>
+  <div class="explain">
+    <div><b>What it means</b>The robot is told "go this fast, this way, and turn this quickly". 100% would mean it matches the instruction exactly at every instant. Because a walking body sways with each step, a very good walker scores well below 100%.</div>
+    <div><b>Where it is now</b>Walking reached about 82% early and stayed there. Turning was stuck near 33%: the robot was ignoring turn instructions. After a reward for facing the right way was added, turning climbed to 47%. In a direct test it now turns at 0.69 when asked for 0.8, up from zero.</div>
+  </div>
+  <details><summary>Data table</summary><div id="t2"></div></details>
+</div>
+
+<div class="card">
+  <h3>3. How often the attacker knocks the opponent off</h3>
+  <p class="small">TensorBoard name: <code>rew/win</code>, converted to knock-outs per minute of sparring, for two versions of the attacker.</p>
+  <div class="clegend"><span><i style="background:var(--s1)"></i>Opponent stands its ground at the rim</span><span><i style="background:var(--s2)"></i>Opponent keeps walking back to the centre</span></div>
+  <div class="chart" id="c3"></div>
+  <div class="explain">
+    <div><b>What it means</b>Each point is how many times per minute the learning robot shoved its opponent off the summit. Zero means every round ended in a stalemate.</div>
+    <div><b>Where it is now</b>Against an opponent that just stands near the edge, the attacker went from almost never winning to more than 20 knock-outs a minute, and wins 98.7% of test rounds. Against an opponent that walks back to the centre the line never left zero: two identical robots have the same grip and strength, so a plain shove is not enough.</div>
+  </div>
+  <details><summary>Data table</summary><div id="t3"></div></details>
+</div>
+
+<h2>In plain terms</h2>
+<ul>
+  <li><b>The basics are solid.</b> One brain, the Walker, can stand through hard shoves, walk and turn on command, and walk up to another robot. All of that behaves the same in Unity as in training, to within a few centimetres after walking two metres.</li>
+  <li><b>Climbing back onto the summit is being learned right now.</b> The Walker stays on the flat top reliably but only recovers from the slope about one time in three. A new version, the Climber, is practising on the hill.</li>
+  <li><b>Fighting is half done.</b> The Attacker reliably shoves a standing robot off the summit in about two seconds. It cannot yet beat a robot that actively resists, and two attackers facing each other mostly end in a standoff.</li>
+  <li><b>Not started:</b> the rising sea, the full match, and the Unity menu, camera and sound.</li>
+</ul>
+<div class="callout"><b>Worth knowing.</b> In a control test, the standing opponent wandered off the edge by itself in about 10% of 15-second rounds with nobody touching it. The attacker's wins come in about 2 seconds, far faster than that drift, but the true figure for "wins caused by the attacker" is a little below the 98.7% shown. The attacker has also not yet been checked inside Unity.</div>
+
+<p class="small">Sources: evaluation runs with 256 to 512 robots and 3 random seeds each (<code>training/scripts/eval.py</code>), training logs under <code>training/runs</code>, and Unity comparison files under <code>training/assets/g1</code>. Full history in <code>rl_optimization_log.md</code>.</p>
+</main>
+
+<script>
+const DATA = {"stay_up": [[7, 1.0127], [22, 1.2258], [37, 1.4197], [52, 1.7903], [67, 2.5263], [82, 4.513], [97, 7.1124], [112, 8.4192], [127, 8.7293], [142, 9.3288], [157, 9.7887], [172, 9.81], [187, 10.1742], [202, 10.287], [217, 10.5841], [232, 11.068], [247, 11.3277], [262, 11.2996], [277, 11.8398], [292, 12.0249], [307, 12.1986], [322, 12.1725], [337, 12.6962], [352, 12.689], [367, 12.7873], [382, 12.9583], [397, 8.9434], [412, 4.8537], [427, 9.7985], [442, 14.0044], [457, 13.137], [472, 13.6833], [487, 14.3929], [502, 14.8471], [517, 15.1924], [532, 16.0865], [547, 16.2174], [562, 17.239], [577, 17.3953], [592, 17.4785], [607, 18.0539], [622, 18.3668], [637, 18.1955], [652, 18.3823], [667, 18.5184], [682, 18.4321], [697, 18.5003], [712, 18.5417], [727, 18.655], [742, 18.8146], [757, 18.6421], [772, 18.912], [787, 18.6872], [802, 18.8175], [817, 18.7149], [832, 18.7539], [847, 18.9233], [862, 18.6817], [877, 18.8629], [892, 18.8078], [907, 18.7314], [922, 18.9321], [937, 19.1143], [952, 19.0095], [967, 19.1315], [982, 19.0773], [997, 19.1526], [1012, 19.1905], [1027, 19.1423], [1042, 18.9844], [1057, 19.0658], [1072, 19.2142], [1087, 19.2317], [1102, 19.1845], [1117, 19.1682], [1132, 19.1755], [1147, 19.2204], [1162, 19.295], [1177, 19.2247], [1192, 19.2395], [1207, 3.6127], [1222, 10.6947], [1237, 17.3019], [1252, 19.3726], [1267, 19.2614], [1282, 19.4051], [1297, 19.51], [1312, 19.4252], [1327, 19.3941], [1342, 19.5269], [1357, 19.5235], [1372, 19.3815], [1387, 19.5372], [1402, 19.5041], [1417, 19.4621], [1432, 19.4735], [1447, 19.4501], [1462, 19.2483], [1477, 19.455], [1492, 19.6], [1507, 19.4565], [1522, 19.3852], [1537, 19.5054], [1552, 19.5717], [1567, 19.5839], [1582, 19.584], [1597, 19.5523], [1612, 19.5135], [1627, 19.5202], [1642, 19.4991], [1657, 19.4189], [1672, 19.5443], [1687, 19.4666], [1702, 19.5583], [1717, 19.4611], [1732, 19.5353], [1747, 19.5088], [1762, 19.6204], [1777, 19.4622], [1792, 19.4859], [1807, 19.426], [1822, 19.5346], [1837, 19.5435], [1852, 19.4739], [1867, 19.555], [1882, 19.5787], [1897, 19.4451], [1912, 19.5014], [1927, 19.4374], [1942, 19.5522], [1957, 19.536], [1972, 19.5048], [1987, 19.7055], [2002, 19.5979], [2017, 19.7101], [2032, 19.5155], [2047, 19.6073], [2062, 19.7361], [2077, 19.623], [2092, 19.6413], [2107, 19.6155], [2122, 19.6007], [2137, 19.6022], [2152, 19.6158], [2167, 19.5783], [2182, 19.5447], [2197, 19.5614], [2212, 19.6374], [2227, 19.6282], [2242, 19.535], [2257, 19.5993], [2272, 19.5704], [2287, 19.5678], [2302, 19.5667], [2317, 19.7226], [2332, 19.5397], [2347, 19.6937], [2362, 19.4873], [2377, 19.656], [2392, 19.6154], [2407, 19.5768], [2422, 19.4749], [2437, 19.56], [2452, 19.5072], [2467, 19.4472], [2482, 19.6004], [2497, 19.4703], [2512, 19.4583], [2527, 19.5392], [2542, 19.6316], [2557, 19.5817], [2572, 19.5861], [2587, 19.4995], [2602, 19.4798], [2617, 19.5403], [2632, 19.5116], [2647, 19.654], [2662, 19.6021], [2677, 19.5465], [2692, 19.4428]], "track_lin": [[407, 39.2271], [422, 36.6597], [437, 34.7349], [452, 35.4433], [467, 35.9651], [482, 36.7889], [497, 37.1896], [512, 37.8789], [527, 38.6188], [542, 39.7828], [557, 41.4815], [572, 42.8521], [587, 44.2859], [602, 46.8358], [617, 49.4243], [632, 50.8063], [647, 53.7441], [662, 56.5597], [677, 60.4368], [692, 63.0708], [707, 64.6124], [722, 65.7295], [737, 66.5703], [752, 68.1191], [767, 69.0795], [782, 70.2182], [797, 71.0631], [812, 71.7016], [827, 72.463], [842, 72.8583], [857, 73.5401], [872, 74.091], [887, 74.4138], [902, 74.8282], [917, 74.7592], [932, 75.3596], [947, 75.9745], [962, 75.8473], [977, 76.586], [992, 76.7518], [1007, 77.0155], [1022, 77.3781], [1037, 77.7334], [1052, 77.9511], [1067, 77.9992], [1082, 78.2324], [1097, 78.5912], [1112, 79.0726], [1127, 79.5244], [1142, 79.468], [1157, 79.9671], [1172, 79.8844], [1187, 79.831], [1202, 81.7944], [1217, 79.6672], [1232, 80.0745], [1247, 80.021], [1262, 79.6784], [1277, 79.6062], [1292, 79.7897], [1307, 79.8915], [1322, 79.7036], [1337, 79.7863], [1352, 80.1933], [1367, 80.183], [1382, 80.3418], [1397, 80.229], [1412, 80.4561], [1427, 80.5614], [1442, 80.2128], [1457, 80.0992], [1472, 80.0651], [1487, 79.8218], [1502, 79.6304], [1517, 79.8288], [1532, 79.8546], [1547, 79.9852], [1562, 79.6657], [1577, 79.8273], [1592, 79.981], [1607, 80.4158], [1622, 80.2125], [1637, 80.4574], [1652, 80.5332], [1667, 80.6513], [1682, 80.7863], [1697, 80.6678], [1712, 80.6969], [1727, 80.5587], [1742, 80.5628], [1757, 80.3357], [1772, 80.6709], [1787, 80.9109], [1802, 80.9643], [1817, 81.0939], [1832, 80.9991], [1847, 81.0276], [1862, 81.0299], [1877, 80.8189], [1892, 81.0013], [1907, 81.2343], [1922, 81.1778], [1937, 81.2799], [1952, 81.0291], [1967, 80.9204], [1982, 81.1601], [1997, 81.0049], [2012, 80.9758], [2027, 80.9198], [2042, 80.8439], [2057, 80.8807], [2072, 81.0122], [2087, 80.6593], [2102, 80.6328], [2117, 81.1041], [2132, 81.3393], [2147, 81.42], [2162, 81.8566], [2177, 81.7531], [2192, 81.5888], [2207, 81.5061], [2222, 81.8149], [2237, 81.9555], [2252, 81.9086], [2267, 81.8347], [2282, 81.7822], [2297, 81.3303], [2312, 81.5515], [2327, 81.7453], [2342, 81.4146], [2357, 81.5307], [2372, 81.6439], [2387, 81.0516], [2402, 81.4857], [2417, 81.4862], [2432, 81.2453], [2447, 81.2974], [2462, 81.3121], [2477, 81.6008], [2492, 81.6031], [2507, 81.3053], [2522, 81.3312], [2537, 81.5257], [2552, 81.5006], [2567, 81.5404], [2582, 81.9174], [2597, 81.726], [2612, 81.4272], [2627, 81.4172], [2642, 81.3393], [2657, 80.9874], [2672, 81.33], [2687, 81.472], [2697, 81.7646]], "track_ang": [[407, 18.945], [422, 19.0787], [437, 19.1956], [452, 19.363], [467, 19.213], [482, 19.2147], [497, 19.2841], [512, 19.4388], [527, 19.5323], [542, 19.8815], [557, 20.025], [572, 20.5567], [587, 21.0214], [602, 21.456], [617, 21.9342], [632, 22.4534], [647, 22.8564], [662, 23.4088], [677, 23.7292], [692, 24.2083], [707, 24.3998], [722, 24.8797], [737, 25.1961], [752, 25.3849], [767, 25.879], [782, 26.1763], [797, 26.3384], [812, 26.6786], [827, 26.8455], [842, 27.2701], [857, 27.6965], [872, 28.2338], [887, 28.3583], [902, 28.5528], [917, 28.7692], [932, 28.9198], [947, 29.4303], [962, 29.9473], [977, 30.1423], [992, 30.3291], [1007, 30.5413], [1022, 30.5346], [1037, 30.7004], [1052, 31.1097], [1067, 31.3289], [1082, 31.4924], [1097, 31.8763], [1112, 32.1477], [1127, 32.4855], [1142, 32.7015], [1157, 33.1521], [1172, 33.3047], [1187, 33.7238], [1202, 34.8015], [1217, 34.5134], [1232, 34.8867], [1247, 35.3198], [1262, 35.7583], [1277, 35.9518], [1292, 36.2456], [1307, 36.6345], [1322, 36.6567], [1337, 36.7776], [1352, 37.2553], [1367, 37.5481], [1382, 37.6799], [1397, 37.7395], [1412, 38.0717], [1427, 38.2612], [1442, 38.2855], [1457, 38.4363], [1472, 38.3834], [1487, 38.5877], [1502, 38.9497], [1517, 39.2032], [1532, 39.3927], [1547, 39.3951], [1562, 39.5642], [1577, 39.6621], [1592, 39.9989], [1607, 40.2595], [1622, 40.3259], [1637, 40.4021], [1652, 40.6171], [1667, 40.6651], [1682, 40.8372], [1697, 41.0512], [1712, 41.2927], [1727, 41.6738], [1742, 41.8087], [1757, 41.862], [1772, 42.02], [1787, 41.9017], [1802, 42.1606], [1817, 42.2324], [1832, 42.4931], [1847, 42.5161], [1862, 42.6794], [1877, 42.8258], [1892, 42.8905], [1907, 43.0262], [1922, 43.0589], [1937, 43.3234], [1952, 43.2629], [1967, 43.1902], [1982, 43.3746], [1997, 43.5432], [2012, 43.6483], [2027, 43.7929], [2042, 44.1205], [2057, 44.1756], [2072, 44.3234], [2087, 44.4001], [2102, 44.4921], [2117, 44.7985], [2132, 44.8951], [2147, 44.9849], [2162, 44.9649], [2177, 44.8103], [2192, 44.9069], [2207, 44.8156], [2222, 45.1113], [2237, 45.1896], [2252, 45.0555], [2267, 45.0156], [2282, 45.2487], [2297, 45.3314], [2312, 45.3876], [2327, 45.4569], [2342, 45.569], [2357, 45.5946], [2372, 45.7481], [2387, 45.8519], [2402, 46.1318], [2417, 46.074], [2432, 45.8335], [2447, 45.9281], [2462, 45.8447], [2477, 45.9469], [2492, 46.1786], [2507, 46.1427], [2522, 46.2241], [2537, 46.2515], [2552, 46.4286], [2567, 46.3644], [2582, 46.3947], [2597, 46.3261], [2612, 46.3297], [2627, 46.4715], [2642, 46.3781], [2657, 46.4681], [2672, 46.7288], [2687, 46.7029], [2697, 46.6332]], "ko_back": [[2, 0.0339], [8, 0.0136], [14, 0.0271], [20, 0.0271], [26, 0.0136], [32, 0.0136], [38, 0.0203], [44, 0.0068], [50, 0.0], [56, 0.0068], [62, 0.0], [68, 0.0], [74, 0.0], [80, 0.0], [86, 0.0], [92, 0.0], [98, 0.0], [104, 0.0], [110, 0.0], [114, 0.0]], "ko_stand": [[2, 0.5018], [8, 0.7935], [14, 1.3496], [20, 1.3835], [26, 1.6886], [32, 2.1362], [38, 2.6109], [44, 2.9975], [50, 2.6449], [56, 2.8754], [62, 3.2281], [68, 3.4315], [74, 3.4315], [80, 3.1535], [86, 3.7367], [92, 3.791], [98, 3.7299], [104, 4.1504], [110, 4.225], [116, 4.9371], [122, 4.9642], [128, 5.5271], [134, 5.4253], [140, 6.1171], [146, 6.1646], [152, 6.5443], [158, 7.2767], [164, 7.4124], [170, 7.4802], [176, 8.1177], [182, 9.0264], [188, 8.5856], [194, 9.3926], [200, 10.3353], [206, 10.6066], [212, 10.7218], [218, 11.6577], [224, 12.0171], [230, 12.3088], [236, 12.8988], [242, 13.1226], [248, 13.6108], [254, 14.0245], [260, 13.9092], [266, 14.6145], [272, 14.7163], [278, 14.6077], [284, 14.8451], [290, 14.9061], [296, 15.2859], [302, 15.3198], [308, 16.0726], [314, 16.0319], [320, 16.3506], [326, 16.2014], [332, 17.022], [338, 16.9746], [344, 17.4018], [350, 17.5171], [356, 17.9376], [362, 17.9715], [368, 17.7544], [374, 18.5208], [380, 18.3173], [386, 18.6903], [392, 18.7174], [398, 19.0904], [404, 19.2464], [410, 19.6804], [416, 19.9449], [422, 20.5688], [428, 20.2705], [434, 20.6163], [440, 20.9215], [446, 21.0029], [452, 21.2063], [458, 21.4301], [464, 21.1928], [470, 21.7082], [476, 22.2304], [482, 21.993], [488, 22.4813], [494, 22.7186], [500, 22.6712], [506, 23.1934], [512, 23.5514]]};
+const GRID = [{"name": "Walker", "note": "Main brain. 2,700 practice rounds. Used for rungs 0, 1 and 3.", "cells": [{"v": "99.4%", "p": 99, "l": "strong", "w": "of 2 m/s kicks and 6 m/s boxes survived", "t": null}, {"v": "0.87 of 1.0 m/s", "p": 87, "l": "strong", "w": "average error 0.14 m/s, bar is 0.15", "t": null}, {"v": "0.69 of 0.8 rad/s", "p": 86, "l": "strong", "w": "average error 0.10 rad/s, bar is 0.2", "t": null}, {"v": "100%", "p": 100, "l": "strong", "w": "stays inside the plateau, measured at round 1,200", "t": null}, {"v": "about 30%", "p": 30, "l": "weak", "w": "returns from the slope one time in three", "t": null}, {"v": "100%", "p": 100, "l": "strong", "w": "pairs meet within 6 s, nobody walks off", "t": null}, {"v": "0%", "p": 2, "l": "fail", "w": "bumps into the opponent and stops", "t": null}, {"v": "0%", "p": 2, "l": "fail", "w": "stalemate", "t": null}, {"v": "Yes", "p": 100, "l": "strong", "w": "standing within 1 mm, walking within 4 cm over 2 m", "t": "Verified"}]}, {"name": "Climber", "note": "Copy of the Walker now practising on the hill. About 130 of 800 rounds done.", "cells": [{"v": "inherited", "p": 0, "l": "na", "w": "not re-measured", "t": null}, {"v": "inherited", "p": 0, "l": "na", "w": "not re-measured", "t": null}, {"v": "inherited", "p": 0, "l": "na", "w": "not re-measured", "t": null}, {"v": "93% so far", "p": 93, "l": "okay", "w": "share of robots on the plateau during practice", "t": "In training"}, {"v": "improving", "p": 55, "l": "okay", "w": "no formal test yet; practice rounds now last 19 of 20 s", "t": "In training"}, {"v": "n/a", "p": 0, "l": "na", "w": "single-robot agent", "t": null}, {"v": "n/a", "p": 0, "l": "na", "w": "single-robot agent", "t": null}, {"v": "n/a", "p": 0, "l": "na", "w": "single-robot agent", "t": null}, {"v": "Not yet", "p": 0, "l": "na", "w": "waiting for training to finish", "t": null}]}, {"name": "Attacker", "note": "Copy of the Walker that also sees the opponent and the rim. 500 practice rounds, paused.", "cells": [{"v": "inherited", "p": 0, "l": "na", "w": "not re-measured", "t": null}, {"v": "inherited", "p": 0, "l": "na", "w": "not re-measured", "t": null}, {"v": "inherited", "p": 0, "l": "na", "w": "not re-measured", "t": null}, {"v": "n/a", "p": 0, "l": "na", "w": "its job is to leave the centre", "t": null}, {"v": "n/a", "p": 0, "l": "na", "w": "", "t": null}, {"v": "Yes", "p": 100, "l": "strong", "w": "reaches the opponent in about 1 s", "t": null}, {"v": "98.7%", "p": 99, "l": "strong", "w": "of 768 test rounds, typically in 2.0 s; loses 1.3%", "t": null}, {"v": "0%", "p": 2, "l": "fail", "w": "no wins in two training attempts", "t": null}, {"v": "Not yet", "p": 0, "l": "na", "w": "Unity needs the opponent-awareness inputs added", "t": null}]}, {"name": "Stand-only v1", "retired": true, "note": "Retired. First attempt, taught standing with no walking.", "cells": [{"v": "47%", "p": 47, "l": "weak", "w": "could not step to recover", "t": null}, {"v": "0%", "p": 2, "l": "fail", "w": "never taught", "t": null}, {"v": "0%", "p": 2, "l": "fail", "w": "never taught", "t": null}, {"v": "n/a", "p": 0, "l": "na", "w": "", "t": null}, {"v": "n/a", "p": 0, "l": "na", "w": "", "t": null}, {"v": "n/a", "p": 0, "l": "na", "w": "", "t": null}, {"v": "n/a", "p": 0, "l": "na", "w": "", "t": null}, {"v": "n/a", "p": 0, "l": "na", "w": "", "t": null}, {"v": "Yes", "p": 100, "l": "strong", "w": "matched training to under a micron", "t": "Verified"}]}, {"name": "Sparring pair", "retired": true, "note": "Retired. Two identical learners fighting each other from the start.", "cells": [{"v": "inherited", "p": 0, "l": "na", "w": "", "t": null}, {"v": "inherited", "p": 0, "l": "na", "w": "", "t": null}, {"v": "inherited", "p": 0, "l": "na", "w": "", "t": null}, {"v": "n/a", "p": 0, "l": "na", "w": "", "t": null}, {"v": "n/a", "p": 0, "l": "na", "w": "", "t": null}, {"v": "Yes", "p": 100, "l": "strong", "w": "they meet chest to chest", "t": null}, {"v": "n/a", "p": 0, "l": "na", "w": "not tested", "t": null}, {"v": "8 to 30%", "p": 20, "l": "weak", "w": "of rounds decided; the rest were standoffs", "t": null}, {"v": "Not yet", "p": 0, "l": "na", "w": "", "t": null}]}];
+
+// ---------- ability grid ----------
+const LVL = { strong: "Strong", okay: "Getting there", weak: "Weak", fail: "Cannot do it", na: "Not tested" };
+document.getElementById("grid").innerHTML = GRID.map(a => `
+  <tr class="${a.retired ? "retired" : ""}"><th>${a.name}<small>${a.note}</small></th>` +
+  a.cells.map(c => `<td><div class="cell ${c.l}">
+      <div class="val">${c.v}</div>
+      <div class="meter"><i style="width:${c.p}%"></i></div>
+      <div class="lvl ${c.l}">${c.t || LVL[c.l]}</div>
+      <div class="why">${c.w || ""}</div></div></td>`).join("") + `</tr>`).join("");
+
+// ---------- line charts ----------
+function chart(id, tableId, cfg) {
+  const W = 1000, H = 380, m = { l: 58, r: 22, t: 46, b: 46 };
+  const el = document.getElementById(id);
+  const xs = cfg.series.flatMap(s => s.pts.map(p => p[0]));
+  const x0 = cfg.x0 ?? Math.min(...xs), x1 = cfg.x1 ?? Math.max(...xs), y0 = 0, y1 = cfg.ymax;
+  const X = v => m.l + (v - x0) / (x1 - x0) * (W - m.l - m.r), Y = v => H - m.b - (v - y0) / (y1 - y0) * (H - m.t - m.b);
+  let s = `<svg viewBox="0 0 ${W} ${H}" role="img" aria-label="${cfg.title}">`;
+  for (const g of cfg.yticks) s += `<line x1="${m.l}" x2="${W - m.r}" y1="${Y(g)}" y2="${Y(g)}" stroke="var(--grid)" stroke-width="1"/><text x="${m.l - 8}" y="${Y(g) + 4}" text-anchor="end" font-size="12.5" fill="var(--ink2)">${cfg.yfmt(g)}</text>`;
+  for (const g of cfg.xticks) s += `<text x="${X(g)}" y="${H - m.b + 18}" text-anchor="middle" font-size="12.5" fill="var(--ink2)">${g}</text>`;
+  s += `<line x1="${m.l}" x2="${W - m.r}" y1="${Y(0)}" y2="${Y(0)}" stroke="var(--axis)" stroke-width="1"/>`;
+  s += `<text x="${(m.l + W - m.r) / 2}" y="${H - 6}" text-anchor="middle" font-size="12.5" fill="var(--ink3)">${cfg.xlabel}</text>`;
+  s += `<text x="${m.l}" y="16" font-size="12.5" fill="var(--ink3)">${cfg.ylabel}</text>`;
+  for (const b of cfg.bands || []) s += `<line x1="${X(b.x)}" x2="${X(b.x)}" y1="${m.t - 6}" y2="${Y(0)}" stroke="var(--axis)" stroke-width="1" stroke-dasharray="4 4"/>`;
+  for (const sr of cfg.series) s += `<path d="${sr.pts.map((p, i) => (i ? "L" : "M") + X(p[0]).toFixed(1) + " " + Y(Math.min(p[1], y1)).toFixed(1)).join(" ")}" fill="none" stroke="${sr.color}" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"/>`;
+  // annotations: numbered marker on the curve + leader + text
+  (cfg.notes || []).forEach((n, i) => {
+    const px = X(n.x), py = Y(n.y), tx = px + n.dx, ty = py + n.dy;
+    s += `<line x1="${px}" y1="${py}" x2="${tx}" y2="${ty}" stroke="var(--ink2)" stroke-width="1"/>`;
+    s += `<circle cx="${px}" cy="${py}" r="5" fill="var(--surface)" stroke="var(--ink)" stroke-width="2"/>`;
+    const lines = n.text.split("|"), anchor = n.anchor || "start", bx = anchor === "end" ? tx - 4 : tx + 4;
+    lines.forEach((ln, k) => s += `<text x="${bx}" y="${ty + (n.dy < 0 ? -4 - (lines.length - 1 - k) * 15 : 14 + k * 15)}" text-anchor="${anchor}" font-size="13" font-weight="${k === 0 ? 600 : 400}" fill="var(--ink)" paint-order="stroke" stroke="var(--surface)" stroke-width="4">${ln}</text>`);
+  });
+  s += `<line class="cross" x1="0" x2="0" y1="${m.t - 6}" y2="${Y(0)}" stroke="var(--ink3)" stroke-width="1" opacity="0"/>`;
+  cfg.series.forEach((sr, i) => s += `<circle class="dot" data-i="${i}" r="5" fill="${sr.color}" stroke="var(--surface)" stroke-width="2" opacity="0"/>`);
+  s += `<rect x="${m.l}" y="${m.t - 6}" width="${W - m.l - m.r}" height="${H - m.t - m.b + 6}" fill="transparent"/></svg><div class="tip"></div>`;
+  el.innerHTML = s;
+  const svg = el.querySelector("svg"), tip = el.querySelector(".tip"), cross = el.querySelector(".cross"), dots = el.querySelectorAll(".dot");
+  const near = (pts, v) => pts.reduce((a, p) => Math.abs(p[0] - v) < Math.abs(a[0] - v) ? p : a);
+  svg.addEventListener("pointermove", e => {
+    const r = svg.getBoundingClientRect(), vx = (e.clientX - r.left) / r.width * W;
+    const v = x0 + (vx - m.l) / (W - m.l - m.r) * (x1 - x0);
+    if (v < x0 || v > x1) return hide();
+    let html = "", top = H, cx = 0;
+    cfg.series.forEach((sr, i) => {
+      if (v < sr.pts[0][0] - 20 || v > sr.pts[sr.pts.length - 1][0] + 20) { dots[i].setAttribute("opacity", 0); return; }
+      const p = near(sr.pts, v); cx = X(p[0]);
+      dots[i].setAttribute("cx", X(p[0])); dots[i].setAttribute("cy", Y(Math.min(p[1], y1))); dots[i].setAttribute("opacity", 1);
+      top = Math.min(top, Y(Math.min(p[1], y1)));
+      html += `${cfg.series.length > 1 ? sr.name + ": " : ""}<b>${cfg.vfmt(p[1])}</b> at practice round ${p[0]}<br>`;
+    });
+    if (!html) return hide();
+    cross.setAttribute("x1", cx); cross.setAttribute("x2", cx); cross.setAttribute("opacity", 1);
+    tip.innerHTML = html; tip.style.left = (cx / W * r.width) + "px"; tip.style.top = (top / H * r.height) + "px"; tip.style.opacity = 1;
+  });
+  function hide() { tip.style.opacity = 0; cross.setAttribute("opacity", 0); dots.forEach(d => d.setAttribute("opacity", 0)); }
+  svg.addEventListener("pointerleave", hide);
+  // table view
+  const step = Math.max(1, Math.round(cfg.series[0].pts.length / 12));
+  document.getElementById(tableId).innerHTML = cfg.series.map(sr => `<table><tr><th>${cfg.series.length > 1 ? sr.name + " · " : ""}practice round</th>${sr.pts.filter((_, i) => i % step === 0 || i === sr.pts.length - 1).map(p => `<td>${p[0]}</td>`).join("")}</tr><tr><th>value</th>${sr.pts.filter((_, i) => i % step === 0 || i === sr.pts.length - 1).map(p => `<td>${cfg.vfmt(p[1])}</td>`).join("")}</tr></table>`).join("");
+}
+
+chart("c1", "t1", {
+  title: "Seconds on its feet per 20 second round", ymax: 20, yticks: [0, 5, 10, 15, 20], yfmt: v => v + " s", vfmt: v => v.toFixed(1) + " s",
+  xticks: [0, 500, 1000, 1500, 2000, 2500], x0: 0, x1: 2700, xlabel: "practice rounds (training iterations)", ylabel: "average seconds upright, out of 20",
+  series: [{ name: "Walker", color: "var(--s1)", pts: DATA.stay_up }],
+  bands: [{ x: 400 }, { x: 1200 }],
+  notes: [
+    { x: 300, y: DATA.stay_up.find(p => p[0] >= 300)[1], dx: -30, dy: -70, anchor: "start", text: "Standing only|plateaus near 12 s" },
+    { x: 415, y: 5, dx: 70, dy: -30, text: "Walking switched on|training restarted, so the|counter starts again" },
+    { x: 1215, y: 4, dx: 50, dy: -40, text: "Turning reward added|another restart, not a|real loss of balance" },
+    { x: 2692, y: 19.4, dx: -60, dy: 60, anchor: "end", text: "Now: 19.4 of 20 s|survives 99.4% of hits" }
+  ]
+});
+chart("c2", "t2", {
+  title: "Instruction following", ymax: 100, yticks: [0, 25, 50, 75, 100], yfmt: v => v + "%", vfmt: v => v.toFixed(0) + "%",
+  xticks: [500, 1000, 1500, 2000, 2500], x0: 400, x1: 2700, xlabel: "practice rounds (training iterations)", ylabel: "share of the best possible score",
+  series: [{ name: "Walking", color: "var(--s1)", pts: DATA.track_lin }, { name: "Turning", color: "var(--s2)", pts: DATA.track_ang }],
+  bands: [{ x: 1200 }],
+  notes: [
+    { x: 1000, y: DATA.track_ang.find(p => p[0] >= 1000)[1], dx: -40, dy: 60, anchor: "end", text: "Turning stuck near 33%|robot ignores turn commands" },
+    { x: 1200, y: 96, dx: 12, dy: 0, text: "Fix: reward for|facing the right way" },
+    { x: 2690, y: DATA.track_ang[DATA.track_ang.length - 1][1], dx: -50, dy: 55, anchor: "end", text: "Turning now 47%|and still rising slowly" },
+    { x: 2690, y: DATA.track_lin[DATA.track_lin.length - 1][1], dx: -50, dy: -34, anchor: "end", text: "Walking 82%|0.87 m/s for a 1.0 request" }
+  ]
+});
+const koLast = DATA.ko_stand[DATA.ko_stand.length - 1]; const koMax = Math.ceil((Math.max(...DATA.ko_stand.map(p => p[1])) + 3) / 5) * 5; const koX = Math.ceil((koLast[0] + 15) / 50) * 50;
+chart("c3", "t3", {
+  title: "Knock-outs per minute", ymax: koMax, yticks: Array.from({ length: koMax / 5 + 1 }, (_, i) => i * 5), yfmt: v => v, vfmt: v => v.toFixed(1) + " per min",
+  xticks: Array.from({ length: koX / 100 + 1 }, (_, i) => i * 100), x0: 0, x1: koX, xlabel: "practice rounds (training iterations)", ylabel: "knock-outs per minute of sparring",
+  series: [{ name: "Standing opponent", color: "var(--s1)", pts: DATA.ko_stand }, { name: "Resisting opponent", color: "var(--s2)", pts: DATA.ko_back }],
+  notes: [
+    { x: DATA.ko_back[DATA.ko_back.length - 1][0], y: 0, dx: 70, dy: -34, text: "Resisting opponent: zero wins|run stopped, approach changed" },
+    { x: 40, y: DATA.ko_stand.find(p => p[0] >= 40)[1], dx: 30, dy: -90, text: "First it learns|not to fall over itself" },
+    { x: koLast[0], y: koLast[1], dx: -60, dy: 70, anchor: "end", text: `Now: about ${Math.round(koLast[1])} a minute|98.7% of test rounds won` }
+  ]
+});
+</script>
+</body>
+</html>

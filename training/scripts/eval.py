@@ -95,7 +95,7 @@ def eval_duel(env, policy, steps):
         out = (extras["radius"] > 1.7) | extras["fallen"]; out = out.view(N, 2)
         b_out = out[:, 1] & open_; a_out = out[:, 0] & open_ & ~b_out
         win |= b_out; lose |= a_out; t_win[b_out] = t * env.ctrl_dt
-        open_ &= ~(b_out | a_out | done.view(N, 2)[:, 0])
+        open_ &= ~(b_out | a_out | (done if done.shape[0] == N else done.view(N, 2)[:, 0]))
     w = win.float().mean().item(); l = lose.float().mean().item()
     return dict(duels=N, attacker_ejects_defender=round(w, 4), attacker_lost=round(l, 4), undecided=round(1 - w - l, 4),
                 median_time_s=round(float(t_win[win].median()) if win.any() else -1.0, 2), **{"pass": w >= 0.7})
@@ -106,9 +106,12 @@ def main():
     ap.add_argument("--rung", default="r0"); ap.add_argument("--ckpt", required=True)
     ap.add_argument("--seeds", type=int, default=10); ap.add_argument("--num-envs", type=int, default=256)
     ap.add_argument("--seconds", type=float, default=20.0)
+    ap.add_argument("--opponent", default=None, help="frozen checkpoint driving robot b_ (duel rungs)")
     a = ap.parse_args()
     cfg = default_cfg(a.rung)
-    if a.rung == "r4probe": cfg["max_radius"] = 1.7
+    duel = a.rung in ("r4probe", "r4att")
+    if duel: cfg["max_radius"] = 1.7; cfg["spawn"].update(r=[[0.0, 0.5], [1.25, 1.35]])
+    if a.opponent: cfg["frozen_opponent"] = os.path.abspath(a.opponent)
     if a.rung in ("r0", "r1"):
         cfg["push"] = dict(interval_s=[5.0, 5.0], vel=[2.0, 2.0]); cfg["projectile"].update(speed=[6.0, 6.0])
     else:
@@ -118,7 +121,7 @@ def main():
     steps = int(a.seconds / env.ctrl_dt); rows = []
     for seed in range(a.seeds):
         torch.manual_seed(1000 + seed)
-        if a.rung == "r4probe": row = eval_duel(env, policy, steps)
+        if duel: row = eval_duel(env, policy, steps)
         else: row = (eval_flat if a.rung in ("r0", "r1") else eval_arena)(env, policy, a.rung, steps)
         row = dict(seed=seed, **row); rows.append(row); print(json.dumps(row), flush=True)
     ok = all(r["pass"] for r in rows)

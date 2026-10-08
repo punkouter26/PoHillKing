@@ -1,0 +1,283 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>PoKingHill training report</title>
+<style>
+:root {
+  color-scheme: light;
+  --page: #f4f3ef; --surface: #fcfcfb; --ink: #0b0b0b; --ink2: #52514e; --ink3: #7b7a74;
+  --grid: #e1e0d9; --axis: #c3c2b7; --ring: rgba(11,11,11,0.10);
+  --s1: #2a78d6; --s2: #eb6834;
+  --good: #0ca30c; --warn: #fab219; --serious: #ec835a; --crit: #d03b3b; --none: #c3c2b7;
+  --note: #fff6d8;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    color-scheme: dark;
+    --page: #111110; --surface: #1a1a19; --ink: #ffffff; --ink2: #c3c2b7; --ink3: #908f88;
+    --grid: #2c2c2a; --axis: #383835; --ring: rgba(255,255,255,0.10);
+    --s1: #3987e5; --s2: #d95926; --none: #4a4a46; --note: #2b2716;
+  }
+}
+:root[data-theme="dark"] {
+  color-scheme: dark;
+  --page: #111110; --surface: #1a1a19; --ink: #ffffff; --ink2: #c3c2b7; --ink3: #908f88;
+  --grid: #2c2c2a; --axis: #383835; --ring: rgba(255,255,255,0.10);
+  --s1: #3987e5; --s2: #d95926; --none: #4a4a46; --note: #2b2716;
+}
+* { box-sizing: border-box; }
+body { margin: 0; background: var(--page); color: var(--ink); font: 16px/1.55 system-ui, -apple-system, "Segoe UI", sans-serif; }
+main { max-width: 1280px; margin: 0 auto; padding: 32px 16px 64px; }
+h1 { font-size: 30px; line-height: 1.15; margin: 0 0 6px; letter-spacing: -0.01em; }
+h2 { font-size: 21px; margin: 44px 0 6px; }
+h3 { font-size: 17px; margin: 0 0 4px; }
+p { margin: 8px 0; max-width: 72ch; }
+.sub { color: var(--ink2); }
+.small { font-size: 13.5px; color: var(--ink2); }
+.card { background: var(--surface); border: 1px solid var(--ring); border-radius: 12px; padding: 18px; margin: 14px 0; }
+.kpis { display: grid; grid-template-columns: repeat(auto-fit, minmax(190px, 1fr)); gap: 12px; margin: 18px 0; }
+.kpi { background: var(--surface); border: 1px solid var(--ring); border-radius: 12px; padding: 14px 16px; }
+.kpi b { display: block; font-size: 30px; line-height: 1.1; font-variant-numeric: tabular-nums; }
+.kpi span { color: var(--ink2); font-size: 14px; }
+
+/* ladder */
+.ladder { display: grid; grid-template-columns: repeat(6, 1fr); gap: 8px; margin: 14px 0 4px; }
+.step { background: var(--surface); border: 1px solid var(--ring); border-radius: 10px; padding: 10px 12px; border-top: 5px solid var(--none); }
+.step.pass { border-top-color: var(--good); } .step.part { border-top-color: var(--warn); } .step.todo { border-top-color: var(--none); }
+.step .n { font-size: 12.5px; color: var(--ink3); letter-spacing: .04em; }
+.step .t { font-weight: 600; font-size: 14.5px; line-height: 1.25; margin: 2px 0 4px; }
+.step .s { font-size: 13px; color: var(--ink2); }
+@media (max-width: 760px) { .ladder { grid-template-columns: repeat(2, 1fr); } }
+
+/* ability grid */
+.scroll { overflow-x: auto; }
+table.grid { border-collapse: separate; border-spacing: 0; width: 100%; min-width: 1080px; table-layout: fixed; }
+table.grid th, table.grid td { padding: 10px 10px; text-align: left; vertical-align: top; border-bottom: 1px solid var(--grid); }
+table.grid thead th { font-size: 13px; font-weight: 600; color: var(--ink2); vertical-align: bottom; }
+table.grid thead th:first-child { width: 168px; }
+table.grid tbody th { font-weight: 600; }
+table.grid tbody th small { display: block; font-weight: 400; color: var(--ink2); font-size: 12.5px; line-height: 1.35; margin-top: 2px; }
+.cell { min-width: 0; }
+.meter { height: 8px; border-radius: 4px; background: var(--grid); overflow: hidden; margin: 4px 0 5px; }
+.meter i { display: block; height: 100%; border-radius: 4px; }
+.lvl { font-size: 12.5px; font-weight: 600; }
+.lvl::before { content: ""; display: inline-block; width: 9px; height: 9px; border-radius: 50%; margin-right: 6px; vertical-align: 0; background: var(--c); }
+.val { font-size: 15px; font-weight: 600; font-variant-numeric: tabular-nums; }
+.why { font-size: 12.5px; color: var(--ink2); line-height: 1.35; }
+.strong { --c: var(--good); } .okay { --c: var(--warn); } .weak { --c: var(--serious); } .fail { --c: var(--crit); } .na { --c: var(--none); }
+.meter i { background: var(--c); }
+tr.retired th, tr.retired td { opacity: .72; }
+.legend { display: flex; flex-wrap: wrap; gap: 6px 18px; font-size: 13px; color: var(--ink2); margin: 10px 0 0; }
+
+/* charts */
+.chart { position: relative; }
+.chart svg { display: block; width: 100%; height: auto; overflow: visible; }
+.chart .tip { position: absolute; pointer-events: none; background: var(--ink); color: var(--surface); font-size: 12.5px; padding: 6px 9px; border-radius: 6px; white-space: nowrap; transform: translate(-50%, -115%); opacity: 0; transition: opacity .1s; z-index: 2; }
+.clegend { display: flex; gap: 18px; font-size: 13.5px; color: var(--ink2); margin: 2px 0 6px; flex-wrap: wrap; }
+.clegend i { display: inline-block; width: 18px; height: 3px; border-radius: 2px; vertical-align: middle; margin-right: 6px; }
+.explain { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-top: 10px; }
+.explain div { background: var(--page); border-radius: 10px; padding: 12px 14px; font-size: 14.5px; }
+.explain b { display: block; font-size: 12.5px; letter-spacing: .05em; text-transform: uppercase; color: var(--ink3); margin-bottom: 3px; }
+@media (max-width: 760px) { .explain { grid-template-columns: 1fr; } }
+details { margin-top: 10px; font-size: 13.5px; color: var(--ink2); }
+details table { border-collapse: collapse; margin-top: 6px; font-variant-numeric: tabular-nums; }
+details td, details th { padding: 2px 12px 2px 0; text-align: right; }
+.callout { background: var(--note); border-radius: 10px; padding: 12px 14px; font-size: 14.5px; margin: 12px 0; }
+ul { padding-left: 20px; margin: 8px 0; max-width: 72ch; } li { margin: 4px 0; }
+text { font-family: inherit; }
+</style>
+</head>
+<body>
+<main>
+<h1>PoKingHill training report</h1>
+<p class="sub">Unitree G1 robots learning king-of-the-hill, trained in MuJoCo Warp and checked inside Unity. Snapshot taken __STAMP__.</p>
+
+<div class="kpis">
+  <div class="kpi"><b>3 of 6</b><span>behaviour rungs fully passing</span></div>
+  <div class="kpi"><b>99.4%</b><span>of shoves and thrown boxes the walker survives</span></div>
+  <div class="kpi"><b>98.7%</b><span>of rounds the attacker pushes a standing opponent off the summit</span></div>
+  <div class="kpi"><b>2.0 s</b><span>typical time for the attacker to finish a round</span></div>
+</div>
+
+<h2>Where the ladder stands</h2>
+<p class="sub">Each rung is a behaviour with a numeric pass bar. Green passed, yellow is partly there, grey has not started.</p>
+<div class="ladder">
+  <div class="step pass"><div class="n">RUNG 0</div><div class="t">Stand and take hits</div><div class="s">Passed. Also verified in Unity.</div></div>
+  <div class="step pass"><div class="n">RUNG 1</div><div class="t">Walk and turn</div><div class="s">Passed. Also verified in Unity.</div></div>
+  <div class="step part"><div class="n">RUNG 2</div><div class="t">Hold the summit, climb back</div><div class="s">Training now. Holding works, climbing is being learned.</div></div>
+  <div class="step pass"><div class="n">RUNG 3</div><div class="t">Walk up to the opponent</div><div class="s">Passed. Also verified in Unity.</div></div>
+  <div class="step part"><div class="n">RUNG 4</div><div class="t">Push the opponent off</div><div class="s">Works on a standing opponent. Not on one that fights back.</div></div>
+  <div class="step todo"><div class="n">RUNG 5</div><div class="t">Full match with rising sea</div><div class="s">Not started.</div></div>
+</div>
+
+<h2>Agents and what each can do</h2>
+<p class="sub">An "agent" here is one trained brain. All of them drive the same robot body. Each bar shows how close that agent is to perfect on that skill, with the measured number underneath.</p>
+<div class="card scroll">
+<table class="grid">
+<thead><tr>
+  <th>Agent</th><th>Stay up when shoved</th><th>Walk where told</th><th>Turn where told</th><th>Hold the summit</th><th>Climb back up the slope</th><th>Walk up to the opponent</th><th>Push a standing opponent off</th><th>Beat an opponent that resists</th><th>Same behaviour in Unity</th>
+</tr></thead>
+<tbody id="grid"></tbody>
+</table>
+<div class="legend">
+  <span class="lvl strong">Strong: meets its pass bar</span><span class="lvl okay">Getting there</span><span class="lvl weak">Weak</span><span class="lvl fail">Cannot do it</span><span class="lvl na">Not tested or not applicable</span>
+</div>
+</div>
+<p class="small">Where a cell says "inherited", the agent started as a copy of the Walker and has not been re-measured on that skill since.</p>
+
+<h2>The three charts that matter most</h2>
+<p class="sub">These are the three most telling curves from the TensorBoard logs. They are redrawn here from the same logged numbers so the notes could be placed directly on them; they are not literal screenshots. Hover a chart to read exact values. Live versions are at <code>http://localhost:6006</code> while TensorBoard is running.</p>
+
+<div class="card">
+  <h3>1. How long the robot stays on its feet</h3>
+  <p class="small">TensorBoard name: <code>Train/mean_episode_length</code>, for the Walker and its predecessors. Each practice round lasts up to 20 seconds, with shoves and thrown boxes throughout.</p>
+  <div class="chart" id="c1"></div>
+  <div class="explain">
+    <div><b>What it means</b>The line is the average time a robot lasts before falling. The top of the chart, 20 seconds, means it survived the whole round. Higher is better.</div>
+    <div><b>Where it is now</b>Robots now last about 19.4 of 20 seconds on average while being kicked every few seconds. The two sharp dips are not the robot getting worse. Training was stopped and restarted there to add a new skill, and the counter begins again from short rounds before catching up within a few dozen rounds.</div>
+  </div>
+  <details><summary>Data table</summary><div id="t1"></div></details>
+</div>
+
+<div class="card">
+  <h3>2. How well it follows walking and turning instructions</h3>
+  <p class="small">TensorBoard names: <code>rew/tracking_lin_vel</code> and <code>rew/tracking_ang_vel</code>, shown as a share of the best possible score.</p>
+  <div class="clegend"><span><i style="background:var(--s1)"></i>Walking speed and direction</span><span><i style="background:var(--s2)"></i>Turning</span></div>
+  <div class="chart" id="c2"></div>
+  <div class="explain">
+    <div><b>What it means</b>The robot is told "go this fast, this way, and turn this quickly". 100% would mean it matches the instruction exactly at every instant. Because a walking body sways with each step, a very good walker scores well below 100%.</div>
+    <div><b>Where it is now</b>Walking reached about 82% early and stayed there. Turning was stuck near 33%: the robot was ignoring turn instructions. After a reward for facing the right way was added, turning climbed to 47%. In a direct test it now turns at 0.69 when asked for 0.8, up from zero.</div>
+  </div>
+  <details><summary>Data table</summary><div id="t2"></div></details>
+</div>
+
+<div class="card">
+  <h3>3. How often the attacker knocks the opponent off</h3>
+  <p class="small">TensorBoard name: <code>rew/win</code>, converted to knock-outs per minute of sparring, for two versions of the attacker.</p>
+  <div class="clegend"><span><i style="background:var(--s1)"></i>Opponent stands its ground at the rim</span><span><i style="background:var(--s2)"></i>Opponent keeps walking back to the centre</span></div>
+  <div class="chart" id="c3"></div>
+  <div class="explain">
+    <div><b>What it means</b>Each point is how many times per minute the learning robot shoved its opponent off the summit. Zero means every round ended in a stalemate.</div>
+    <div><b>Where it is now</b>Against an opponent that just stands near the edge, the attacker went from almost never winning to more than 20 knock-outs a minute, and wins 98.7% of test rounds. Against an opponent that walks back to the centre the line never left zero: two identical robots have the same grip and strength, so a plain shove is not enough.</div>
+  </div>
+  <details><summary>Data table</summary><div id="t3"></div></details>
+</div>
+
+<h2>In plain terms</h2>
+<ul>
+  <li><b>The basics are solid.</b> One brain, the Walker, can stand through hard shoves, walk and turn on command, and walk up to another robot. All of that behaves the same in Unity as in training, to within a few centimetres after walking two metres.</li>
+  <li><b>Climbing back onto the summit is being learned right now.</b> The Walker stays on the flat top reliably but only recovers from the slope about one time in three. A new version, the Climber, is practising on the hill.</li>
+  <li><b>Fighting is half done.</b> The Attacker reliably shoves a standing robot off the summit in about two seconds. It cannot yet beat a robot that actively resists, and two attackers facing each other mostly end in a standoff.</li>
+  <li><b>Not started:</b> the rising sea, the full match, and the Unity menu, camera and sound.</li>
+</ul>
+<div class="callout"><b>Worth knowing.</b> In a control test, the standing opponent wandered off the edge by itself in about 10% of 15-second rounds with nobody touching it. The attacker's wins come in about 2 seconds, far faster than that drift, but the true figure for "wins caused by the attacker" is a little below the 98.7% shown. The attacker has also not yet been checked inside Unity.</div>
+
+<p class="small">Sources: evaluation runs with 256 to 512 robots and 3 random seeds each (<code>training/scripts/eval.py</code>), training logs under <code>training/runs</code>, and Unity comparison files under <code>training/assets/g1</code>. Full history in <code>rl_optimization_log.md</code>.</p>
+</main>
+
+<script>
+const DATA = __DATA__;
+const GRID = __GRID__;
+
+// ---------- ability grid ----------
+const LVL = { strong: "Strong", okay: "Getting there", weak: "Weak", fail: "Cannot do it", na: "Not tested" };
+document.getElementById("grid").innerHTML = GRID.map(a => `
+  <tr class="${a.retired ? "retired" : ""}"><th>${a.name}<small>${a.note}</small></th>` +
+  a.cells.map(c => `<td><div class="cell ${c.l}">
+      <div class="val">${c.v}</div>
+      <div class="meter"><i style="width:${c.p}%"></i></div>
+      <div class="lvl ${c.l}">${c.t || LVL[c.l]}</div>
+      <div class="why">${c.w || ""}</div></div></td>`).join("") + `</tr>`).join("");
+
+// ---------- line charts ----------
+function chart(id, tableId, cfg) {
+  const W = 1000, H = 380, m = { l: 58, r: 22, t: 46, b: 46 };
+  const el = document.getElementById(id);
+  const xs = cfg.series.flatMap(s => s.pts.map(p => p[0]));
+  const x0 = cfg.x0 ?? Math.min(...xs), x1 = cfg.x1 ?? Math.max(...xs), y0 = 0, y1 = cfg.ymax;
+  const X = v => m.l + (v - x0) / (x1 - x0) * (W - m.l - m.r), Y = v => H - m.b - (v - y0) / (y1 - y0) * (H - m.t - m.b);
+  let s = `<svg viewBox="0 0 ${W} ${H}" role="img" aria-label="${cfg.title}">`;
+  for (const g of cfg.yticks) s += `<line x1="${m.l}" x2="${W - m.r}" y1="${Y(g)}" y2="${Y(g)}" stroke="var(--grid)" stroke-width="1"/><text x="${m.l - 8}" y="${Y(g) + 4}" text-anchor="end" font-size="12.5" fill="var(--ink2)">${cfg.yfmt(g)}</text>`;
+  for (const g of cfg.xticks) s += `<text x="${X(g)}" y="${H - m.b + 18}" text-anchor="middle" font-size="12.5" fill="var(--ink2)">${g}</text>`;
+  s += `<line x1="${m.l}" x2="${W - m.r}" y1="${Y(0)}" y2="${Y(0)}" stroke="var(--axis)" stroke-width="1"/>`;
+  s += `<text x="${(m.l + W - m.r) / 2}" y="${H - 6}" text-anchor="middle" font-size="12.5" fill="var(--ink3)">${cfg.xlabel}</text>`;
+  s += `<text x="${m.l}" y="16" font-size="12.5" fill="var(--ink3)">${cfg.ylabel}</text>`;
+  for (const b of cfg.bands || []) s += `<line x1="${X(b.x)}" x2="${X(b.x)}" y1="${m.t - 6}" y2="${Y(0)}" stroke="var(--axis)" stroke-width="1" stroke-dasharray="4 4"/>`;
+  for (const sr of cfg.series) s += `<path d="${sr.pts.map((p, i) => (i ? "L" : "M") + X(p[0]).toFixed(1) + " " + Y(Math.min(p[1], y1)).toFixed(1)).join(" ")}" fill="none" stroke="${sr.color}" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"/>`;
+  // annotations: numbered marker on the curve + leader + text
+  (cfg.notes || []).forEach((n, i) => {
+    const px = X(n.x), py = Y(n.y), tx = px + n.dx, ty = py + n.dy;
+    s += `<line x1="${px}" y1="${py}" x2="${tx}" y2="${ty}" stroke="var(--ink2)" stroke-width="1"/>`;
+    s += `<circle cx="${px}" cy="${py}" r="5" fill="var(--surface)" stroke="var(--ink)" stroke-width="2"/>`;
+    const lines = n.text.split("|"), anchor = n.anchor || "start", bx = anchor === "end" ? tx - 4 : tx + 4;
+    lines.forEach((ln, k) => s += `<text x="${bx}" y="${ty + (n.dy < 0 ? -4 - (lines.length - 1 - k) * 15 : 14 + k * 15)}" text-anchor="${anchor}" font-size="13" font-weight="${k === 0 ? 600 : 400}" fill="var(--ink)" paint-order="stroke" stroke="var(--surface)" stroke-width="4">${ln}</text>`);
+  });
+  s += `<line class="cross" x1="0" x2="0" y1="${m.t - 6}" y2="${Y(0)}" stroke="var(--ink3)" stroke-width="1" opacity="0"/>`;
+  cfg.series.forEach((sr, i) => s += `<circle class="dot" data-i="${i}" r="5" fill="${sr.color}" stroke="var(--surface)" stroke-width="2" opacity="0"/>`);
+  s += `<rect x="${m.l}" y="${m.t - 6}" width="${W - m.l - m.r}" height="${H - m.t - m.b + 6}" fill="transparent"/></svg><div class="tip"></div>`;
+  el.innerHTML = s;
+  const svg = el.querySelector("svg"), tip = el.querySelector(".tip"), cross = el.querySelector(".cross"), dots = el.querySelectorAll(".dot");
+  const near = (pts, v) => pts.reduce((a, p) => Math.abs(p[0] - v) < Math.abs(a[0] - v) ? p : a);
+  svg.addEventListener("pointermove", e => {
+    const r = svg.getBoundingClientRect(), vx = (e.clientX - r.left) / r.width * W;
+    const v = x0 + (vx - m.l) / (W - m.l - m.r) * (x1 - x0);
+    if (v < x0 || v > x1) return hide();
+    let html = "", top = H, cx = 0;
+    cfg.series.forEach((sr, i) => {
+      if (v < sr.pts[0][0] - 20 || v > sr.pts[sr.pts.length - 1][0] + 20) { dots[i].setAttribute("opacity", 0); return; }
+      const p = near(sr.pts, v); cx = X(p[0]);
+      dots[i].setAttribute("cx", X(p[0])); dots[i].setAttribute("cy", Y(Math.min(p[1], y1))); dots[i].setAttribute("opacity", 1);
+      top = Math.min(top, Y(Math.min(p[1], y1)));
+      html += `${cfg.series.length > 1 ? sr.name + ": " : ""}<b>${cfg.vfmt(p[1])}</b> at practice round ${p[0]}<br>`;
+    });
+    if (!html) return hide();
+    cross.setAttribute("x1", cx); cross.setAttribute("x2", cx); cross.setAttribute("opacity", 1);
+    tip.innerHTML = html; tip.style.left = (cx / W * r.width) + "px"; tip.style.top = (top / H * r.height) + "px"; tip.style.opacity = 1;
+  });
+  function hide() { tip.style.opacity = 0; cross.setAttribute("opacity", 0); dots.forEach(d => d.setAttribute("opacity", 0)); }
+  svg.addEventListener("pointerleave", hide);
+  // table view
+  const step = Math.max(1, Math.round(cfg.series[0].pts.length / 12));
+  document.getElementById(tableId).innerHTML = cfg.series.map(sr => `<table><tr><th>${cfg.series.length > 1 ? sr.name + " · " : ""}practice round</th>${sr.pts.filter((_, i) => i % step === 0 || i === sr.pts.length - 1).map(p => `<td>${p[0]}</td>`).join("")}</tr><tr><th>value</th>${sr.pts.filter((_, i) => i % step === 0 || i === sr.pts.length - 1).map(p => `<td>${cfg.vfmt(p[1])}</td>`).join("")}</tr></table>`).join("");
+}
+
+chart("c1", "t1", {
+  title: "Seconds on its feet per 20 second round", ymax: 20, yticks: [0, 5, 10, 15, 20], yfmt: v => v + " s", vfmt: v => v.toFixed(1) + " s",
+  xticks: [0, 500, 1000, 1500, 2000, 2500], x0: 0, x1: 2700, xlabel: "practice rounds (training iterations)", ylabel: "average seconds upright, out of 20",
+  series: [{ name: "Walker", color: "var(--s1)", pts: DATA.stay_up }],
+  bands: [{ x: 400 }, { x: 1200 }],
+  notes: [
+    { x: 300, y: DATA.stay_up.find(p => p[0] >= 300)[1], dx: -30, dy: -70, anchor: "start", text: "Standing only|plateaus near 12 s" },
+    { x: 415, y: 5, dx: 70, dy: -30, text: "Walking switched on|training restarted, so the|counter starts again" },
+    { x: 1215, y: 4, dx: 50, dy: -40, text: "Turning reward added|another restart, not a|real loss of balance" },
+    { x: 2692, y: 19.4, dx: -60, dy: 60, anchor: "end", text: "Now: 19.4 of 20 s|survives 99.4% of hits" }
+  ]
+});
+chart("c2", "t2", {
+  title: "Instruction following", ymax: 100, yticks: [0, 25, 50, 75, 100], yfmt: v => v + "%", vfmt: v => v.toFixed(0) + "%",
+  xticks: [500, 1000, 1500, 2000, 2500], x0: 400, x1: 2700, xlabel: "practice rounds (training iterations)", ylabel: "share of the best possible score",
+  series: [{ name: "Walking", color: "var(--s1)", pts: DATA.track_lin }, { name: "Turning", color: "var(--s2)", pts: DATA.track_ang }],
+  bands: [{ x: 1200 }],
+  notes: [
+    { x: 1000, y: DATA.track_ang.find(p => p[0] >= 1000)[1], dx: -40, dy: 60, anchor: "end", text: "Turning stuck near 33%|robot ignores turn commands" },
+    { x: 1200, y: 96, dx: 12, dy: 0, text: "Fix: reward for|facing the right way" },
+    { x: 2690, y: DATA.track_ang[DATA.track_ang.length - 1][1], dx: -50, dy: 55, anchor: "end", text: "Turning now 47%|and still rising slowly" },
+    { x: 2690, y: DATA.track_lin[DATA.track_lin.length - 1][1], dx: -50, dy: -34, anchor: "end", text: "Walking 82%|0.87 m/s for a 1.0 request" }
+  ]
+});
+const koLast = DATA.ko_stand[DATA.ko_stand.length - 1]; const koMax = Math.ceil((Math.max(...DATA.ko_stand.map(p => p[1])) + 3) / 5) * 5; const koX = Math.ceil((koLast[0] + 15) / 50) * 50;
+chart("c3", "t3", {
+  title: "Knock-outs per minute", ymax: koMax, yticks: Array.from({ length: koMax / 5 + 1 }, (_, i) => i * 5), yfmt: v => v, vfmt: v => v.toFixed(1) + " per min",
+  xticks: Array.from({ length: koX / 100 + 1 }, (_, i) => i * 100), x0: 0, x1: koX, xlabel: "practice rounds (training iterations)", ylabel: "knock-outs per minute of sparring",
+  series: [{ name: "Standing opponent", color: "var(--s1)", pts: DATA.ko_stand }, { name: "Resisting opponent", color: "var(--s2)", pts: DATA.ko_back }],
+  notes: [
+    { x: DATA.ko_back[DATA.ko_back.length - 1][0], y: 0, dx: 70, dy: -34, text: "Resisting opponent: zero wins|run stopped, approach changed" },
+    { x: 40, y: DATA.ko_stand.find(p => p[0] >= 40)[1], dx: 30, dy: -90, text: "First it learns|not to fall over itself" },
+    { x: koLast[0], y: koLast[1], dx: -60, dy: 70, anchor: "end", text: `Now: about ${Math.round(koLast[1])} a minute|98.7% of test rounds won` }
+  ]
+});
+</script>
+</body>
+</html>
