@@ -1,13 +1,13 @@
 {
- "nq": 92,
- "nv": 83,
+ "nq": 64,
+ "nv": 59,
  "nu": 29,
- "nbody": 39,
- "ngeom": 72,
+ "nbody": 35,
+ "ngeom": 67,
  "timestep": 0.002,
  "integrator": 3,
  "iterations": 5,
- "ls_iterations": 50,
+ "ls_iterations": 10,
  "solver": 2,
  "cone": 0,
  "gravity": [
@@ -15,7 +15,7 @@
   0.0,
   -9.81
  ],
- "total_mass": 49.341142000000005,
+ "total_mass": 41.341142000000005,
  "joints": [
   {
    "name": "a_floating_base_joint",
@@ -583,74 +583,6 @@
    "type": 0,
    "qposadr": 57,
    "dofadr": 53,
-   "range": [
-    0.0,
-    0.0
-   ],
-   "damping": 0.0,
-   "armature": 0.0,
-   "frictionloss": 0.0,
-   "actfrcrange": [
-    0.0,
-    0.0
-   ]
-  },
-  {
-   "name": "box4_free",
-   "type": 0,
-   "qposadr": 64,
-   "dofadr": 59,
-   "range": [
-    0.0,
-    0.0
-   ],
-   "damping": 0.0,
-   "armature": 0.0,
-   "frictionloss": 0.0,
-   "actfrcrange": [
-    0.0,
-    0.0
-   ]
-  },
-  {
-   "name": "box5_free",
-   "type": 0,
-   "qposadr": 71,
-   "dofadr": 65,
-   "range": [
-    0.0,
-    0.0
-   ],
-   "damping": 0.0,
-   "armature": 0.0,
-   "frictionloss": 0.0,
-   "actfrcrange": [
-    0.0,
-    0.0
-   ]
-  },
-  {
-   "name": "box6_free",
-   "type": 0,
-   "qposadr": 78,
-   "dofadr": 71,
-   "range": [
-    0.0,
-    0.0
-   ],
-   "damping": 0.0,
-   "armature": 0.0,
-   "frictionloss": 0.0,
-   "actfrcrange": [
-    0.0,
-    0.0
-   ]
-  },
-  {
-   "name": "box7_free",
-   "type": 0,
-   "qposadr": 85,
-   "dofadr": 77,
    "range": [
     0.0,
     0.0
@@ -1271,76 +1203,22 @@
     0.0,
     0.0
    ]
-  },
-  {
-   "name": "box4",
-   "mass": 2.0,
-   "ipos": [
-    0.0,
-    0.0,
-    0.0
-   ]
-  },
-  {
-   "name": "box5",
-   "mass": 2.0,
-   "ipos": [
-    0.0,
-    0.0,
-    0.0
-   ]
-  },
-  {
-   "name": "box6",
-   "mass": 2.0,
-   "ipos": [
-    0.0,
-    0.0,
-    0.0
-   ]
-  },
-  {
-   "name": "box7",
-   "mass": 2.0,
-   "ipos": [
-    0.0,
-    0.0,
-    0.0
-   ]
   }
  ],
  "geoms": [
   {
    "name": "floor",
-   "type": 6,
+   "type": 0,
    "body": "world",
    "size": [
-    20.0,
-    20.0,
-    0.5
+    0.0,
+    0.0,
+    0.05
    ],
    "contype": 4,
    "conaffinity": 31,
    "friction": [
     0.6,
-    0.005,
-    0.0001
-   ],
-   "condim": 3
-  },
-  {
-   "name": "parking_shelf",
-   "type": 6,
-   "body": "world",
-   "size": [
-    3.0,
-    0.5,
-    0.1
-   ],
-   "contype": 32,
-   "conaffinity": 8,
-   "friction": [
-    1.0,
     0.005,
     0.0001
    ],
@@ -1842,7 +1720,7 @@
     0.1
    ],
    "contype": 8,
-   "conaffinity": 47,
+   "conaffinity": 15,
    "friction": [
     0.5,
     0.005,
@@ -1860,7 +1738,7 @@
     0.1
    ],
    "contype": 8,
-   "conaffinity": 47,
+   "conaffinity": 15,
    "friction": [
     0.5,
     0.005,
@@ -1878,7 +1756,7 @@
     0.1
    ],
    "contype": 8,
-   "conaffinity": 47,
+   "conaffinity": 15,
    "friction": [
     0.5,
     0.005,
@@ -1896,79 +1774,7 @@
     0.1
    ],
    "contype": 8,
-   "conaffinity": 47,
-   "friction": [
-    0.5,
-    0.005,
-    0.0001
-   ],
-   "condim": 3
-  },
-  {
-   "name": "box4_geom",
-   "type": 6,
-   "body": "box4",
-   "size": [
-    0.1,
-    0.1,
-    0.1
-   ],
-   "contype": 8,
-   "conaffinity": 47,
-   "friction": [
-    0.5,
-    0.005,
-    0.0001
-   ],
-   "condim": 3
-  },
-  {
-   "name": "box5_geom",
-   "type": 6,
-   "body": "box5",
-   "size": [
-    0.1,
-    0.1,
-    0.1
-   ],
-   "contype": 8,
-   "conaffinity": 47,
-   "friction": [
-    0.5,
-    0.005,
-    0.0001
-   ],
-   "condim": 3
-  },
-  {
-   "name": "box6_geom",
-   "type": 6,
-   "body": "box6",
-   "size": [
-    0.1,
-    0.1,
-    0.1
-   ],
-   "contype": 8,
-   "conaffinity": 47,
-   "friction": [
-    0.5,
-    0.005,
-    0.0001
-   ],
-   "condim": 3
-  },
-  {
-   "name": "box7_geom",
-   "type": 6,
-   "body": "box7",
-   "size": [
-    0.1,
-    0.1,
-    0.1
-   ],
-   "contype": 8,
-   "conaffinity": 47,
+   "conaffinity": 15,
    "friction": [
     0.5,
     0.005,

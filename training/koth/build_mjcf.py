@@ -11,7 +11,7 @@ Outputs (all under training/assets/):
 
 Design constraints (from the org.mujoco 3.15 plugin audit): no <contact><pair>, no keyframes, no sensors,
 timestep/gravity come from Unity settings, no ls_iterations/eulerdamp knobs -> implicitfast + MuJoCo defaults.
-Collision bitmasks:  1=robot A  2=robot B  4=arena  8=box  16=foot/shin extra  32=parking shelf
+Collision bitmasks:  1=robot A  2=robot B  4=arena  8=box  16=foot/shin extra
 """
 from __future__ import annotations
 import copy, json, os, struct, xml.etree.ElementTree as ET
@@ -148,24 +148,36 @@ def make_robot(src_root: ET.Element, prefix: str, mask_bit: int, pos, quat) -> t
     return pelvis, acts, excl
 
 
-def make_pool(n: int = 8) -> list[ET.Element]:
+POOL_N = 4
+POOL_MASS = 2.0
+
+
+def pool_park(i: int) -> tuple[float, float, float]:
+    """Parked boxes float far away in the sky (never under the infinite floor plane: a body inside the plane is
+    ejected at ~950 m/s). A plane floor is ~25% cheaper in mujoco_warp than a box slab."""
+    return (100.0 + 0.5 * i, 0.0, 50.0)
+
+
+def make_pool(n: int = POOL_N) -> list[ET.Element]:
+    """Pre-allocated projectile pool. Parked boxes float in the sky with no contacts: both sims re-pin parked boxes
+    (qpos = park pose, qvel = 0) every control step instead of resting them on a shelf, which cost ~30 permanent
+    contacts per world. Measured in mujoco_warp: 8 boxes on a shelf 1297 ms per control step, 2 pinned boxes 563 ms."""
     bodies = []
     for i in range(n):
-        b = ET.Element("body", name=f"box{i}", pos=f"{-1.75 + 0.5 * i:g} 0 -50")
+        b = ET.Element("body", name=f"box{i}", pos=" ".join(f"{v:g}" for v in pool_park(i)))
         ET.SubElement(b, "freejoint", name=f"box{i}_free")
-        ET.SubElement(b, "geom", name=f"box{i}_geom", type="box", size="0.1 0.1 0.1", mass="2",
-                      contype="8", conaffinity="47", condim="3", friction="0.5", rgba="0.9 0.3 0.1 1")
+        ET.SubElement(b, "geom", name=f"box{i}_geom", type="box", size="0.1 0.1 0.1", mass=f"{POOL_MASS:g}",
+                      contype="8", conaffinity="15", condim="3", friction="0.5", rgba="0.9 0.3 0.1 1")
         bodies.append(b)
-    shelf = ET.Element("geom", name="parking_shelf", type="box", size="3 0.5 0.1", pos="0 0 -50.2",
-                       contype="32", conaffinity="8", rgba="0 0 0 0")
-    return bodies + [shelf]
+    return bodies
 
 
 def build_scene(src_root: ET.Element, two_player: bool) -> ET.Element:
     root = ET.Element("mujoco", model="g1_koth_2p" if two_player else "g1_koth_1p")
     ET.SubElement(root, "compiler", angle="radian", assetdir="assets", autolimits="true")
     # implicitfast: Unity-settable, and makes the eulerdamp flag irrelevant. iterations=5 like menagerie mjx.
-    ET.SubElement(root, "option", timestep=f"{SIM_DT}", integrator="implicitfast", iterations="5")
+    # ls_iterations: the Unity plugin cannot import it, so PolicyRunner writes model->opt.ls_iterations after init.
+    ET.SubElement(root, "option", timestep=f"{SIM_DT}", integrator="implicitfast", iterations="5", ls_iterations="10")
     root.append(apply_pd_gains(copy.deepcopy(src_root.find("default"))))
     asset = copy.deepcopy(src_root.find("asset"))
     if two_player:
@@ -178,8 +190,7 @@ def build_scene(src_root: ET.Element, two_player: bool) -> ET.Element:
                       contype="4", conaffinity="31", condim="3", friction="0.6", rgba="0.45 0.4 0.35 1")
         robots = [("a_", 1, (-1.4, 0, 0.793), (1, 0, 0, 0)), ("b_", 2, (1.4, 0, 0.793), (0, 0, 0, 1))]
     else:
-        # finite slab, not an infinite plane: the parked pool at z=-50 must not be "inside" the floor
-        ET.SubElement(wb, "geom", name="floor", type="box", size="20 20 0.5", pos="0 0 -0.5", contype="4", conaffinity="31",
+        ET.SubElement(wb, "geom", name="floor", type="plane", size="0 0 0.05", contype="4", conaffinity="31",
                       condim="3", friction="0.6", rgba="0.4 0.4 0.4 1")
         robots = [("a_", 1, (0, 0, 0.793), (1, 0, 0, 0))]
     act = ET.Element("actuator"); contact = ET.Element("contact")
@@ -284,7 +295,7 @@ def build(two_player: bool):
     assert d1 == d2, "train and unity XML compile to different models"
     json.dump(d1, open(os.path.join(ASSETS, f"model_dump_{tag}.json"), "w"), indent=1)
     print(f"{tag}: nq={m.nq} nv={m.nv} nu={m.nu} nbody={m.nbody} ngeom={m.ngeom} "
-          f"robot mass={(sum(m.body_mass) - 16.0) / len(prefixes):.2f}kg  pelvis z0={q0[2]:.4f}")
+          f"robot mass={(sum(m.body_mass) - POOL_N * POOL_MASS) / len(prefixes):.2f}kg  pelvis z0={q0[2]:.4f}")
     return m
 
 
@@ -294,6 +305,7 @@ if __name__ == "__main__":
     build(two_player=True)
     json.dump({"joints": JOINTS, "default_pose": [DEFAULT_POSE.get(j, 0.0) for j in JOINTS],
                "action_scale": ACTION_SCALE, "sim_dt": SIM_DT, "ctrl_dt": CTRL_DT, "decimation": round(CTRL_DT / SIM_DT),
-               "robot_prefixes": ["a_", "b_"], "pool_bodies": [f"box{i}" for i in range(8)]},
+               "robot_prefixes": ["a_", "b_"], "pool_bodies": [f"box{i}" for i in range(POOL_N)], "pool_park": [list(pool_park(i)) for i in range(POOL_N)],
+               "ls_iterations": 10},
               open(os.path.join(ASSETS, "joint_map.json"), "w"), indent=1)
     print("wrote joint_map.json")

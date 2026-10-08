@@ -60,6 +60,8 @@ namespace PoKingHill
         void OnSceneInit(object sender, MjStepArgs args)
         {
             Map = new JointMap(MjScene.Instance.Model, _spec, robotPrefix);
+            // The plugin's MjGlobalSettings has no ls_iterations field; mirror the training value directly.
+            if (_spec.ls_iterations > 0) MjScene.Instance.Model->opt.ls_iterations = _spec.ls_iterations;
             if (Mathf.Abs(Time.fixedDeltaTime - _spec.sim_dt) > 1e-6f)
                 Debug.LogError($"Fixed Timestep {Time.fixedDeltaTime} != training sim_dt {_spec.sim_dt}");
             _substep = 0; _phase = 0; PolicySteps = 0;

@@ -1,6 +1,6 @@
 <mujoco model="g1_koth_1p">
   <compiler angle="radian" assetdir="assets" autolimits="true" />
-  <option timestep="0.002" integrator="implicitfast" iterations="5" />
+  <option timestep="0.002" integrator="implicitfast" iterations="5" ls_iterations="10" />
   <default>
     <default class="g1">
       <default class="visual">
@@ -124,7 +124,7 @@
   </asset>
   <worldbody>
     <light pos="0 0 6" dir="0 0 -1" directional="true" />
-    <geom name="floor" type="box" size="20 20 0.5" pos="0 0 -0.5" contype="4" conaffinity="31" condim="3" friction="0.6" rgba="0.4 0.4 0.4 1" />
+    <geom name="floor" type="plane" size="0 0 0.05" contype="4" conaffinity="31" condim="3" friction="0.6" rgba="0.4 0.4 0.4 1" />
     <body name="a_pelvis" pos="0 0 0.793" childclass="g1" quat="1 0 0 0">
       <inertial pos="0 0 -0.07605" quat="1 0 -0.000399148 0" mass="3.813" diaginertia="0.010549 0.0093089 0.0079184" />
       <freejoint name="a_floating_base_joint" />
@@ -313,39 +313,22 @@
         </body>
       </body>
     </body>
-    <body name="box0" pos="-1.75 0 -50">
+    <body name="box0" pos="100 0 50">
       <freejoint name="box0_free" />
-      <geom name="box0_geom" type="box" size="0.1 0.1 0.1" mass="2" contype="8" conaffinity="47" condim="3" friction="0.5" rgba="0.9 0.3 0.1 1" />
+      <geom name="box0_geom" type="box" size="0.1 0.1 0.1" mass="2" contype="8" conaffinity="15" condim="3" friction="0.5" rgba="0.9 0.3 0.1 1" />
     </body>
-    <body name="box1" pos="-1.25 0 -50">
+    <body name="box1" pos="100.5 0 50">
       <freejoint name="box1_free" />
-      <geom name="box1_geom" type="box" size="0.1 0.1 0.1" mass="2" contype="8" conaffinity="47" condim="3" friction="0.5" rgba="0.9 0.3 0.1 1" />
+      <geom name="box1_geom" type="box" size="0.1 0.1 0.1" mass="2" contype="8" conaffinity="15" condim="3" friction="0.5" rgba="0.9 0.3 0.1 1" />
     </body>
-    <body name="box2" pos="-0.75 0 -50">
+    <body name="box2" pos="101 0 50">
       <freejoint name="box2_free" />
-      <geom name="box2_geom" type="box" size="0.1 0.1 0.1" mass="2" contype="8" conaffinity="47" condim="3" friction="0.5" rgba="0.9 0.3 0.1 1" />
+      <geom name="box2_geom" type="box" size="0.1 0.1 0.1" mass="2" contype="8" conaffinity="15" condim="3" friction="0.5" rgba="0.9 0.3 0.1 1" />
     </body>
-    <body name="box3" pos="-0.25 0 -50">
+    <body name="box3" pos="101.5 0 50">
       <freejoint name="box3_free" />
-      <geom name="box3_geom" type="box" size="0.1 0.1 0.1" mass="2" contype="8" conaffinity="47" condim="3" friction="0.5" rgba="0.9 0.3 0.1 1" />
+      <geom name="box3_geom" type="box" size="0.1 0.1 0.1" mass="2" contype="8" conaffinity="15" condim="3" friction="0.5" rgba="0.9 0.3 0.1 1" />
     </body>
-    <body name="box4" pos="0.25 0 -50">
-      <freejoint name="box4_free" />
-      <geom name="box4_geom" type="box" size="0.1 0.1 0.1" mass="2" contype="8" conaffinity="47" condim="3" friction="0.5" rgba="0.9 0.3 0.1 1" />
-    </body>
-    <body name="box5" pos="0.75 0 -50">
-      <freejoint name="box5_free" />
-      <geom name="box5_geom" type="box" size="0.1 0.1 0.1" mass="2" contype="8" conaffinity="47" condim="3" friction="0.5" rgba="0.9 0.3 0.1 1" />
-    </body>
-    <body name="box6" pos="1.25 0 -50">
-      <freejoint name="box6_free" />
-      <geom name="box6_geom" type="box" size="0.1 0.1 0.1" mass="2" contype="8" conaffinity="47" condim="3" friction="0.5" rgba="0.9 0.3 0.1 1" />
-    </body>
-    <body name="box7" pos="1.75 0 -50">
-      <freejoint name="box7_free" />
-      <geom name="box7_geom" type="box" size="0.1 0.1 0.1" mass="2" contype="8" conaffinity="47" condim="3" friction="0.5" rgba="0.9 0.3 0.1 1" />
-    </body>
-    <geom name="parking_shelf" type="box" size="3 0.5 0.1" pos="0 0 -50.2" contype="32" conaffinity="8" rgba="0 0 0 0" />
   </worldbody>
   <contact>
     <exclude body1="a_left_ankle_roll_link" body2="a_left_knee_link" />

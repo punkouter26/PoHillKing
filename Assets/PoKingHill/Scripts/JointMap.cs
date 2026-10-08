@@ -21,6 +21,7 @@ namespace PoKingHill
         public int decimation;
         public string[] robot_prefixes;
         public string[] pool_bodies;
+        public int ls_iterations;
     }
 
     public unsafe class JointMap

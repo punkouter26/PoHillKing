@@ -16,6 +16,8 @@ mujoco.mj_resetDataKeyframe(m, d, 0)
 J = mujoco.mjtObj.mjOBJ_JOINT
 roots = [m.jnt_qposadr[j] for j in (mujoco.mj_name2id(m, J, p + "floating_base_joint") for p in ("a_", "b_")) if j >= 0]
 pool = [(m.jnt_qposadr[j], m.jnt_dofadr[j]) for j in (mujoco.mj_name2id(m, J, f"box{i}_free") for i in range(8)) if j >= 0]
+park = [d.qpos[q:q + 7].copy() for q, _ in pool]
+life = [0.0] * len(pool)
 rng = np.random.default_rng(0)
 shot = 0
 
@@ -31,10 +33,14 @@ with mujoco.viewer.launch_passive(m, d) as v:
             vel = (target - start) / np.linalg.norm(target - start) * rng.uniform(3, 8)
             q, dof = pool[shot % len(pool)]
             d.qpos[q:q + 7] = [*start, 1, 0, 0, 0]; d.qvel[dof:dof + 6] = [*vel, 0, 0, 0]
+            life[shot % len(pool)] = d.time + 2.5
             shot += 1; next_fire = d.time + 4.0
+        for i, (q, dof) in enumerate(pool):     # pin parked boxes, same rule as training and Unity
+            if d.time >= life[i]:
+                d.qpos[q:q + 7] = park[i]; d.qvel[dof:dof + 6] = 0
         for _ in range(8):                      # 8 x 2 ms = 16 ms per frame, ~real time at 60 fps
             mujoco.mj_step(m, d)
         if d.time < 0.02:                       # viewer reset (backspace) -> restore the stance
-            mujoco.mj_resetDataKeyframe(m, d, 0); next_fire = 3.0
+            mujoco.mj_resetDataKeyframe(m, d, 0); next_fire = 3.0; life = [0.0] * len(pool)
         v.sync()
         time.sleep(max(0, 0.016 - (time.perf_counter() - t0)))

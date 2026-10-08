@@ -17,7 +17,7 @@ def default_cfg(rung: str = "r0") -> dict:
         scene="scene_flat_1p_train.xml", robot="a_", episode_length_s=20.0,
         command=dict(lin_vel_x=[-1.0, 1.0], lin_vel_y=[-0.5, 0.5], ang_vel_yaw=[-1.0, 1.0], zero_prob=0.1, resample_s=10.0),
         push=dict(interval_s=[5.0, 10.0], vel=[0.5, 2.0]),
-        projectile=dict(enabled=True, interval_s=[3.0, 8.0], speed=[3.0, 8.0], range=3.0),
+        projectile=dict(enabled=True, interval_s=[3.0, 8.0], speed=[3.0, 8.0], range=3.0, life_s=2.5),
         dr=dict(mass=0.15, friction=[0.4, 0.9], kp=0.2, damping=0.2, latency_prob=0.5),
         noise=dict(joint_pos=0.03, joint_vel=1.5, gravity=0.05, linvel=0.1, gyro=0.2),
         reset_noise=dict(joint_pos=0.05, joint_vel=0.3, yaw=math.pi),
@@ -50,7 +50,7 @@ class KothEnv:
         self.m = mjw.put_model(mjm, batch_sizes={k: N for k in ("body_mass", "body_inertia", "body_subtreemass", "geom_friction",
                                                                    "dof_damping", "actuator_gainprm", "actuator_biasprm")})
         self.m.opt.warn_overflow = 0
-        self.d = mjw.put_data(mjm, mjd, nworld=N, nconmax=64, njmax=400)
+        self.d = mjw.put_data(mjm, mjd, nworld=N, nconmax=48, njmax=240)
 
         # ---- indices (name based, same resolution rule as Unity's JointMap) ----
         p = cfg["robot"]
@@ -74,7 +74,8 @@ class KothEnv:
         self.geom_class[[gid(f"{p}{s}_{n}") for s in ("left", "right") for n in ("shin_collision", "linkage_brace_collision")]] = 4
         self.box_q = torch.tensor([mjm.jnt_qposadr[jid(f"{b}_free")] for b in spec["pool_bodies"]], device=device)
         self.box_d = torch.tensor([mjm.jnt_dofadr[jid(f"{b}_free")] for b in spec["pool_bodies"]], device=device)
-        self.box_park = torch.tensor([[-1.75 + 0.5 * i, 0.0, -50.0] for i in range(len(spec["pool_bodies"]))], device=device)
+        self.box_park = torch.tensor(spec["pool_park"], device=device)
+        self.box_life = torch.zeros(N, len(spec["pool_bodies"]), device=device)   # seconds left in flight; <=0 = parked
         hip_idx = [i for i, j in enumerate(self.joints) if "hip_roll" in j or "hip_yaw" in j]
         self.hip_idx = torch.tensor(hip_idx, device=device); self.knee_idx = torch.tensor([i for i, j in enumerate(self.joints) if "knee" in j], device=device)
         self.default_pose = torch.tensor(spec["default_pose"], device=device)
@@ -167,7 +168,7 @@ class KothEnv:
         q[:, self.rq + 3] = torch.cos(yaw / 2); q[:, self.rq + 4:self.rq + 6] = 0; q[:, self.rq + 6] = torch.sin(yaw / 2)
         for i in range(len(self.box_q)):                       # park the pool
             q[:, self.box_q[i]:self.box_q[i] + 3] = self.box_park[i]; q[:, self.box_q[i] + 3] = 1; q[:, self.box_q[i] + 4:self.box_q[i] + 7] = 0
-        self.qpos[ids] = q; self.qvel[ids] = v
+        self.qpos[ids] = q; self.qvel[ids] = v; self.box_life[ids] = 0
         self.ctrl[ids] = self.key_ctrl; self.pending_ctrl[ids] = self.key_ctrl[self.aid]
         self.last_action[ids] = 0; self.prev_action[ids] = 0; self.phase[ids] = 0
         self.feet_air_time[ids] = 0; self.feet_contact[ids] = True
@@ -203,7 +204,15 @@ class KothEnv:
                 self.qpos[ids, qa + k] = start[:, k]; self.qvel[ids, da + k] = vel[:, k]
             self.qpos[ids, qa + 3] = 1; self.qpos[ids, qa + 4] = 0; self.qpos[ids, qa + 5] = 0; self.qpos[ids, qa + 6] = 0
             for k in range(3, 6): self.qvel[ids, da + k] = 0
+            self.box_life[ids, box] = self.cfg["projectile"]["life_s"]
             self.proj_timer[ids] = self._rand(n, *self.cfg["projectile"]["interval_s"])
+        # pin parked boxes (no shelf, no contacts): park pose, zero velocity, every control step
+        self.box_life -= self.ctrl_dt
+        for i in range(len(self.box_q)):
+            parked = self.box_life[:, i] <= 0
+            qa, da = int(self.box_q[i]), int(self.box_d[i])
+            self.qpos[parked, qa:qa + 3] = self.box_park[i]; self.qpos[parked, qa + 3] = 1; self.qpos[parked, qa + 4:qa + 7] = 0
+            self.qvel[parked, da:da + 6] = 0
 
     # ------------------------------------------------------------------ step
     def _step_sim(self):
