@@ -62,6 +62,15 @@ def apply_pd_gains(default: ET.Element) -> ET.Element:
             if pos is None:
                 pos = ET.SubElement(cls, "position")
             pos.set("kp", f"{kp:g}"); pos.set("kv", f"{kv:g}")
+    # Torque limits: the Unity plugin drops joint actuatorfrcrange, so express the same limit as the actuator's
+    # forcerange (identical with one actuator per joint).
+    for cls in default.iter("default"):
+        j = cls.find("joint")
+        if j is not None and "actuatorfrcrange" in j.attrib:
+            pos = cls.find("position")
+            if pos is None:
+                pos = ET.SubElement(cls, "position")
+            pos.set("forcerange", j.attrib.pop("actuatorfrcrange"))
     return default
 
 
@@ -247,7 +256,8 @@ def dump_model(m: mujoco.MjModel) -> dict:
                     "frictionloss": float(m.dof_frictionloss[m.jnt_dofadr[i]]),
                     "actfrcrange": m.jnt_actfrcrange[i].tolist()} for i in range(m.njnt)],
         "actuators": [{"name": name(A, i), "joint": name(J, m.actuator_trnid[i][0]), "kp": float(m.actuator_gainprm[i][0]),
-                       "kv": float(-m.actuator_biasprm[i][2]), "ctrlrange": m.actuator_ctrlrange[i].tolist()}
+                       "kv": float(-m.actuator_biasprm[i][2]), "ctrlrange": m.actuator_ctrlrange[i].tolist(),
+                       "forcerange": m.actuator_forcerange[i].tolist()}
                       for i in range(m.nu)],
         "bodies": [{"name": name(B, i), "mass": float(m.body_mass[i]), "ipos": m.body_ipos[i].tolist()} for i in range(m.nbody)],
         "geoms": [{"name": name(G, i), "type": int(m.geom_type[i]), "body": name(B, m.geom_bodyid[i]),

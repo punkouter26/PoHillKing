@@ -21,64 +21,77 @@
       </default>
       <default class="hip">
         <default class="hip_pitch">
-          <joint range="-2.5307 2.8798" actuatorfrcrange="-88 88" armature="0.0101775" axis="0 1 0" />
+          <joint range="-2.5307 2.8798" armature="0.0101775" axis="0 1 0" />
+          <general forcerange="-88 88" />
         </default>
         <default class="hip_roll">
-          <joint actuatorfrcrange="-139 139" armature="0.0251019" axis="1 0 0" />
+          <joint armature="0.0251019" axis="1 0 0" />
+          <general forcerange="-139 139" />
         </default>
         <default class="hip_yaw">
-          <joint range="-2.7576 2.7576" actuatorfrcrange="-88 88" armature="0.0101775" />
+          <joint range="-2.7576 2.7576" armature="0.0101775" />
+          <general forcerange="-88 88" />
         </default>
       </default>
       <default class="knee">
-        <joint range="-0.087267 2.8798" actuatorfrcrange="-139 139" armature="0.0251019" axis="0 1 0" />
-        <general gainprm="300" biasprm="0 -300" />
+        <joint range="-0.087267 2.8798" armature="0.0251019" axis="0 1 0" />
+        <general forcerange="-139 139" gainprm="300" biasprm="0 -300" />
       </default>
       <default class="ankle">
         <general gainprm="60" biasprm="0 -60 -3" />
         <default class="ankle_pitch">
-          <joint range="-0.87267 0.5236" actuatorfrcrange="-50 50" armature="0.00721945" axis="0 1 0" />
-          <general gainprm="200" biasprm="0 -200 -5" />
+          <joint range="-0.87267 0.5236" armature="0.00721945" axis="0 1 0" />
+          <general forcerange="-50 50" gainprm="200" biasprm="0 -200 -5" />
         </default>
         <default class="ankle_roll">
-          <joint range="-0.2618 0.2618" actuatorfrcrange="-50 50" armature="0.00721945" axis="1 0 0" />
+          <joint range="-0.2618 0.2618" armature="0.00721945" axis="1 0 0" />
+          <general forcerange="-50 50" />
         </default>
       </default>
       <default class="waist_yaw">
-        <joint range="-2.618 2.618" actuatorfrcrange="-88 88" armature="0.0101775" />
+        <joint range="-2.618 2.618" armature="0.0101775" />
+        <general forcerange="-88 88" />
       </default>
       <default class="waist_pitch">
-        <joint range="-0.52 0.52" actuatorfrcrange="-50 50" armature="0.00721945" axis="0 1 0" />
+        <joint range="-0.52 0.52" armature="0.00721945" axis="0 1 0" />
+        <general forcerange="-50 50" />
       </default>
       <default class="waist_roll">
-        <joint range="-0.52 0.52" actuatorfrcrange="-50 50" armature="0.00721945" axis="1 0 0" />
+        <joint range="-0.52 0.52" armature="0.00721945" axis="1 0 0" />
+        <general forcerange="-50 50" />
       </default>
       <default class="shoulder">
         <general gainprm="60" biasprm="0 -60 -3" />
         <default class="shoulder_pitch">
-          <joint range="-3.0892 2.6704" actuatorfrcrange="-25 25" armature="0.00360972" axis="0 1 0" />
+          <joint range="-3.0892 2.6704" armature="0.00360972" axis="0 1 0" />
+          <general forcerange="-25 25" />
         </default>
         <default class="shoulder_roll">
-          <joint actuatorfrcrange="-25 25" armature="0.00360972" axis="1 0 0" />
+          <joint armature="0.00360972" axis="1 0 0" />
+          <general forcerange="-25 25" />
         </default>
         <default class="shoulder_yaw">
-          <joint range="-2.618 2.618" actuatorfrcrange="-25 25" armature="0.00360972" />
+          <joint range="-2.618 2.618" armature="0.00360972" />
+          <general forcerange="-25 25" />
         </default>
       </default>
       <default class="elbow">
-        <joint range="-1.0472 2.0944" actuatorfrcrange="-25 25" armature="0.00360972" axis="0 1 0" />
-        <general gainprm="60" biasprm="0 -60 -3" />
+        <joint range="-1.0472 2.0944" armature="0.00360972" axis="0 1 0" />
+        <general forcerange="-25 25" gainprm="60" biasprm="0 -60 -3" />
       </default>
       <default class="wrist">
         <general gainprm="40" biasprm="0 -40 -2" />
         <default class="wrist_roll">
-          <joint range="-1.97222 1.97222" actuatorfrcrange="-25 25" armature="0.00360972" axis="1 0 0" />
+          <joint range="-1.97222 1.97222" armature="0.00360972" axis="1 0 0" />
+          <general forcerange="-25 25" />
         </default>
         <default class="wrist_pitch">
-          <joint range="-1.61443 1.61443" actuatorfrcrange="-5 5" armature="0.00425" axis="0 1 0" />
+          <joint range="-1.61443 1.61443" armature="0.00425" axis="0 1 0" />
+          <general forcerange="-5 5" />
         </default>
         <default class="wrist_yaw">
-          <joint range="-1.61443 1.61443" actuatorfrcrange="-5 5" armature="0.00425" />
+          <joint range="-1.61443 1.61443" armature="0.00425" />
+          <general forcerange="-5 5" />
         </default>
       </default>
     </default>
