@@ -106,3 +106,19 @@ Decision: always step through a captured CUDA graph (`wp.ScopedCapture`), eager 
 - **Forgetting:** gen6 against the standing walker at the rim wins only 4-7 % and loses 65 % (gen1 won 98.7 %). League play against chargers alone drops the skill of dealing with a stationary opponent. gen7 trains against a pool that includes the standing walker twice plus gens 1, 3, 4, 5, 6 (`path.pt:stand` entries in `--opponent`).
 - **Unity:** `Sea.cs` (rising water as the round deadline, buoyancy and drag through `xfrc_applied` on robot bodies below the surface, render-only disc with its collider removed), `DemoDirector` now attacker vs attacker with the sea, 60 FPS cap. `Demo_duel.unity` rebuilt by the menu item.
 - **Trajectory parity is the wrong gate for adversarial rounds.** Attacker vs attacker in Unity: replay 1e-6, tick 1 at 2e-6, then 22 cm and 57 cm apart after 3 s because each robot reacts to the other. Replaced by a statistical gate: N rounds in Unity (`ParityBatch.RunDuelStats`) against N rounds in CPU MuJoCo with the same rules (`scripts/duel_stats.py`), comparing decided share and winning-time quartiles. Python, gen3 vs gen3, 200 rounds: 53.5 % decided, median 3.4 s, quartiles 2.9 / 4.0 s.
+
+## 2026-10-08 (night) — statistical Unity parity, generation 7, ladder summary
+
+- **Statistical parity, gen3 vs gen3, rules of `DemoDirector` (no sea, 25 s bell):** Unity 60 rounds: 53 % decided, winning time median 3.32 s, quartiles 2.89 / 3.64, mean 3.87. CPU MuJoCo 200 rounds: 53.5 % decided, median 3.38 s, quartiles 2.94 / 4.02, mean 3.92. The unfocused editor renders under 1 frame per second; stats mode sets `maximumDeltaTime = 2` and `timeScale = 50` so each frame carries up to 1000 physics steps.
+- **gen7** (450 iterations; pool = standing walker x2, gens 1, 3, 4, 5, 6): against gens 2-6 wins 72.5 %, loses 17.8 %, ties 9.6 % (80 % of decided, median 4.3 s), R5 bar passes 3/3. Against itself only about 50 % of rounds are decided. Against the standing walker at the rim: 6.6 % wins, 31 % losses, 62 % standoffs, so the anchor did not restore that skill.
+- **Which brain meets which bar:**
+  | bar | brain | result |
+  |---|---|---|
+  | R0, R1 | walker `r1_b` | 99.4 % impacts survived; tracking error 0.14 m/s, 0.10 rad/s |
+  | R2 | `r2_a/2900` | plateau hold 100 %, slope return 93-100 % (slope part shelved by the user) |
+  | R3 | walker + goal law | 100 % of pairs meet within 6 s, no self-ejection |
+  | R4 eject a standing opponent at the rim | gen1 (`r4att_c/500`) | 98.7 %, median 2.0 s |
+  | R4 mirror, rounds decided | gen6 | 94-98 % |
+  | R5 win share vs last five, ties, time | gen7 | 80 % of decided, 9.6 % ties, 4.3 s |
+- **Not met by one brain:** no single policy passes both the standing-opponent bar and the league bar. The separate "self-ejection under 5 %" clause of the R4 bar was not measured on its own.
+- **Unity:** `attacker_policy.onnx` is now gen7. The statistical gate above was run with gen3.

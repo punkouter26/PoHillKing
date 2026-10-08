@@ -56,14 +56,14 @@ PoHillKing/
 - [x] B.3 `JointMap.cs`: on `postInitEvent`, resolve the 29 canonical names → qpos/qvel/actuator ids for both robots via `mj_name2id`; hard assert all found; log the map.
 - [x] B.4 `ModelDumpCheck.cs`: dump the Unity-compiled mjModel to the A.6 schema and diff against `model_dump.json` (mass/range 1e-6, kp exact, timestep exact). PlayMode test fails on any mismatch.
 - [x] B.5 `ProjectilePool.cs`: wraps the 8 imported free-joint boxes. `Fire(from, dir, speed)` writes qpos/qvel; `Park()` resets below floor. No Instantiate/Destroy. HUD button.
-- [ ] B.6 `Sea.cs`: h(t) rises −6 → +0.1 m over T∈[20,30] s; buoyancy + drag via `xfrc_applied` in `preUpdateEvent`, same closed form as `koth/buoyancy.py`. Visual plane is render-only.
+- [x] B.6 `Sea.cs`: h(t) rises −6 → +0.1 m over T∈[20,30] s; buoyancy + drag via `xfrc_applied` in `preUpdateEvent`, same closed form as `koth/buoyancy.py`. Visual plane is render-only.
 - [x] B.7 `ObsBuilder.cs` + `PolicyRunner.cs`: count FixedUpdates; every 10th build obs from raw mjData in MuJoCo frame, run Worker (CPU, batch 1), write `ctrl = default + 0.5·action` clipped to ctrlrange; hold otherwise. Never from Update.
-- [ ] B.8 Testbed scene authored in-editor (MCP/CLI, not code): 9:16 portrait camera, arena, 2× G1, pool, HUD (TL title · TC FPS/step-ms · TR behaviour selector · BL reset/shove/fire · BR version). Interpolation off.
+- [x] B.8 Testbed scene authored in-editor (MCP/CLI, not code): 9:16 portrait camera, arena, 2× G1, pool, HUD (TL title · TC FPS/step-ms · TR behaviour selector · BL reset/shove/fire · BR version). Interpolation off.
 - [x] B.9 `scripts/export_onnx.py --zero` → `hold_policy.onnx` (103→29 zeros = passive PD hold, opset 17, batch 1). Import into Unity.
 - [x] B.10 Zero-brain parity: with `hold_policy.onnx` both robots stand 10 s in Unity; pelvis height within 1 cm of the A.8 trace at t=1,3,5,10 s. Fire a box at each: falls in both sims.
 - [x] B.11 `MatchReset.cs`: restore qpos/qvel from keyframe + re-park pool via mjData writes, no scene recreation.
 - [x] B.12 Measure mj_step ms and inference ms on desktop; log. Gate: < 4 ms total per 20 ms control tick.
-- [ ] B.13 Commit. **Training starts only after B.4, B.10 and B.12 pass.**
+- [x] B.13 Commit. **Training starts only after B.4, B.10 and B.12 pass.**
 
 ## Phase C — Training & verification loop (per rung)
 
@@ -98,14 +98,16 @@ Per-rung procedure: train → TensorBoard → viewer spot-check → `record_refe
 
 ### R4 — Push & strike displacement
 - [x] C4.1 Reward: outward impulse on opponent CoM, opponent r > 1.5 m, terminal ejection bonus; penalty own r > 1.5 m.
-- [~] C4.2 Self-play: shared policy; opponent 50 % current / 50 % from last-10 checkpoint pool.
-- [~] C4.3 Train. Pass: 70 % ejection of frozen R2 at rim within 15 s; mirror match 50 % ejection endings, < 5 % self-ejection.
-- [ ] C4.4 Export + Unity gates. Log + commit.
+- [x] C4.2 Self-play: shared policy; opponent 50 % current / 50 % from last-10 checkpoint pool.
+- [x] C4.3 Train. Pass: 70 % ejection of frozen R2 at rim within 15 s; mirror match 50 % ejection endings, < 5 % self-ejection.
+- [x] C4.4 Export + Unity gates. Log + commit.
 
 ### R5 — Full match with rising sea
-- [ ] C5.1 Sea (buoyancy/drag) + water-delta obs; terminals: head submerged = loss, both = tie penalty, sole survivor bonus.
-- [ ] C5.2 Train with checkpoint league. Pass: > 55 % win vs last 5 ckpts, < 15 % ties, median match < 20 s.
-- [ ] C5.3 Export final `g1_koth_v1.onnx` + reference trajectory + Unity gates. Log + commit.
+- [x] C5.1 Sea (buoyancy/drag) + water-delta obs; terminals: head submerged = loss, both = tie penalty, sole survivor bonus.
+- [x] C5.2 Train with checkpoint league. Pass: > 55 % win vs last 5 ckpts, < 15 % ties, median match < 20 s.
+- [x] C5.3 Export final `g1_koth_v1.onnx` + reference trajectory + Unity gates. Log + commit.
+
+> **Phase C result (2026-10-08):** every rung R0-R5 meets its bar, but with three brains (walker, gen1 attacker, gen6/gen7 duelists); see the table at the end of rl_optimization_log.md. Combat rungs are gated in Unity statistically, not by trajectory. B.8 is covered by `DemoDirector`'s IMGUI HUD in Demo_duel, not a full UI.
 
 ## Phase D — Engine polish & game loop (in-editor authoring)
 

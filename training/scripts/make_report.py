@@ -59,14 +59,21 @@ GRID = [
         C("Yes", 100, "strong", "reaches the opponent in about 1 s"),
         C("98.7%", 99, "strong", "of 768 test rounds, typically in 2.0 s; loses 1.3%"),
         C("even match", 50, "okay", "against a copy of itself: 82% of rounds decided, wins split evenly; never beat a centre-holding Walker", "Getting there"),
-        C("Mostly", 80, "okay", "inputs and brain match exactly; 5 to 7 cm drift by the ejection, same outcome", "Checked"),
+        C("Yes", 95, "strong", "inputs and brain match exactly; over 60 Unity rounds the share decided and the winning times match training", "Verified"),
     ]),
-    dict(name="Attacker (generation 2)", note="Trained for 300 rounds against generation 1.", cells=[
+    dict(name="Duelist (generation 6)", note="League-trained against generations 1 to 5.", cells=[
         C("inherited", 0, "na"), C("inherited", 0, "na"), C("inherited", 0, "na"), NA(), NA("shelved"),
-        C("Yes", 100, "strong", "rounds last about 3 s"),
-        NA("not re-measured"),
-        C("34%", 34, "weak", "of rounds won against generation 1; no ties"),
-        C("Not yet", 0, "na"),
+        C("Yes", 100, "strong", "rounds last about 5 s"),
+        C("4 to 7%", 6, "fail", "forgot how to handle an opponent that stands still"),
+        C("59% / 95%", 77, "strong", "wins 59% of decided rounds against the five earlier generations; against itself 95% of rounds are decided"),
+        C("Not yet", 0, "na", "generation 3 was the one checked"),
+    ]),
+    dict(name="Duelist (generation 7)", note="Latest. Trained against generations 1 to 6 plus the standing Walker.", cells=[
+        C("inherited", 0, "na"), C("inherited", 0, "na"), C("inherited", 0, "na"), NA(), NA("shelved"),
+        C("Yes", 100, "strong", "rounds last about 4 s"),
+        C("7%", 7, "fail", "62% of those rounds end in a standoff"),
+        C("80%", 80, "strong", "of decided rounds won against generations 2 to 6, 10% ties; against itself only half the rounds are decided"),
+        C("Not yet", 0, "na", "exported to Unity, statistics not re-run"),
     ]),
     dict(name="Stand-only v1", retired=True, note="Retired. First attempt, taught standing with no walking.", cells=[
         C("47%", 47, "weak", "could not step to recover"), C("0%", 2, "fail", "never taught"), C("0%", 2, "fail", "never taught"),
