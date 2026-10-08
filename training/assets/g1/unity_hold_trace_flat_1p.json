@@ -1,0 +1,15 @@
+{
+ "model_check_passed": true,
+ "model_check_mismatches": 0,
+ "nq": 64, "nv": 59, "nu": 29, "nbody": 35, "ngeom": 67,
+ "timestep": 0.002, "fixed_dt": 0.002, "integrator": 3, "iterations": 5, "ls_iterations": 10,
+ "mean_step_ms": 0.14803, "steps": 6500, "sim_time": 13,
+ "after_box": {"a_z": 0.77827, "a_up": 0.99998},
+ "trace": [
+  {"t": 0.5, "a_z": 0.77973, "a_up": 0.99991},
+  {"t": 1, "a_z": 0.77986, "a_up": 0.99949},
+  {"t": 3, "a_z": 0.77978, "a_up": 0.99981},
+  {"t": 5, "a_z": 0.77981, "a_up": 0.99974},
+  {"t": 10, "a_z": 0.77981, "a_up": 0.99975}
+ ]
+}

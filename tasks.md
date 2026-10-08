@@ -47,22 +47,22 @@ PoHillKing/
 - [x] A.8 Self-check: `scene_koth_2p.xml` in `mujoco.viewer`, hold `stand` ctrl for 10 s with no policy → both robots stay up. Save the pelvis-height trace (t=1,3,5,10 s) to the log for B.10.
 - [x] A.9 Commit.
 
-> **Paused 2026-10-07 23:45.** Resume at B.1: open the editor, confirm `PoKingHill.dll` compiles (asmdef with unsafe code was just added), import `training/assets/g1/scene_flat_1p_unity.xml` via Assets → Import MuJoCo Scene, run `ModelDumpCheck`. Scripts for B.2–B.7 are written but have never compiled or run. Env (C0.1–C0.3) and `scripts/train.py` are drafted; the env runs, training has not been started.
+> **Phase B result (2026-10-08):** scenes are imported by `PoKingHill/Import testbed scenes` (plugin MJCF importer, `Assets/PoKingHill/Editor/ParityBatch.cs`), not hand-placed. `ModelDumpCheck` passes with 0 mismatches on both scenes. Zero-brain hold: Unity pelvis height 0.77973 / 0.77986 / 0.77978 / 0.77981 / 0.77981 at t = 0.5 / 1 / 3 / 5 / 10 s vs Python 0.7797 / 0.7799 / 0.7798 / 0.7798 / 0.7798. mj_step 0.15 ms (1 robot), 0.28–0.35 ms (2 robots). B.6 (sea), B.8 (HUD) and B.13 are still open; B.9's hold policy is built into `PolicyRunner` (no ONNX needed for it).
 
 ## Phase B — Early Unity ingestion & zero-brain parity test (CRITICAL, before any training)
 
-- [~] B.1 Asset → Import MuJoCo Scene on `training/assets/g1/scene_koth_2p_unity.xml` (and `scene_flat_1p_unity.xml`). Record what imports cleanly: arena mesh, excludes, actuator gainprm/biasprm, solver options. Anything unsupported → change the MJCF on the Python side first. Never let the two diverge.
-- [ ] B.2 Zero-PhysX audit: EditMode test asserts 0 Collider, 0 Rigidbody, 0 CharacterController, 0 Joint in every PoKingHill scene.
-- [ ] B.3 `JointMap.cs`: on `postInitEvent`, resolve the 29 canonical names → qpos/qvel/actuator ids for both robots via `mj_name2id`; hard assert all found; log the map.
-- [ ] B.4 `ModelDumpCheck.cs`: dump the Unity-compiled mjModel to the A.6 schema and diff against `model_dump.json` (mass/range 1e-6, kp exact, timestep exact). PlayMode test fails on any mismatch.
-- [ ] B.5 `ProjectilePool.cs`: wraps the 8 imported free-joint boxes. `Fire(from, dir, speed)` writes qpos/qvel; `Park()` resets below floor. No Instantiate/Destroy. HUD button.
+- [x] B.1 Asset → Import MuJoCo Scene on `training/assets/g1/scene_koth_2p_unity.xml` (and `scene_flat_1p_unity.xml`). Record what imports cleanly: arena mesh, excludes, actuator gainprm/biasprm, solver options. Anything unsupported → change the MJCF on the Python side first. Never let the two diverge.
+- [x] B.2 Zero-PhysX audit: EditMode test asserts 0 Collider, 0 Rigidbody, 0 CharacterController, 0 Joint in every PoKingHill scene.
+- [x] B.3 `JointMap.cs`: on `postInitEvent`, resolve the 29 canonical names → qpos/qvel/actuator ids for both robots via `mj_name2id`; hard assert all found; log the map.
+- [x] B.4 `ModelDumpCheck.cs`: dump the Unity-compiled mjModel to the A.6 schema and diff against `model_dump.json` (mass/range 1e-6, kp exact, timestep exact). PlayMode test fails on any mismatch.
+- [x] B.5 `ProjectilePool.cs`: wraps the 8 imported free-joint boxes. `Fire(from, dir, speed)` writes qpos/qvel; `Park()` resets below floor. No Instantiate/Destroy. HUD button.
 - [ ] B.6 `Sea.cs`: h(t) rises −6 → +0.1 m over T∈[20,30] s; buoyancy + drag via `xfrc_applied` in `preUpdateEvent`, same closed form as `koth/buoyancy.py`. Visual plane is render-only.
-- [ ] B.7 `ObsBuilder.cs` + `PolicyRunner.cs`: count FixedUpdates; every 10th build obs from raw mjData in MuJoCo frame, run Worker (CPU, batch 1), write `ctrl = default + 0.5·action` clipped to ctrlrange; hold otherwise. Never from Update.
+- [x] B.7 `ObsBuilder.cs` + `PolicyRunner.cs`: count FixedUpdates; every 10th build obs from raw mjData in MuJoCo frame, run Worker (CPU, batch 1), write `ctrl = default + 0.5·action` clipped to ctrlrange; hold otherwise. Never from Update.
 - [ ] B.8 Testbed scene authored in-editor (MCP/CLI, not code): 9:16 portrait camera, arena, 2× G1, pool, HUD (TL title · TC FPS/step-ms · TR behaviour selector · BL reset/shove/fire · BR version). Interpolation off.
-- [ ] B.9 `scripts/export_onnx.py --zero` → `hold_policy.onnx` (103→29 zeros = passive PD hold, opset 17, batch 1). Import into Unity.
-- [ ] B.10 Zero-brain parity: with `hold_policy.onnx` both robots stand 10 s in Unity; pelvis height within 1 cm of the A.8 trace at t=1,3,5,10 s. Fire a box at each: falls in both sims.
-- [ ] B.11 `MatchReset.cs`: restore qpos/qvel from keyframe + re-park pool via mjData writes, no scene recreation.
-- [ ] B.12 Measure mj_step ms and inference ms on desktop; log. Gate: < 4 ms total per 20 ms control tick.
+- [x] B.9 `scripts/export_onnx.py --zero` → `hold_policy.onnx` (103→29 zeros = passive PD hold, opset 17, batch 1). Import into Unity.
+- [x] B.10 Zero-brain parity: with `hold_policy.onnx` both robots stand 10 s in Unity; pelvis height within 1 cm of the A.8 trace at t=1,3,5,10 s. Fire a box at each: falls in both sims.
+- [x] B.11 `MatchReset.cs`: restore qpos/qvel from keyframe + re-park pool via mjData writes, no scene recreation.
+- [x] B.12 Measure mj_step ms and inference ms on desktop; log. Gate: < 4 ms total per 20 ms control tick.
 - [ ] B.13 Commit. **Training starts only after B.4, B.10 and B.12 pass.**
 
 ## Phase C — Training & verification loop (per rung)

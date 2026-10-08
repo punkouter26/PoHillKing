@@ -2,6 +2,7 @@
   uv run python scripts/train.py --rung r0 --num-envs 4096 --iters 1500 [--resume runs/r0/model_500.pt]
 TensorBoard logs under training/runs/<rung>/<timestamp>."""
 import argparse, json, os, sys, time
+sys.stdout.reconfigure(line_buffering=True)
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 import torch
 from rsl_rl.runners import OnPolicyRunner
@@ -13,10 +14,10 @@ def train_cfg(num_steps_per_env=24, save_interval=100):
         "num_steps_per_env": num_steps_per_env, "save_interval": save_interval, "logger": "tensorboard",
         "obs_groups": {"actor": ["policy"], "critic": ["critic"]},
         "actor": {"class_name": "MLPModel", "hidden_dims": [512, 256, 128], "activation": "elu", "obs_normalization": True,
-                  "distribution_cfg": {"class_name": "GaussianDistribution", "init_std": 0.8, "std_type": "scalar"}},
+                  "distribution_cfg": {"class_name": "GaussianDistribution", "init_std": 0.5, "std_type": "scalar", "std_range": [0.05, 1.0]}},
         "critic": {"class_name": "MLPModel", "hidden_dims": [512, 256, 128], "activation": "elu", "obs_normalization": True},
         "algorithm": {"class_name": "PPO", "num_learning_epochs": 5, "num_mini_batches": 4, "clip_param": 0.2, "gamma": 0.99,
-                      "lam": 0.95, "value_loss_coef": 1.0, "entropy_coef": 0.005, "learning_rate": 1e-3, "max_grad_norm": 1.0,
+                      "lam": 0.95, "value_loss_coef": 1.0, "entropy_coef": 0.002, "learning_rate": 1e-3, "max_grad_norm": 1.0,
                       "schedule": "adaptive", "desired_kl": 0.01},
     }
 

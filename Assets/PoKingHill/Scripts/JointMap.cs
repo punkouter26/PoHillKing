@@ -22,6 +22,8 @@ namespace PoKingHill
         public string[] robot_prefixes;
         public string[] pool_bodies;
         public int ls_iterations;
+        public float[] hold_ctrl;     // gravity-compensated stance targets, canonical order
+        public float key_root_z;       // pelvis height of the training keyframe
     }
 
     public unsafe class JointMap

@@ -6,7 +6,7 @@
       <joint solreflimit="0.008" solimplimit="0 0.99 0.01" frictionloss="0.1" />
       <geom contype="0" conaffinity="0" condim="1" />
       <site group="5" rgba="1 0 0 1" />
-      <general biastype="affine" gainprm="200" biasprm="0 -200 -5" />
+      <general biastype="affine" gainprm="0" />
       <default class="visual">
         <geom type="mesh" group="2" density="0" material="silver" />
       </default>
@@ -20,6 +20,7 @@
         </default>
       </default>
       <default class="hip">
+        <general gainprm="200" biasprm="0 -200 -5" />
         <default class="hip_pitch">
           <joint range="-2.5307 2.8798" armature="0.0101775" axis="0 1 0" />
           <general forcerange="-88 88" />
@@ -35,7 +36,7 @@
       </default>
       <default class="knee">
         <joint range="-0.087267 2.8798" armature="0.0251019" axis="0 1 0" />
-        <general forcerange="-139 139" gainprm="300" biasprm="0 -300" />
+        <general forcerange="-139 139" gainprm="300" biasprm="0 -300 -5" />
       </default>
       <default class="ankle">
         <general gainprm="60" biasprm="0 -60 -3" />
@@ -50,15 +51,15 @@
       </default>
       <default class="waist_yaw">
         <joint range="-2.618 2.618" armature="0.0101775" />
-        <general forcerange="-88 88" />
+        <general forcerange="-88 88" gainprm="200" biasprm="0 -200 -5" />
       </default>
       <default class="waist_pitch">
         <joint range="-0.52 0.52" armature="0.00721945" axis="0 1 0" />
-        <general forcerange="-50 50" />
+        <general forcerange="-50 50" gainprm="200" biasprm="0 -200 -5" />
       </default>
       <default class="waist_roll">
         <joint range="-0.52 0.52" armature="0.00721945" axis="1 0 0" />
-        <general forcerange="-50 50" />
+        <general forcerange="-50 50" gainprm="200" biasprm="0 -200 -5" />
       </default>
       <default class="shoulder">
         <general gainprm="60" biasprm="0 -60 -3" />
@@ -539,64 +540,64 @@
     <exclude body1="b_right_knee_link" body2="b_right_ankle_roll_link" />
   </contact>
   <actuator>
-    <general name="a_left_hip_pitch_joint" class="hip_pitch" joint="a_left_hip_pitch_joint" ctrlrange="-2.5307 2.8798" />
-    <general name="a_left_hip_roll_joint" class="hip_roll" joint="a_left_hip_roll_joint" ctrlrange="-0.5236 2.9671" />
-    <general name="a_left_hip_yaw_joint" class="hip_yaw" joint="a_left_hip_yaw_joint" ctrlrange="-2.7576 2.7576" />
-    <general name="a_left_knee_joint" class="knee" joint="a_left_knee_joint" ctrlrange="-0.087267 2.8798" />
-    <general name="a_left_ankle_pitch_joint" class="ankle_pitch" joint="a_left_ankle_pitch_joint" ctrlrange="-0.87267 0.5236" />
-    <general name="a_left_ankle_roll_joint" class="ankle_roll" joint="a_left_ankle_roll_joint" ctrlrange="-0.2618 0.2618" />
-    <general name="a_right_hip_pitch_joint" class="hip_pitch" joint="a_right_hip_pitch_joint" ctrlrange="-2.5307 2.8798" />
-    <general name="a_right_hip_roll_joint" class="hip_roll" joint="a_right_hip_roll_joint" ctrlrange="-2.9671 0.5236" />
-    <general name="a_right_hip_yaw_joint" class="hip_yaw" joint="a_right_hip_yaw_joint" ctrlrange="-2.7576 2.7576" />
-    <general name="a_right_knee_joint" class="knee" joint="a_right_knee_joint" ctrlrange="-0.087267 2.8798" />
-    <general name="a_right_ankle_pitch_joint" class="ankle_pitch" joint="a_right_ankle_pitch_joint" ctrlrange="-0.87267 0.5236" />
-    <general name="a_right_ankle_roll_joint" class="ankle_roll" joint="a_right_ankle_roll_joint" ctrlrange="-0.2618 0.2618" />
-    <general name="a_waist_yaw_joint" class="waist_yaw" joint="a_waist_yaw_joint" ctrlrange="-2.618 2.618" />
-    <general name="a_waist_roll_joint" class="waist_roll" joint="a_waist_roll_joint" ctrlrange="-0.52 0.52" />
-    <general name="a_waist_pitch_joint" class="waist_pitch" joint="a_waist_pitch_joint" ctrlrange="-0.52 0.52" />
-    <general name="a_left_shoulder_pitch_joint" class="shoulder_pitch" joint="a_left_shoulder_pitch_joint" ctrlrange="-3.0892 2.6704" />
-    <general name="a_left_shoulder_roll_joint" class="shoulder_roll" joint="a_left_shoulder_roll_joint" ctrlrange="-1.5882 2.2515" />
-    <general name="a_left_shoulder_yaw_joint" class="shoulder_yaw" joint="a_left_shoulder_yaw_joint" ctrlrange="-2.618 2.618" />
-    <general name="a_left_elbow_joint" class="elbow" joint="a_left_elbow_joint" ctrlrange="-1.0472 2.0944" />
-    <general name="a_left_wrist_roll_joint" class="wrist_roll" joint="a_left_wrist_roll_joint" ctrlrange="-1.97222 1.97222" />
-    <general name="a_left_wrist_pitch_joint" class="wrist_pitch" joint="a_left_wrist_pitch_joint" ctrlrange="-1.61443 1.61443" />
-    <general name="a_left_wrist_yaw_joint" class="wrist_yaw" joint="a_left_wrist_yaw_joint" ctrlrange="-1.61443 1.61443" />
-    <general name="a_right_shoulder_pitch_joint" class="shoulder_pitch" joint="a_right_shoulder_pitch_joint" ctrlrange="-3.0892 2.6704" />
-    <general name="a_right_shoulder_roll_joint" class="shoulder_roll" joint="a_right_shoulder_roll_joint" ctrlrange="-2.2515 1.5882" />
-    <general name="a_right_shoulder_yaw_joint" class="shoulder_yaw" joint="a_right_shoulder_yaw_joint" ctrlrange="-2.618 2.618" />
-    <general name="a_right_elbow_joint" class="elbow" joint="a_right_elbow_joint" ctrlrange="-1.0472 2.0944" />
-    <general name="a_right_wrist_roll_joint" class="wrist_roll" joint="a_right_wrist_roll_joint" ctrlrange="-1.97222 1.97222" />
-    <general name="a_right_wrist_pitch_joint" class="wrist_pitch" joint="a_right_wrist_pitch_joint" ctrlrange="-1.61443 1.61443" />
-    <general name="a_right_wrist_yaw_joint" class="wrist_yaw" joint="a_right_wrist_yaw_joint" ctrlrange="-1.61443 1.61443" />
-    <general name="b_left_hip_pitch_joint" class="hip_pitch" joint="b_left_hip_pitch_joint" ctrlrange="-2.5307 2.8798" />
-    <general name="b_left_hip_roll_joint" class="hip_roll" joint="b_left_hip_roll_joint" ctrlrange="-0.5236 2.9671" />
-    <general name="b_left_hip_yaw_joint" class="hip_yaw" joint="b_left_hip_yaw_joint" ctrlrange="-2.7576 2.7576" />
-    <general name="b_left_knee_joint" class="knee" joint="b_left_knee_joint" ctrlrange="-0.087267 2.8798" />
-    <general name="b_left_ankle_pitch_joint" class="ankle_pitch" joint="b_left_ankle_pitch_joint" ctrlrange="-0.87267 0.5236" />
-    <general name="b_left_ankle_roll_joint" class="ankle_roll" joint="b_left_ankle_roll_joint" ctrlrange="-0.2618 0.2618" />
-    <general name="b_right_hip_pitch_joint" class="hip_pitch" joint="b_right_hip_pitch_joint" ctrlrange="-2.5307 2.8798" />
-    <general name="b_right_hip_roll_joint" class="hip_roll" joint="b_right_hip_roll_joint" ctrlrange="-2.9671 0.5236" />
-    <general name="b_right_hip_yaw_joint" class="hip_yaw" joint="b_right_hip_yaw_joint" ctrlrange="-2.7576 2.7576" />
-    <general name="b_right_knee_joint" class="knee" joint="b_right_knee_joint" ctrlrange="-0.087267 2.8798" />
-    <general name="b_right_ankle_pitch_joint" class="ankle_pitch" joint="b_right_ankle_pitch_joint" ctrlrange="-0.87267 0.5236" />
-    <general name="b_right_ankle_roll_joint" class="ankle_roll" joint="b_right_ankle_roll_joint" ctrlrange="-0.2618 0.2618" />
-    <general name="b_waist_yaw_joint" class="waist_yaw" joint="b_waist_yaw_joint" ctrlrange="-2.618 2.618" />
-    <general name="b_waist_roll_joint" class="waist_roll" joint="b_waist_roll_joint" ctrlrange="-0.52 0.52" />
-    <general name="b_waist_pitch_joint" class="waist_pitch" joint="b_waist_pitch_joint" ctrlrange="-0.52 0.52" />
-    <general name="b_left_shoulder_pitch_joint" class="shoulder_pitch" joint="b_left_shoulder_pitch_joint" ctrlrange="-3.0892 2.6704" />
-    <general name="b_left_shoulder_roll_joint" class="shoulder_roll" joint="b_left_shoulder_roll_joint" ctrlrange="-1.5882 2.2515" />
-    <general name="b_left_shoulder_yaw_joint" class="shoulder_yaw" joint="b_left_shoulder_yaw_joint" ctrlrange="-2.618 2.618" />
-    <general name="b_left_elbow_joint" class="elbow" joint="b_left_elbow_joint" ctrlrange="-1.0472 2.0944" />
-    <general name="b_left_wrist_roll_joint" class="wrist_roll" joint="b_left_wrist_roll_joint" ctrlrange="-1.97222 1.97222" />
-    <general name="b_left_wrist_pitch_joint" class="wrist_pitch" joint="b_left_wrist_pitch_joint" ctrlrange="-1.61443 1.61443" />
-    <general name="b_left_wrist_yaw_joint" class="wrist_yaw" joint="b_left_wrist_yaw_joint" ctrlrange="-1.61443 1.61443" />
-    <general name="b_right_shoulder_pitch_joint" class="shoulder_pitch" joint="b_right_shoulder_pitch_joint" ctrlrange="-3.0892 2.6704" />
-    <general name="b_right_shoulder_roll_joint" class="shoulder_roll" joint="b_right_shoulder_roll_joint" ctrlrange="-2.2515 1.5882" />
-    <general name="b_right_shoulder_yaw_joint" class="shoulder_yaw" joint="b_right_shoulder_yaw_joint" ctrlrange="-2.618 2.618" />
-    <general name="b_right_elbow_joint" class="elbow" joint="b_right_elbow_joint" ctrlrange="-1.0472 2.0944" />
-    <general name="b_right_wrist_roll_joint" class="wrist_roll" joint="b_right_wrist_roll_joint" ctrlrange="-1.97222 1.97222" />
-    <general name="b_right_wrist_pitch_joint" class="wrist_pitch" joint="b_right_wrist_pitch_joint" ctrlrange="-1.61443 1.61443" />
-    <general name="b_right_wrist_yaw_joint" class="wrist_yaw" joint="b_right_wrist_yaw_joint" ctrlrange="-1.61443 1.61443" />
+    <general name="a_left_hip_pitch_joint" class="hip_pitch" joint="a_left_hip_pitch_joint" ctrlrange="-2.5307 2.8798" biastype="affine" gainprm="200" biasprm="0 -200 -5" ctrllimited="true" forcerange="-88 88" forcelimited="true" />
+    <general name="a_left_hip_roll_joint" class="hip_roll" joint="a_left_hip_roll_joint" ctrlrange="-0.5236 2.9671" biastype="affine" gainprm="200" biasprm="0 -200 -5" ctrllimited="true" forcerange="-139 139" forcelimited="true" />
+    <general name="a_left_hip_yaw_joint" class="hip_yaw" joint="a_left_hip_yaw_joint" ctrlrange="-2.7576 2.7576" biastype="affine" gainprm="200" biasprm="0 -200 -5" ctrllimited="true" forcerange="-88 88" forcelimited="true" />
+    <general name="a_left_knee_joint" class="knee" joint="a_left_knee_joint" ctrlrange="-0.087267 2.8798" biastype="affine" gainprm="300" biasprm="0 -300 -5" ctrllimited="true" forcerange="-139 139" forcelimited="true" />
+    <general name="a_left_ankle_pitch_joint" class="ankle_pitch" joint="a_left_ankle_pitch_joint" ctrlrange="-0.87267 0.5236" biastype="affine" gainprm="200" biasprm="0 -200 -5" ctrllimited="true" forcerange="-50 50" forcelimited="true" />
+    <general name="a_left_ankle_roll_joint" class="ankle_roll" joint="a_left_ankle_roll_joint" ctrlrange="-0.2618 0.2618" biastype="affine" gainprm="60" biasprm="0 -60 -3" ctrllimited="true" forcerange="-50 50" forcelimited="true" />
+    <general name="a_right_hip_pitch_joint" class="hip_pitch" joint="a_right_hip_pitch_joint" ctrlrange="-2.5307 2.8798" biastype="affine" gainprm="200" biasprm="0 -200 -5" ctrllimited="true" forcerange="-88 88" forcelimited="true" />
+    <general name="a_right_hip_roll_joint" class="hip_roll" joint="a_right_hip_roll_joint" ctrlrange="-2.9671 0.5236" biastype="affine" gainprm="200" biasprm="0 -200 -5" ctrllimited="true" forcerange="-139 139" forcelimited="true" />
+    <general name="a_right_hip_yaw_joint" class="hip_yaw" joint="a_right_hip_yaw_joint" ctrlrange="-2.7576 2.7576" biastype="affine" gainprm="200" biasprm="0 -200 -5" ctrllimited="true" forcerange="-88 88" forcelimited="true" />
+    <general name="a_right_knee_joint" class="knee" joint="a_right_knee_joint" ctrlrange="-0.087267 2.8798" biastype="affine" gainprm="300" biasprm="0 -300 -5" ctrllimited="true" forcerange="-139 139" forcelimited="true" />
+    <general name="a_right_ankle_pitch_joint" class="ankle_pitch" joint="a_right_ankle_pitch_joint" ctrlrange="-0.87267 0.5236" biastype="affine" gainprm="200" biasprm="0 -200 -5" ctrllimited="true" forcerange="-50 50" forcelimited="true" />
+    <general name="a_right_ankle_roll_joint" class="ankle_roll" joint="a_right_ankle_roll_joint" ctrlrange="-0.2618 0.2618" biastype="affine" gainprm="60" biasprm="0 -60 -3" ctrllimited="true" forcerange="-50 50" forcelimited="true" />
+    <general name="a_waist_yaw_joint" class="waist_yaw" joint="a_waist_yaw_joint" ctrlrange="-2.618 2.618" biastype="affine" gainprm="200" biasprm="0 -200 -5" ctrllimited="true" forcerange="-88 88" forcelimited="true" />
+    <general name="a_waist_roll_joint" class="waist_roll" joint="a_waist_roll_joint" ctrlrange="-0.52 0.52" biastype="affine" gainprm="200" biasprm="0 -200 -5" ctrllimited="true" forcerange="-50 50" forcelimited="true" />
+    <general name="a_waist_pitch_joint" class="waist_pitch" joint="a_waist_pitch_joint" ctrlrange="-0.52 0.52" biastype="affine" gainprm="200" biasprm="0 -200 -5" ctrllimited="true" forcerange="-50 50" forcelimited="true" />
+    <general name="a_left_shoulder_pitch_joint" class="shoulder_pitch" joint="a_left_shoulder_pitch_joint" ctrlrange="-3.0892 2.6704" biastype="affine" gainprm="60" biasprm="0 -60 -3" ctrllimited="true" forcerange="-25 25" forcelimited="true" />
+    <general name="a_left_shoulder_roll_joint" class="shoulder_roll" joint="a_left_shoulder_roll_joint" ctrlrange="-1.5882 2.2515" biastype="affine" gainprm="60" biasprm="0 -60 -3" ctrllimited="true" forcerange="-25 25" forcelimited="true" />
+    <general name="a_left_shoulder_yaw_joint" class="shoulder_yaw" joint="a_left_shoulder_yaw_joint" ctrlrange="-2.618 2.618" biastype="affine" gainprm="60" biasprm="0 -60 -3" ctrllimited="true" forcerange="-25 25" forcelimited="true" />
+    <general name="a_left_elbow_joint" class="elbow" joint="a_left_elbow_joint" ctrlrange="-1.0472 2.0944" biastype="affine" gainprm="60" biasprm="0 -60 -3" ctrllimited="true" forcerange="-25 25" forcelimited="true" />
+    <general name="a_left_wrist_roll_joint" class="wrist_roll" joint="a_left_wrist_roll_joint" ctrlrange="-1.97222 1.97222" biastype="affine" gainprm="40" biasprm="0 -40 -2" ctrllimited="true" forcerange="-25 25" forcelimited="true" />
+    <general name="a_left_wrist_pitch_joint" class="wrist_pitch" joint="a_left_wrist_pitch_joint" ctrlrange="-1.61443 1.61443" biastype="affine" gainprm="40" biasprm="0 -40 -2" ctrllimited="true" forcerange="-5 5" forcelimited="true" />
+    <general name="a_left_wrist_yaw_joint" class="wrist_yaw" joint="a_left_wrist_yaw_joint" ctrlrange="-1.61443 1.61443" biastype="affine" gainprm="40" biasprm="0 -40 -2" ctrllimited="true" forcerange="-5 5" forcelimited="true" />
+    <general name="a_right_shoulder_pitch_joint" class="shoulder_pitch" joint="a_right_shoulder_pitch_joint" ctrlrange="-3.0892 2.6704" biastype="affine" gainprm="60" biasprm="0 -60 -3" ctrllimited="true" forcerange="-25 25" forcelimited="true" />
+    <general name="a_right_shoulder_roll_joint" class="shoulder_roll" joint="a_right_shoulder_roll_joint" ctrlrange="-2.2515 1.5882" biastype="affine" gainprm="60" biasprm="0 -60 -3" ctrllimited="true" forcerange="-25 25" forcelimited="true" />
+    <general name="a_right_shoulder_yaw_joint" class="shoulder_yaw" joint="a_right_shoulder_yaw_joint" ctrlrange="-2.618 2.618" biastype="affine" gainprm="60" biasprm="0 -60 -3" ctrllimited="true" forcerange="-25 25" forcelimited="true" />
+    <general name="a_right_elbow_joint" class="elbow" joint="a_right_elbow_joint" ctrlrange="-1.0472 2.0944" biastype="affine" gainprm="60" biasprm="0 -60 -3" ctrllimited="true" forcerange="-25 25" forcelimited="true" />
+    <general name="a_right_wrist_roll_joint" class="wrist_roll" joint="a_right_wrist_roll_joint" ctrlrange="-1.97222 1.97222" biastype="affine" gainprm="40" biasprm="0 -40 -2" ctrllimited="true" forcerange="-25 25" forcelimited="true" />
+    <general name="a_right_wrist_pitch_joint" class="wrist_pitch" joint="a_right_wrist_pitch_joint" ctrlrange="-1.61443 1.61443" biastype="affine" gainprm="40" biasprm="0 -40 -2" ctrllimited="true" forcerange="-5 5" forcelimited="true" />
+    <general name="a_right_wrist_yaw_joint" class="wrist_yaw" joint="a_right_wrist_yaw_joint" ctrlrange="-1.61443 1.61443" biastype="affine" gainprm="40" biasprm="0 -40 -2" ctrllimited="true" forcerange="-5 5" forcelimited="true" />
+    <general name="b_left_hip_pitch_joint" class="hip_pitch" joint="b_left_hip_pitch_joint" ctrlrange="-2.5307 2.8798" biastype="affine" gainprm="200" biasprm="0 -200 -5" ctrllimited="true" forcerange="-88 88" forcelimited="true" />
+    <general name="b_left_hip_roll_joint" class="hip_roll" joint="b_left_hip_roll_joint" ctrlrange="-0.5236 2.9671" biastype="affine" gainprm="200" biasprm="0 -200 -5" ctrllimited="true" forcerange="-139 139" forcelimited="true" />
+    <general name="b_left_hip_yaw_joint" class="hip_yaw" joint="b_left_hip_yaw_joint" ctrlrange="-2.7576 2.7576" biastype="affine" gainprm="200" biasprm="0 -200 -5" ctrllimited="true" forcerange="-88 88" forcelimited="true" />
+    <general name="b_left_knee_joint" class="knee" joint="b_left_knee_joint" ctrlrange="-0.087267 2.8798" biastype="affine" gainprm="300" biasprm="0 -300 -5" ctrllimited="true" forcerange="-139 139" forcelimited="true" />
+    <general name="b_left_ankle_pitch_joint" class="ankle_pitch" joint="b_left_ankle_pitch_joint" ctrlrange="-0.87267 0.5236" biastype="affine" gainprm="200" biasprm="0 -200 -5" ctrllimited="true" forcerange="-50 50" forcelimited="true" />
+    <general name="b_left_ankle_roll_joint" class="ankle_roll" joint="b_left_ankle_roll_joint" ctrlrange="-0.2618 0.2618" biastype="affine" gainprm="60" biasprm="0 -60 -3" ctrllimited="true" forcerange="-50 50" forcelimited="true" />
+    <general name="b_right_hip_pitch_joint" class="hip_pitch" joint="b_right_hip_pitch_joint" ctrlrange="-2.5307 2.8798" biastype="affine" gainprm="200" biasprm="0 -200 -5" ctrllimited="true" forcerange="-88 88" forcelimited="true" />
+    <general name="b_right_hip_roll_joint" class="hip_roll" joint="b_right_hip_roll_joint" ctrlrange="-2.9671 0.5236" biastype="affine" gainprm="200" biasprm="0 -200 -5" ctrllimited="true" forcerange="-139 139" forcelimited="true" />
+    <general name="b_right_hip_yaw_joint" class="hip_yaw" joint="b_right_hip_yaw_joint" ctrlrange="-2.7576 2.7576" biastype="affine" gainprm="200" biasprm="0 -200 -5" ctrllimited="true" forcerange="-88 88" forcelimited="true" />
+    <general name="b_right_knee_joint" class="knee" joint="b_right_knee_joint" ctrlrange="-0.087267 2.8798" biastype="affine" gainprm="300" biasprm="0 -300 -5" ctrllimited="true" forcerange="-139 139" forcelimited="true" />
+    <general name="b_right_ankle_pitch_joint" class="ankle_pitch" joint="b_right_ankle_pitch_joint" ctrlrange="-0.87267 0.5236" biastype="affine" gainprm="200" biasprm="0 -200 -5" ctrllimited="true" forcerange="-50 50" forcelimited="true" />
+    <general name="b_right_ankle_roll_joint" class="ankle_roll" joint="b_right_ankle_roll_joint" ctrlrange="-0.2618 0.2618" biastype="affine" gainprm="60" biasprm="0 -60 -3" ctrllimited="true" forcerange="-50 50" forcelimited="true" />
+    <general name="b_waist_yaw_joint" class="waist_yaw" joint="b_waist_yaw_joint" ctrlrange="-2.618 2.618" biastype="affine" gainprm="200" biasprm="0 -200 -5" ctrllimited="true" forcerange="-88 88" forcelimited="true" />
+    <general name="b_waist_roll_joint" class="waist_roll" joint="b_waist_roll_joint" ctrlrange="-0.52 0.52" biastype="affine" gainprm="200" biasprm="0 -200 -5" ctrllimited="true" forcerange="-50 50" forcelimited="true" />
+    <general name="b_waist_pitch_joint" class="waist_pitch" joint="b_waist_pitch_joint" ctrlrange="-0.52 0.52" biastype="affine" gainprm="200" biasprm="0 -200 -5" ctrllimited="true" forcerange="-50 50" forcelimited="true" />
+    <general name="b_left_shoulder_pitch_joint" class="shoulder_pitch" joint="b_left_shoulder_pitch_joint" ctrlrange="-3.0892 2.6704" biastype="affine" gainprm="60" biasprm="0 -60 -3" ctrllimited="true" forcerange="-25 25" forcelimited="true" />
+    <general name="b_left_shoulder_roll_joint" class="shoulder_roll" joint="b_left_shoulder_roll_joint" ctrlrange="-1.5882 2.2515" biastype="affine" gainprm="60" biasprm="0 -60 -3" ctrllimited="true" forcerange="-25 25" forcelimited="true" />
+    <general name="b_left_shoulder_yaw_joint" class="shoulder_yaw" joint="b_left_shoulder_yaw_joint" ctrlrange="-2.618 2.618" biastype="affine" gainprm="60" biasprm="0 -60 -3" ctrllimited="true" forcerange="-25 25" forcelimited="true" />
+    <general name="b_left_elbow_joint" class="elbow" joint="b_left_elbow_joint" ctrlrange="-1.0472 2.0944" biastype="affine" gainprm="60" biasprm="0 -60 -3" ctrllimited="true" forcerange="-25 25" forcelimited="true" />
+    <general name="b_left_wrist_roll_joint" class="wrist_roll" joint="b_left_wrist_roll_joint" ctrlrange="-1.97222 1.97222" biastype="affine" gainprm="40" biasprm="0 -40 -2" ctrllimited="true" forcerange="-25 25" forcelimited="true" />
+    <general name="b_left_wrist_pitch_joint" class="wrist_pitch" joint="b_left_wrist_pitch_joint" ctrlrange="-1.61443 1.61443" biastype="affine" gainprm="40" biasprm="0 -40 -2" ctrllimited="true" forcerange="-5 5" forcelimited="true" />
+    <general name="b_left_wrist_yaw_joint" class="wrist_yaw" joint="b_left_wrist_yaw_joint" ctrlrange="-1.61443 1.61443" biastype="affine" gainprm="40" biasprm="0 -40 -2" ctrllimited="true" forcerange="-5 5" forcelimited="true" />
+    <general name="b_right_shoulder_pitch_joint" class="shoulder_pitch" joint="b_right_shoulder_pitch_joint" ctrlrange="-3.0892 2.6704" biastype="affine" gainprm="60" biasprm="0 -60 -3" ctrllimited="true" forcerange="-25 25" forcelimited="true" />
+    <general name="b_right_shoulder_roll_joint" class="shoulder_roll" joint="b_right_shoulder_roll_joint" ctrlrange="-2.2515 1.5882" biastype="affine" gainprm="60" biasprm="0 -60 -3" ctrllimited="true" forcerange="-25 25" forcelimited="true" />
+    <general name="b_right_shoulder_yaw_joint" class="shoulder_yaw" joint="b_right_shoulder_yaw_joint" ctrlrange="-2.618 2.618" biastype="affine" gainprm="60" biasprm="0 -60 -3" ctrllimited="true" forcerange="-25 25" forcelimited="true" />
+    <general name="b_right_elbow_joint" class="elbow" joint="b_right_elbow_joint" ctrlrange="-1.0472 2.0944" biastype="affine" gainprm="60" biasprm="0 -60 -3" ctrllimited="true" forcerange="-25 25" forcelimited="true" />
+    <general name="b_right_wrist_roll_joint" class="wrist_roll" joint="b_right_wrist_roll_joint" ctrlrange="-1.97222 1.97222" biastype="affine" gainprm="40" biasprm="0 -40 -2" ctrllimited="true" forcerange="-25 25" forcelimited="true" />
+    <general name="b_right_wrist_pitch_joint" class="wrist_pitch" joint="b_right_wrist_pitch_joint" ctrlrange="-1.61443 1.61443" biastype="affine" gainprm="40" biasprm="0 -40 -2" ctrllimited="true" forcerange="-5 5" forcelimited="true" />
+    <general name="b_right_wrist_yaw_joint" class="wrist_yaw" joint="b_right_wrist_yaw_joint" ctrlrange="-1.61443 1.61443" biastype="affine" gainprm="40" biasprm="0 -40 -2" ctrllimited="true" forcerange="-5 5" forcelimited="true" />
   </actuator>
   <keyframe>
     <key name="default" qpos="-1.4 0 0.779521 1 0 0 0 -0.2 0 0 0.42 -0.23 0 -0.2 0 0 0.42 -0.23 0 0 0 0 0.2 0.2 0 1.28 0 0 0 0.2 -0.2 0 1.28 0 0 0 1.4 0 0.779521 0 0 0 1 -0.2 0 0 0.42 -0.23 0 -0.2 0 0 0.42 -0.23 0 0 0 0 0.2 0.2 0 1.28 0 0 0 0.2 -0.2 0 1.28 0 0 0 100 0 50 1 0 0 0 100.5 0 50 1 0 0 0 101 0 50 1 0 0 0 101.5 0 50 1 0 0 0" ctrl="-0.203149 -0.000298528 0.000144713 0.395812 -0.215383 0.000354437 -0.203166 0.000292063 -0.000141672 0.395847 -0.215404 -0.000374712 -4.38999e-07 0.000129229 0.00340528 0.209899 0.223085 0.00239148 1.27926 -3.73922e-06 -0.000904273 0.000897331 0.209899 -0.223085 -0.00239162 1.27926 3.73901e-06 -0.000904275 -0.000897374 -0.203149 -0.000298528 0.000144713 0.395812 -0.215383 0.000354437 -0.203166 0.000292063 -0.000141672 0.395847 -0.215404 -0.000374712 -4.38999e-07 0.000129229 0.00340528 0.209899 0.223085 0.00239148 1.27926 -3.73922e-06 -0.000904273 0.000897331 0.209899 -0.223085 -0.00239162 1.27926 3.73901e-06 -0.000904275 -0.000897374" />

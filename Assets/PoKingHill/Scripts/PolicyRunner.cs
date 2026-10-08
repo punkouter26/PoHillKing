@@ -10,18 +10,21 @@ namespace PoKingHill
     /// holds it between policy ticks. With no model assigned it writes the gravity-compensated hold ctrl
     /// (HoldCtrl) so the robot stands passively: that is the zero-brain parity test.
     /// </summary>
+    [DefaultExecutionOrder(-100)]   // subscribes to MjScene.postInitEvent first: sets ls_iterations and the keyframe before other listeners read the model
     public unsafe class PolicyRunner : MonoBehaviour
     {
         public TextAsset jointMapJson;
         [Tooltip("a_ or b_")] public string robotPrefix = "a_";
         [Tooltip("ONNX policy. Leave empty for passive hold.")] public ModelAsset policy;
-        [Tooltip("Hold ctrl from the training keyframe (29 values). Used when no policy is set.")] public float[] holdCtrl;
         public Vector3 command;   // vx, vy, yaw rate
         public bool paused;
 
         public JointMap Map { get; private set; }
         public float[] Obs { get; } = new float[ObsBuilder.ObsDim];
         public float[] LastAction { get; private set; }
+        public float[] RawAction { get; private set; }   // network output before clamping
+        public double[] Ctrl { get; private set; }        // held position targets, canonical order
+        public event System.Action<PolicyRunner> OnPolicyStep;
         public int PolicySteps { get; private set; }
         public double LastInferenceMs { get; private set; }
 
@@ -37,6 +40,7 @@ namespace PoKingHill
         {
             _spec = JointMap.LoadSpec(jointMapJson);
             LastAction = new float[_spec.joints.Length];
+            RawAction = new float[_spec.joints.Length]; Ctrl = new double[_spec.joints.Length];
             if (policy != null)
             {
                 _worker = new Worker(ModelLoader.Load(policy), BackendType.CPU);
@@ -66,16 +70,24 @@ namespace PoKingHill
                 Debug.LogError($"Fixed Timestep {Time.fixedDeltaTime} != training sim_dt {_spec.sim_dt}");
             _substep = 0; _phase = 0; PolicySteps = 0;
             System.Array.Clear(LastAction, 0, LastAction.Length);
+            ResetPose();   // the plugin cannot import keyframes: start from the training keyframe explicitly
         }
 
         void OnPreStep(object sender, MjStepArgs args)
         {
             if (Map == null || paused) return;
-            if (_substep++ % _spec.decimation != 0) return;   // hold ctrl between policy ticks
             var d = MjScene.Instance.Data;
+            if (_substep++ % _spec.decimation == 0) PolicyTick(d);
+            // MjActuator.OnSyncState writes its own Control field (0) into mjData.ctrl after every mj_step, so the
+            // held targets must be rewritten before every physics step, not only on policy ticks.
+            for (int i = 0; i < Map.N; i++) d->ctrl[Map.ActId[i]] = Ctrl[i];
+        }
+
+        void PolicyTick(MujocoLib.mjData_* d)
+        {
             if (_worker == null)
             {
-                for (int i = 0; i < Map.N; i++) d->ctrl[Map.ActId[i]] = holdCtrl != null && holdCtrl.Length == Map.N ? holdCtrl[i] : Map.DefaultPose[i];
+                for (int i = 0; i < Map.N; i++) Ctrl[i] = _spec.hold_ctrl[i];
                 return;
             }
             _cmd[0] = command.x; _cmd[1] = command.y; _cmd[2] = command.z;
@@ -88,23 +100,30 @@ namespace PoKingHill
             LastInferenceMs = _sw.Elapsed.TotalMilliseconds;
             for (int i = 0; i < Map.N; i++)
             {
+                RawAction[i] = act[i];
                 float a = Mathf.Clamp(act[i], -1f, 1f);
                 LastAction[i] = a;
-                double target = Map.DefaultPose[i] + _spec.action_scale * a;
-                d->ctrl[Map.ActId[i]] = System.Math.Clamp(target, Map.CtrlMin[i], Map.CtrlMax[i]);
+                Ctrl[i] = System.Math.Clamp(Map.DefaultPose[i] + _spec.action_scale * a, Map.CtrlMin[i], Map.CtrlMax[i]);
             }
             _phase += 2f * Mathf.PI * ObsBuilder.GaitFreqHz * _spec.ctrl_dt;
             if (_phase > 2f * Mathf.PI) _phase -= 2f * Mathf.PI;
             PolicySteps++;
+            OnPolicyStep?.Invoke(this);
         }
 
-        /// <summary>Write the training keyframe pose for this robot (qpos for the 29 joints + root) and zero velocities.</summary>
-        public void ResetPose(double[] rootQpos7, float[] jointQpos)
+        /// <summary>Training keyframe for this robot: default joint pose, pelvis at its spawn x/y/yaw (qpos0) and the
+        /// keyframe height, zero velocities, hold ctrl. Pure mjData writes; no scene recreation.</summary>
+        public void ResetPose()
         {
-            var d = MjScene.Instance.Data;
-            for (int k = 0; k < 7; k++) d->qpos[Map.RootQposAdr + k] = rootQpos7[k];
+            var m = MjScene.Instance.Model; var d = MjScene.Instance.Data;
+            for (int k = 0; k < 7; k++) d->qpos[Map.RootQposAdr + k] = m->qpos0[Map.RootQposAdr + k];
+            d->qpos[Map.RootQposAdr + 2] = _spec.key_root_z;
             for (int k = 0; k < 6; k++) d->qvel[Map.RootDofAdr + k] = 0;
-            for (int i = 0; i < Map.N; i++) { d->qpos[Map.QposAdr[i]] = jointQpos[i]; d->qvel[Map.DofAdr[i]] = 0; }
+            for (int i = 0; i < Map.N; i++)
+            {
+                d->qpos[Map.QposAdr[i]] = Map.DefaultPose[i]; d->qvel[Map.DofAdr[i]] = 0;
+                Ctrl[i] = _spec.hold_ctrl[i]; d->ctrl[Map.ActId[i]] = Ctrl[i];
+            }
             _substep = 0; _phase = 0;
             System.Array.Clear(LastAction, 0, LastAction.Length);
         }

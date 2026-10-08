@@ -1,0 +1,21 @@
+{
+    "name": "PoKingHill.Editor",
+    "rootNamespace": "PoKingHill.EditorTools",
+    "references": [
+        "PoKingHill",
+        "Mujoco.Runtime",
+        "Mujoco.Editor",
+        "Unity.InferenceEngine"
+    ],
+    "includePlatforms": [
+        "Editor"
+    ],
+    "excludePlatforms": [],
+    "allowUnsafeCode": true,
+    "overrideReferences": false,
+    "precompiledReferences": [],
+    "autoReferenced": true,
+    "defineConstraints": [],
+    "versionDefines": [],
+    "noEngineReferences": false
+}

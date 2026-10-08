@@ -21,10 +21,13 @@ def default_cfg(rung: str = "r0") -> dict:
         dr=dict(mass=0.15, friction=[0.4, 0.9], kp=0.2, damping=0.2, latency_prob=0.5),
         noise=dict(joint_pos=0.03, joint_vel=1.5, gravity=0.05, linvel=0.1, gyro=0.2),
         reset_noise=dict(joint_pos=0.05, joint_vel=0.3, yaw=math.pi),
-        reward=dict(tracking_lin_vel=1.0, tracking_ang_vel=0.75, orientation=-2.0, ang_vel_xy=-0.15, lin_vel_z=-0.5,
-                    feet_air_time=2.0, feet_slip=-0.25, feet_phase=1.0, pose=-0.1, joint_deviation_hip=-0.25,
-                    joint_deviation_knee=-0.1, dof_pos_limits=-1.0, action_rate=-0.01, stand_still=-1.0,
-                    alive=0.0, termination=-100.0),
+        # Positive terms dominate once the robot stands (tracking 1.75 + alive 0.5); penalties stay small enough
+        # that the clipped sum is rarely zero. Run r0_b had the sum clipped to zero on every step (stand_still -0.15
+        # and ang_vel_xy -0.10 per step vs +0.03), so PPO saw only the entropy bonus and action std grew to 2.5.
+        reward=dict(tracking_lin_vel=1.0, tracking_ang_vel=0.75, alive=0.5, upright=0.5, orientation=-2.0, ang_vel_xy=-0.05,
+                    lin_vel_z=-0.5, feet_air_time=2.0, feet_slip=-0.1, feet_phase=1.0, pose=-0.1, joint_deviation_hip=-0.25,
+                    joint_deviation_knee=-0.1, dof_pos_limits=-1.0, action_rate=-0.01, joint_vel=-2e-4, stand_still=-0.1,
+                    termination=-1.0),
         tracking_sigma=0.25, swing_height=0.12, terminate_on_leg_contact=True,
     )
     if rung == "r0":                       # stand only: zero command, disturbances on
@@ -240,8 +243,8 @@ class KothEnv:
         if self.cfg["terminate_on_leg_contact"]: fallen |= leg
         timeout = self.episode_length_buf >= self.max_episode_length
         done = fallen | timeout
-        rew += self.cfg["reward"]["termination"] * fallen.float() * self.ctrl_dt
-        self.reward_terms["termination"] = self.cfg["reward"]["termination"] * fallen.float() * self.ctrl_dt
+        term = self.cfg["reward"]["termination"] * fallen.float()      # one-off, outside the clip, not scaled by dt
+        rew += term; self.reward_terms["termination"] = term
         self.extras = {"time_outs": timeout, "log": {f"rew/{k}": v.mean() for k, v in self.reward_terms.items()},
                        "fallen": fallen, "nan": nan}
         self.extras["log"]["ep/leg_contact_term"] = leg.float().mean(); self.extras["log"]["ep/fallen"] = fallen.float().mean()
@@ -288,8 +291,13 @@ class KothEnv:
         t["action_rate"] = ((self.action - self.last_action) ** 2).sum(1)
         t["stand_still"] = dev.abs().sum(1) * (1 - cmd_on)
         t["alive"] = torch.ones_like(cmd_on)
+        t["upright"] = torch.exp(-(grav[:, :2] ** 2).sum(1) / 0.05)
+        t["joint_vel"] = (jvel ** 2).sum(1)
         self.reward_terms = {k: R[k] * v * dt for k, v in t.items()}
-        return torch.stack(list(self.reward_terms.values()), 0).sum(0)
+        # Clip the per-step sum at zero (as mujoco_playground does). Without it the penalties outweigh the
+        # tracking terms early on and the policy learns to end the episode fast: run r0_a went from episode
+        # length 25 to 4.8 steps in 20 iterations while "reward" rose.
+        return torch.stack(list(self.reward_terms.values()), 0).sum(0).clamp(min=0.0)
 
     # ------------------------------------------------------------------ observations
     def get_observations(self) -> TensorDict:

@@ -50,7 +50,11 @@ DEFAULT_POSE = {
 # (hips 100-150, knee 150-200, ankle 40) cannot hold ANY static pose (whole-leg chain too compliant vs m*g*h),
 # menagerie's 500 holds rigidly. 200/300/200 is the softest set that holds (pitch settles ~1.3 deg). Joint
 # actuatorfrcrange (88/139/50/25 Nm) still caps torque, so large errors behave torque-limited. See rl_optimization_log.md.
-PD_GAINS = {"g1": (200, 5), "knee": (300, 5), "ankle": (60, 3), "ankle_pitch": (200, 5),
+# Base class g1 is (0, 0) on purpose and every joint group sets its own pair: MuJoCo's XML writer truncates a
+# child default's biasprm when its tail equals the parent's (knee kv == g1 kv gave biasprm="0 -300"), and the
+# Unity importer, which re-saves the model through MuJoCo before parsing, then reads the missing kv as 0.
+PD_GAINS = {"g1": (0, 0), "hip": (200, 5), "knee": (300, 5), "ankle": (60, 3), "ankle_pitch": (200, 5),
+            "waist_yaw": (200, 5), "waist_pitch": (200, 5), "waist_roll": (200, 5),
             "shoulder": (60, 3), "elbow": (60, 3), "wrist": (40, 2)}
 
 
@@ -295,6 +299,15 @@ def build(two_player: bool):
     q0 = default_qpos(m, prefixes)
     ctrl = hold_ctrl(m, q0)
     tree = ET.parse(resolved); root = tree.getroot()
+    # MuJoCo's writer emits partial arrays in nested defaults (knee: biasprm="0 -300", kv inherited). The Unity
+    # importer does not inherit array tails and read knee kv as 0. Write every actuator's numbers explicitly.
+    for i, a in enumerate(root.find("actuator")):
+        assert a.get("name") == mujoco.mj_id2name(m, mujoco.mjtObj.mjOBJ_ACTUATOR, i)
+        a.set("biastype", "affine")
+        a.set("gainprm", f"{m.actuator_gainprm[i][0]:g}")
+        a.set("biasprm", " ".join(f"{v:g}" for v in m.actuator_biasprm[i][:3]))
+        a.set("ctrlrange", " ".join(f"{v:.9g}" for v in m.actuator_ctrlrange[i])); a.set("ctrllimited", "true")
+        a.set("forcerange", " ".join(f"{v:g}" for v in m.actuator_forcerange[i])); a.set("forcelimited", "true")
     kf = ET.SubElement(root, "keyframe")
     ET.SubElement(kf, "key", name="default", qpos=" ".join(f"{v:.6g}" for v in q0), ctrl=" ".join(f"{v:.6g}" for v in ctrl))
     ET.indent(root); tree.write(resolved, encoding="unicode")
@@ -304,6 +317,9 @@ def build(two_player: bool):
     d1, d2 = dump_model(m), dump_model(mujoco.MjModel.from_xml_path(unity))
     assert d1 == d2, "train and unity XML compile to different models"
     json.dump(d1, open(os.path.join(ASSETS, f"model_dump_{tag}.json"), "w"), indent=1)
+    aid = [mujoco.mj_name2id(m, mujoco.mjtObj.mjOBJ_ACTUATOR, "a_" + j) for j in JOINTS]
+    build.hold_ctrl = [float(ctrl[i]) for i in aid]            # canonical order; identical for both robots
+    build.key_root_z = float(q0[2])
     print(f"{tag}: nq={m.nq} nv={m.nv} nu={m.nu} nbody={m.nbody} ngeom={m.ngeom} "
           f"robot mass={(sum(m.body_mass) - POOL_N * POOL_MASS) / len(prefixes):.2f}kg  pelvis z0={q0[2]:.4f}")
     return m
@@ -316,6 +332,13 @@ if __name__ == "__main__":
     json.dump({"joints": JOINTS, "default_pose": [DEFAULT_POSE.get(j, 0.0) for j in JOINTS],
                "action_scale": ACTION_SCALE, "sim_dt": SIM_DT, "ctrl_dt": CTRL_DT, "decimation": round(CTRL_DT / SIM_DT),
                "robot_prefixes": ["a_", "b_"], "pool_bodies": [f"box{i}" for i in range(POOL_N)], "pool_park": [list(pool_park(i)) for i in range(POOL_N)],
-               "ls_iterations": 10},
+               "ls_iterations": 10, "hold_ctrl": build.hold_ctrl, "key_root_z": build.key_root_z},
               open(os.path.join(ASSETS, "joint_map.json"), "w"), indent=1)
     print("wrote joint_map.json")
+    # Unity reads these as TextAssets
+    import shutil
+    unity_models = os.path.normpath(os.path.join(HERE, "..", "..", "Assets", "PoKingHill", "Models"))
+    os.makedirs(unity_models, exist_ok=True)
+    for f in ("joint_map.json", "model_dump_flat_1p.json", "model_dump_koth_2p.json"):
+        shutil.copyfile(os.path.join(ASSETS, f), os.path.join(unity_models, f))
+    print("copied json to", unity_models)

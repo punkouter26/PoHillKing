@@ -34,3 +34,20 @@ Decision: always step through a captured CUDA graph (`wp.ScopedCapture`), eager 
 - **Env smoke test:** `python -m koth.env` runs, 4096 envs, zero NaN, zero falls under zero action for 2 s. `warp.stream_from_torch` raised "unknown stream"; replaced by explicit `torch.cuda.synchronize()` / `wp.synchronize_device()` around the captured graph.
 - **Performance is currently unmeasurable.** The stock menagerie `scene_mjx.xml` benchmark fell from ~415k to ~49k sim-steps/s at the same world count between 20:30 and 23:20, so the 10x slowdown is the machine, not the model. Observed at the time: Docker's WSL VM holding 14 GB (3 GB RAM free), a PoRace.exe build and a Unity editor on the GPU, GPU reporting a software power cap. Re-benchmark on a quiet machine before choosing `num_envs`.
 - **Not yet verified in Unity:** import of `<general>` actuators with gainprm/biasprm/forcerange, armature, frictionloss, solreflimit, condim. `ModelDumpCheck` is the gate for all of these.
+
+## 2026-10-08 — Phase B gates passed; three Unity plugin traps
+
+- **GPU power:** the laptop was enforcing a 15 W cap on the GPU (180 MHz under load). After the power profile change the limit reads 140 W and the env runs at ~21–27k control steps/s with 4096 envs.
+- **Unity licence:** batch mode needs a headless entitlement the account does not have; all automated runs use a normal editor launch with `-executeMethod ... -kothExit`. The editor must be signed in.
+- **Trap 1, ASCII STL false positive:** the plugin treats any STL whose 80-byte header starts with "solid" as ASCII and aborts. 27 of 51 menagerie meshes are binary with such a header; headers rewritten in place.
+- **Trap 2, default-class array tails:** the importer re-saves the MJCF through MuJoCo, whose writer truncates `biasprm` in a child default when the tail equals the parent's. Knee kv was read as 0 and the robot fell in under a second. Fixed by making the base class (0, 0) so every group writes its full pair; compiled training model is bit-identical to before.
+- **Trap 3, `MjActuator.OnSyncState` zeroes ctrl:** after every `mj_step` each actuator component copies its own `Control` field into `mjData.ctrl`. Writing ctrl only on policy ticks left 9 of 10 physics steps with zero targets. `PolicyRunner` now rewrites the held targets in `preUpdateEvent` before every step.
+- **Result:** `ModelDumpCheck` 0 mismatches (masses, inertial offsets, joint ranges, damping, armature, frictionloss, kp/kv, ctrl and force ranges, contact masks, friction, sizes, solver options). Hold trace Unity vs Python agrees within 0.1 mm at all five sample times, both scenes.
+
+## 2026-10-08 — R0 training runs
+
+| run | change | outcome |
+|---|---|---|
+| r0_a | first reward set, termination −100·dt, no clip | episode length fell 25 → 4.8 steps while reward rose: dying early beat the per-step penalties |
+| r0_b | sum clipped at 0, alive +1, termination −1 | never falls (episode 967/1000) but the clipped sum was 0 on every step, so only the entropy bonus trained; action std grew 0.5 → 2.5 (thrashing) |
+| r0_c | positive terms dominate (tracking 1.75, alive 0.5, upright 0.5), smaller penalties, std capped at 1.0, entropy 0.002 | in progress: reward 13, episode 600+, std 0.36 at iteration 300 |
