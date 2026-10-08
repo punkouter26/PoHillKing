@@ -18,7 +18,7 @@
       <site group="5" rgba="1 0 0 1" />
       <geom condim="1" contype="0" conaffinity="0" />
       <joint frictionloss="0.1" solimplimit="0 0.99 0.01" solreflimit=".008 1" />
-      <position inheritrange="1" kp="75" kv="2" />
+      <position inheritrange="1" kp="200" kv="5" />
       <default class="hip">
         <default class="hip_pitch">
           <joint axis="0 1 0" range="-2.5307 2.8798" actuatorfrcrange="-88 88" armature="0.01017752004" />
@@ -32,11 +32,13 @@
       </default>
       <default class="knee">
         <joint axis="0 1 0" range="-0.087267 2.8798" actuatorfrcrange="-139 139" armature="0.025101925" />
+        <position kp="300" kv="5" />
       </default>
       <default class="ankle">
-        <position kp="20" kv="2" />
+        <position kp="60" kv="3" />
         <default class="ankle_pitch">
           <joint axis="0 1 0" range="-0.87267 0.5236" actuatorfrcrange="-50 50" armature="0.00721945" />
+          <position kp="200" kv="5" />
         </default>
         <default class="ankle_roll">
           <joint axis="1 0 0" range="-0.2618 0.2618" actuatorfrcrange="-50 50" armature="0.00721945" />
@@ -61,12 +63,14 @@
         <default class="shoulder_yaw">
           <joint axis="0 0 1" range="-2.618 2.618" actuatorfrcrange="-25 25" armature="0.003609725" />
         </default>
+        <position kp="60" kv="3" />
       </default>
       <default class="elbow">
         <joint axis="0 1 0" range="-1.0472 2.0944" actuatorfrcrange="-25 25" armature="0.003609725" />
+        <position kp="60" kv="3" />
       </default>
       <default class="wrist">
-        <position kp="20" kv="2" />
+        <position kp="40" kv="2" />
         <default class="wrist_roll">
           <joint axis="1 0 0" range="-1.97222 1.97222" actuatorfrcrange="-25 25" armature="0.003609725" />
         </default>
@@ -120,7 +124,7 @@
   </asset>
   <worldbody>
     <light pos="0 0 6" dir="0 0 -1" directional="true" />
-    <geom name="floor" type="plane" size="0 0 0.05" contype="4" conaffinity="31" condim="3" friction="0.6" rgba="0.4 0.4 0.4 1" />
+    <geom name="floor" type="box" size="20 20 0.5" pos="0 0 -0.5" contype="4" conaffinity="31" condim="3" friction="0.6" rgba="0.4 0.4 0.4 1" />
     <body name="a_pelvis" pos="0 0 0.793" childclass="g1" quat="1 0 0 0">
       <inertial pos="0 0 -0.07605" quat="1 0 -0.000399148 0" mass="3.813" diaginertia="0.010549 0.0093089 0.0079184" />
       <freejoint name="a_floating_base_joint" />

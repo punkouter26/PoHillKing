@@ -27,24 +27,24 @@ PoHillKing/
 
 ## Phase 0 — Repo & toolchain
 
-- [ ] 0.1 `git init`; Unity `.gitignore` (Library, Temp, Logs, obj, UserSettings, *.csproj, *.slnx); first commit of the template.
-- [ ] 0.2 `training/pyproject.toml` via uv: mujoco>=3.3, mujoco-warp, warp-lang (CUDA 12.8+ build for the RTX 5070 Ti / Blackwell), brax, jax[cuda12], torch (CPU is fine), onnx, onnxruntime, numpy, tensorboard. Lockfile committed.
-- [ ] 0.3 Smoke test: load menagerie g1.xml in mujoco_warp, step 1024 envs × 100 steps on GPU, print steps/s. Record in rl_optimization_log.md.
-- [ ] 0.4 Install org.mujoco: add `https://github.com/google-deepmind/mujoco.git?path=unity#<tag>` to Packages/manifest.json at the tag matching the pip mujoco version; place matching `mujoco.dll` in the package. Editor compiles, `MjScene` resolves.
-- [ ] 0.5 Install `com.unity.ai.inference` 2.6. `Unity.InferenceEngine.Worker` resolves.
-- [ ] 0.6 Project settings: Fixed Timestep 0.002; Physics.simulationMode = Script (never called); Physics2D disabled; portrait-only; default 1080×1920; target 60 FPS. Confirm Unity MCP bridge connects (refused this session) or fall back to the `unity` CLI for in-editor authoring.
-- [ ] 0.7 Commit.
+- [x] 0.1 `git init`; Unity `.gitignore` (Library, Temp, Logs, obj, UserSettings, *.csproj, *.slnx); first commit of the template.
+- [x] 0.2 `training/pyproject.toml` via uv: mujoco>=3.3, mujoco-warp, warp-lang (CUDA 12.8+ build for the RTX 5070 Ti / Blackwell), brax, jax[cuda12], torch (CPU is fine), onnx, onnxruntime, numpy, tensorboard. Lockfile committed.
+- [x] 0.3 Smoke test: load menagerie g1.xml in mujoco_warp, step 1024 envs × 100 steps on GPU, print steps/s. Record in rl_optimization_log.md.
+- [x] 0.4 Install org.mujoco: add `https://github.com/google-deepmind/mujoco.git?path=unity#<tag>` to Packages/manifest.json at the tag matching the pip mujoco version; place matching `mujoco.dll` in the package. Editor compiles, `MjScene` resolves.
+- [x] 0.5 Install `com.unity.ai.inference` 2.6. `Unity.InferenceEngine.Worker` resolves.
+- [~] 0.6 Project settings: Fixed Timestep 0.002; Physics.simulationMode = Script (never called); Physics2D disabled; portrait-only; default 1080×1920; target 60 FPS. Confirm Unity MCP bridge connects (refused this session) or fall back to the `unity` CLI for in-editor authoring.
+- [x] 0.7 Commit.
 
 ## Phase A — Physics body & arena derivation (Python only)
 
-- [ ] A.1 Copy menagerie `unitree_g1` meshes to `training/assets/g1/`. Author `g1_koth.xml` on `g1_mjx_feetonly.xml` conventions: position actuators kp 75 / ankle-pitch 20 / ankle-roll+wrists 2; joint damping/armature/frictionloss per Step 2; Euler; dt 0.002; iterations 3; ls_iterations 5; eulerdamp off; `stand` keyframe.
-- [ ] A.2 Collision set: foot boxes 0.09×0.03×0.008; thigh/shin/torso/upper-arm/forearm/hand capsules; head sphere. Bitmasks: robot A=1, robot B=2, arena=4. Self-collision off except foot–foot and foot–shin. Friction 0.6 feet, 0.8 body.
-- [ ] A.3 Arena: generate `arena_hfield.npy` (radius 12 m; plateau flat for r≤1.5 m; convex z(r)=−k(r−1.5)², 45° at r≈6 m; ±2 cm roughness; fixed seed). Reference as `<hfield>` in `scene_koth.xml`. Export identical PNG for the Unity importer.
-- [ ] A.4 Projectile pool: 8 × 0.2 m, 2 kg box bodies with free joints parked at z=−50 in the scene.
-- [ ] A.5 `scene_koth_2p.xml`: `g1_koth.xml` included twice (prefixes `a_`, `b_`), spawns at x=±1.4 m facing inward.
-- [ ] A.6 `scripts/dump_model.py` → `model_dump.json` (nq, nv, nu, nbody, timestep, integrator, iterations, ls_iterations, per-joint name/range/damping/armature, per-actuator name/kp/ctrlrange, per-body mass, hfield meta). Commit as the parity reference.
-- [ ] A.7 `koth/joint_map.py`: canonical 29-name order + `stand` default pose. Generates the C# static array (never hand-typed).
-- [ ] A.8 Self-check: `scene_koth_2p.xml` in `mujoco.viewer`, hold `stand` ctrl for 10 s with no policy → both robots stay up. Save the pelvis-height trace (t=1,3,5,10 s) to the log for B.10.
+- [x] A.1 Copy menagerie `unitree_g1` meshes to `training/assets/g1/`. Author `g1_koth.xml` on `g1_mjx_feetonly.xml` conventions: position actuators kp 75 / ankle-pitch 20 / ankle-roll+wrists 2; joint damping/armature/frictionloss per Step 2; Euler; dt 0.002; iterations 3; ls_iterations 5; eulerdamp off; `stand` keyframe.
+- [x] A.2 Collision set: foot boxes 0.09×0.03×0.008; thigh/shin/torso/upper-arm/forearm/hand capsules; head sphere. Bitmasks: robot A=1, robot B=2, arena=4. Self-collision off except foot–foot and foot–shin. Friction 0.6 feet, 0.8 body.
+- [x] A.3 Arena: generate `arena_hfield.npy` (radius 12 m; plateau flat for r≤1.5 m; convex z(r)=−k(r−1.5)², 45° at r≈6 m; ±2 cm roughness; fixed seed). Reference as `<hfield>` in `scene_koth.xml`. Export identical PNG for the Unity importer.
+- [x] A.4 Projectile pool: 8 × 0.2 m, 2 kg box bodies with free joints parked at z=−50 in the scene.
+- [x] A.5 `scene_koth_2p.xml`: `g1_koth.xml` included twice (prefixes `a_`, `b_`), spawns at x=±1.4 m facing inward.
+- [x] A.6 `scripts/dump_model.py` → `model_dump.json` (nq, nv, nu, nbody, timestep, integrator, iterations, ls_iterations, per-joint name/range/damping/armature, per-actuator name/kp/ctrlrange, per-body mass, hfield meta). Commit as the parity reference.
+- [x] A.7 `koth/joint_map.py`: canonical 29-name order + `stand` default pose. Generates the C# static array (never hand-typed).
+- [~] A.8 Self-check: `scene_koth_2p.xml` in `mujoco.viewer`, hold `stand` ctrl for 10 s with no policy → both robots stay up. Save the pelvis-height trace (t=1,3,5,10 s) to the log for B.10.
 - [ ] A.9 Commit.
 
 ## Phase B — Early Unity ingestion & zero-brain parity test (CRITICAL, before any training)

@@ -39,8 +39,8 @@ public class MjSceneGenerationTests {
     _fakeBodyB.enabled = true;
     var mjcf = _scene.CreateScene(skipCompile:true);
 
-    var first = _fakeBodyA.GetInstanceID() < _fakeBodyB.GetInstanceID() ? _fakeBodyA : _fakeBodyB;
-    var second = _fakeBodyA.GetInstanceID() < _fakeBodyB.GetInstanceID() ? _fakeBodyB : _fakeBodyA;
+    var first = _fakeBodyA.GetEntityId() < _fakeBodyB.GetEntityId() ? _fakeBodyA : _fakeBodyB;
+    var second = _fakeBodyA.GetEntityId() < _fakeBodyB.GetEntityId() ? _fakeBodyB : _fakeBodyA;
 
     int firstIndex = int.Parse(first.MujocoName.Replace("component_", ""));
     int secondIndex = int.Parse(second.MujocoName.Replace("component_", ""));

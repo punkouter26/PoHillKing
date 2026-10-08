@@ -47,6 +47,25 @@ DEFAULT_POSE = {
     "right_shoulder_pitch_joint": 0.2, "right_shoulder_roll_joint": -0.2, "right_elbow_joint": 1.28,
 }
 
+# PD gains (kp, kv). Measured on CPU with the gravity-compensated hold: Unitree/IsaacLab-level gains
+# (hips 100-150, knee 150-200, ankle 40) cannot hold ANY static pose (whole-leg chain too compliant vs m*g*h),
+# menagerie's 500 holds rigidly. 200/300/200 is the softest set that holds (pitch settles ~1.3 deg). Joint
+# actuatorfrcrange (88/139/50/25 Nm) still caps torque, so large errors behave torque-limited. See rl_optimization_log.md.
+PD_GAINS = {"g1": (200, 5), "knee": (300, 5), "ankle": (60, 3), "ankle_pitch": (200, 5),
+            "shoulder": (60, 3), "elbow": (60, 3), "wrist": (40, 2)}
+
+
+def apply_pd_gains(default: ET.Element) -> ET.Element:
+    for cls in default.iter("default"):
+        if cls.get("class") in PD_GAINS:
+            kp, kv = PD_GAINS[cls.get("class")]
+            pos = cls.find("position")
+            if pos is None:
+                pos = ET.SubElement(cls, "position")
+            pos.set("kp", f"{kp:g}"); pos.set("kv", f"{kv:g}")
+    return default
+
+
 # ---- arena ---------------------------------------------------------------------------------------
 HF_N = 257            # Unity Terrain heightmap resolution must be 2^n+1
 HF_RADIUS = 10.0      # half-extent in metres (20 m x 20 m)
@@ -134,7 +153,7 @@ def build_scene(src_root: ET.Element, two_player: bool) -> ET.Element:
     ET.SubElement(root, "compiler", angle="radian", assetdir="assets", autolimits="true")
     # implicitfast: Unity-settable, and makes the eulerdamp flag irrelevant. iterations=5 like menagerie mjx.
     ET.SubElement(root, "option", timestep=f"{SIM_DT}", integrator="implicitfast", iterations="5")
-    root.append(copy.deepcopy(src_root.find("default")))
+    root.append(apply_pd_gains(copy.deepcopy(src_root.find("default"))))
     asset = copy.deepcopy(src_root.find("asset"))
     if two_player:
         ET.SubElement(asset, "hfield", name="arena", file="arena.bin", nrow=str(HF_N), ncol=str(HF_N),
@@ -147,7 +166,8 @@ def build_scene(src_root: ET.Element, two_player: bool) -> ET.Element:
                       contype="4", conaffinity="31", condim="3", friction="0.6", rgba="0.45 0.4 0.35 1")
         robots = [("a_", 1, (-1.4, 0, 0.793), (1, 0, 0, 0)), ("b_", 2, (1.4, 0, 0.793), (0, 0, 0, 1))]
     else:
-        ET.SubElement(wb, "geom", name="floor", type="plane", size="0 0 0.05", contype="4", conaffinity="31",
+        # finite slab, not an infinite plane: the parked pool at z=-50 must not be "inside" the floor
+        ET.SubElement(wb, "geom", name="floor", type="box", size="20 20 0.5", pos="0 0 -0.5", contype="4", conaffinity="31",
                       condim="3", friction="0.6", rgba="0.4 0.4 0.4 1")
         robots = [("a_", 1, (0, 0, 0.793), (1, 0, 0, 0))]
     act = ET.Element("actuator"); contact = ET.Element("contact")
@@ -174,6 +194,20 @@ def default_qpos(m: mujoco.MjModel, prefixes: list[str]) -> np.ndarray:
         root = m.jnt_qposadr[mujoco.mj_name2id(m, mujoco.mjtObj.mjOBJ_JOINT, p + "floating_base_joint")]
         d.qpos[root + 2] -= low
     return d.qpos.copy()
+
+
+def hold_ctrl(m: mujoco.MjModel, q0: np.ndarray, rounds: int = 6, settle: float = 0.4) -> np.ndarray:
+    """ctrl that holds q0 against gravity with the PD actuators: joint targets offset by the steady-state sag.
+    Iterative: simulate briefly, add the remaining joint error to ctrl, repeat. Converges when the stance is stable."""
+    d = mujoco.MjData(m)
+    act_q = np.array([m.jnt_qposadr[m.actuator_trnid[i][0]] for i in range(m.nu)])
+    ctrl = q0[act_q].copy()
+    for _ in range(rounds):
+        d.qpos[:] = q0; d.qvel[:] = 0; d.ctrl[:] = ctrl; mujoco.mj_forward(m, d)
+        for _ in range(int(settle / m.opt.timestep)):
+            mujoco.mj_step(m, d)
+        ctrl += q0[act_q] - d.qpos[act_q]
+    return np.clip(ctrl, m.actuator_ctrlrange[:, 0], m.actuator_ctrlrange[:, 1])
 
 
 def dump_model(m: mujoco.MjModel) -> dict:
@@ -228,10 +262,7 @@ def build(two_player: bool):
     m = mujoco.MjModel.from_xml_path(resolved)
     prefixes = ["a_", "b_"] if two_player else ["a_"]
     q0 = default_qpos(m, prefixes)
-    ctrl = np.zeros(m.nu)
-    for i in range(m.nu):
-        jn = mujoco.mj_id2name(m, mujoco.mjtObj.mjOBJ_JOINT, m.actuator_trnid[i][0])
-        ctrl[i] = DEFAULT_POSE.get(jn[2:], 0.0)
+    ctrl = hold_ctrl(m, q0)
     tree = ET.parse(resolved); root = tree.getroot()
     kf = ET.SubElement(root, "keyframe")
     ET.SubElement(kf, "key", name="default", qpos=" ".join(f"{v:.6g}" for v in q0), ctrl=" ".join(f"{v:.6g}" for v in ctrl))

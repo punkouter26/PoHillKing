@@ -11,7 +11,7 @@ mjm = mujoco.MjModel.from_xml_path(scene)
 mjd = mujoco.MjData(mjm)
 mujoco.mj_resetDataKeyframe(mjm, mjd, 0); mujoco.mj_forward(mjm, mjd)
 m = mjw.put_model(mjm)
-d = mjw.put_data(mjm, mjd, nworld=N, nconmax=48 * N, njmax=320 * N)
+d = mjw.put_data(mjm, mjd, nworld=N, nconmax=64, njmax=400)   # per-world budgets
 prefixes = [p for p in ("a_", "b_") if mujoco.mj_name2id(mjm, mujoco.mjtObj.mjOBJ_BODY, p + "pelvis") >= 0]
 roots = {p: mjm.jnt_qposadr[mujoco.mj_name2id(mjm, mujoco.mjtObj.mjOBJ_JOINT, p + "floating_base_joint")] for p in prefixes}
 with wp.ScopedCapture() as cap: mjw.step(m, d)
