@@ -31,14 +31,14 @@ def main():
         torch.manual_seed(1000 + seed)
         obs = env.reset()
         falls = 0; impacts = 0; lin_err = []; ang_err = []
-        ever_fell = torch.zeros(a.num_envs, dtype=torch.bool, device=env.device)
+        ever_fell = torch.zeros(env.num_envs, dtype=torch.bool, device=env.device)
         for _ in range(steps):
             push_due = (env.push_timer - env.ctrl_dt <= 0).sum(); box_due = (env.proj_timer - env.ctrl_dt <= 0).sum()
             with torch.no_grad():
                 act = policy(obs)
             obs, _, _, extras = env.step(act)
             impacts += int(push_due + box_due); falls += int(extras["fallen"].sum()); ever_fell |= extras["fallen"]
-            s = env.robot_state(); o = obs["critic"]
+            o = obs["critic"]
             lin_err.append((env.command[:, :2] - o[:, 0:2]).norm(dim=1).mean().item()); ang_err.append((env.command[:, 2] - o[:, 5]).abs().mean().item())
         surv = 1 - falls / max(1, impacts)
         row = dict(seed=seed, impacts=impacts, falls=falls, impact_survival=round(surv, 4), envs_never_fell=round(1 - ever_fell.float().mean().item(), 4),

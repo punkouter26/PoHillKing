@@ -17,6 +17,10 @@ namespace PoKingHill
         [Tooltip("a_ or b_")] public string robotPrefix = "a_";
         [Tooltip("ONNX policy. Leave empty for passive hold.")] public ModelAsset policy;
         public Vector3 command;   // vx, vy, yaw rate
+        [Tooltip("None: use the command field. Center/Opponent: command is computed every tick by GoalCommand (same law as training).")]
+        public GoalMode goal = GoalMode.None;
+        public float goalStopDist = 0.3f, goalVmax = 0.8f;
+        public PolicyRunner opponent;
         public bool paused;
 
         public JointMap Map { get; private set; }
@@ -91,6 +95,16 @@ namespace PoKingHill
                 return;
             }
             _cmd[0] = command.x; _cmd[1] = command.y; _cmd[2] = command.z;
+            if (goal != GoalMode.None)
+            {
+                double* q = d->qpos + Map.RootQposAdr; double gx = -q[0], gy = -q[1];
+                if (goal == GoalMode.Opponent && opponent != null && opponent.Map != null)
+                {
+                    double* o = d->qpos + opponent.Map.RootQposAdr; gx = o[0] - q[0]; gy = o[1] - q[1];
+                }
+                GoalCommand.Compute(q + 3, gx, gy, goalStopDist, goalVmax, _cmd);
+                command = new Vector3(_cmd[0], _cmd[1], _cmd[2]);
+            }
             ObsBuilder.Fill(Obs, d, Map, _cmd, LastAction, _phase);
             _sw.Restart();
             _input.Upload(Obs);

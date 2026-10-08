@@ -10,7 +10,7 @@ Checks: torch policy vs ONNX max abs error < 1e-5 on 1000 random observations.""
 import argparse, json, os, sys
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 import numpy as np, torch, mujoco, onnx, onnxruntime as ort
-from koth.obs import build_obs, OBS_DIM, GAIT_FREQ_HZ
+from koth.obs import build_obs, goal_command, OBS_DIM, GAIT_FREQ_HZ
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 ASSETS = os.path.join(ROOT, "assets", "g1")
@@ -43,7 +43,7 @@ def export_onnx(ckpt: str, out_path: str) -> None:
     assert err < 1e-5, "ONNX export does not reproduce the torch policy"
 
 
-def record(onnx_path: str, scene: str, prefix: str, cmd, seconds: float) -> dict:
+def record(onnx_path: str, scene: str, prefix: str, cmd, seconds: float, goal: str = "none", spawn=None, stop_dist: float = 0.3, vmax: float = 0.8) -> dict:
     spec = json.load(open(os.path.join(ASSETS, "joint_map.json")))
     m = mujoco.MjModel.from_xml_path(os.path.join(ASSETS, scene)); d = mujoco.MjData(m)
     mujoco.mj_resetDataKeyframe(m, d, 0)
@@ -56,11 +56,18 @@ def record(onnx_path: str, scene: str, prefix: str, cmd, seconds: float) -> dict
     park = [d.qpos[q:q + 7].copy() for q, _ in pool]
     default = np.array(spec["default_pose"], dtype=np.float32)
     lo, hi = m.actuator_ctrlrange[aid, 0], m.actuator_ctrlrange[aid, 1]
+    if spawn is not None:                      # r, bearing, yaw: same placement rule as KothEnv.reset_idx
+        r, bearing, yaw = spawn
+        slope = 2 * (1.0 / 9.0) * max(r - 1.5, 0.0); h = -(1.0 / 9.0) * max(r - 1.5, 0.0) ** 2
+        d.qpos[rq:rq + 3] = [r * np.cos(bearing), r * np.sin(bearing), spec["key_root_z"] + h + 0.02 + 0.12 * slope]
+        d.qpos[rq + 3:rq + 7] = [np.cos(yaw / 2), 0, 0, np.sin(yaw / 2)]
     sess = ort.InferenceSession(onnx_path, providers=["CPUExecutionProvider"])
     last = np.zeros(29, dtype=np.float32); phase = 0.0; frames = []
     cmd = np.array(cmd, dtype=np.float32)
     f32 = lambda a: [float(np.float32(v)) for v in a]
     for tick in range(int(round(seconds / spec["ctrl_dt"]))):
+        if goal == "center":
+            cmd = goal_command(torch.tensor(d.qpos[rq + 3:rq + 7])[None], torch.tensor([[-d.qpos[rq], -d.qpos[rq + 1]]]), stop_dist, vmax)[0].numpy().astype(np.float32)
         obs = build_obs(torch.tensor(d.qpos[rq + 3:rq + 7], dtype=torch.float64)[None], torch.tensor(d.qvel[rd:rd + 3])[None],
                         torch.tensor(d.qvel[rd + 3:rd + 6])[None], torch.tensor(d.qpos[qadr])[None], torch.tensor(d.qvel[dadr])[None],
                         torch.tensor(default, dtype=torch.float64), torch.tensor(last, dtype=torch.float64)[None],
@@ -83,7 +90,8 @@ def record(onnx_path: str, scene: str, prefix: str, cmd, seconds: float) -> dict
     print(f"reference: {len(frames)} ticks, pelvis z {frames[0]['root_pos'][2]:.4f} -> {frames[-1]['root_pos'][2]:.4f} "
           f"(min {min(f['root_pos'][2] for f in frames):.4f}), min upright {min(up):.4f}, "
           f"final xy drift {np.hypot(frames[-1]['root_pos'][0] - frames[0]['root_pos'][0], frames[-1]['root_pos'][1] - frames[0]['root_pos'][1]):.3f} m")
-    return dict(scene=scene, prefix=prefix, command=[float(c) for c in cmd], ctrl_dt=spec["ctrl_dt"], decimation=spec["decimation"],
+    print(f"final radius {float(np.hypot(*frames[-1]['root_pos'][:2])):.3f} m")
+    return dict(scene=scene, prefix=prefix, command=[float(c) for c in cmd], goal=goal, goal_stop_dist=stop_dist, goal_vmax=vmax, ctrl_dt=spec["ctrl_dt"], decimation=spec["decimation"],
                 obs_dim=OBS_DIM, frames=frames)
 
 
@@ -92,11 +100,15 @@ def main():
     ap.add_argument("--rung", default="r0"); ap.add_argument("--ckpt", default=None)
     ap.add_argument("--scene", default="scene_flat_1p_train.xml"); ap.add_argument("--prefix", default="a_")
     ap.add_argument("--cmd", type=float, nargs=3, default=[0, 0, 0]); ap.add_argument("--seconds", type=float, default=5.0)
+    ap.add_argument("--goal", default="none", choices=["none", "center"]); ap.add_argument("--spawn", type=float, nargs=3, default=None, help="r bearing yaw")
+    ap.add_argument("--policy-rung", default=None, help="reuse <policy-rung>_policy.onnx instead of exporting")
     a = ap.parse_args()
     os.makedirs(UNITY_MODELS, exist_ok=True)
     onnx_path = os.path.join(UNITY_MODELS, f"{a.rung}_policy.onnx")
     if a.ckpt: export_onnx(a.ckpt, onnx_path)
-    ref = record(onnx_path, a.scene, a.prefix, a.cmd, a.seconds)
+    if a.policy_rung and not a.ckpt:
+        import shutil; shutil.copyfile(os.path.join(UNITY_MODELS, f"{a.policy_rung}_policy.onnx"), onnx_path)
+    ref = record(onnx_path, a.scene, a.prefix, a.cmd, a.seconds, a.goal, a.spawn)
     out = os.path.join(UNITY_MODELS, f"{a.rung}_reference_trajectory.json")
     json.dump(ref, open(out, "w"))
     print("wrote", onnx_path, "and", out)

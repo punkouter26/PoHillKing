@@ -185,7 +185,8 @@ def make_pool(n: int = POOL_N) -> list[ET.Element]:
     return bodies
 
 
-def build_scene(src_root: ET.Element, two_player: bool) -> ET.Element:
+def build_scene(src_root: ET.Element, two_player: bool, arena: bool | None = None) -> ET.Element:
+    arena = two_player if arena is None else arena
     root = ET.Element("mujoco", model="g1_koth_2p" if two_player else "g1_koth_1p")
     ET.SubElement(root, "compiler", angle="radian", assetdir="assets", autolimits="true")
     # implicitfast: Unity-settable, and makes the eulerdamp flag irrelevant. iterations=5 like menagerie mjx.
@@ -193,18 +194,20 @@ def build_scene(src_root: ET.Element, two_player: bool) -> ET.Element:
     ET.SubElement(root, "option", timestep=f"{SIM_DT}", integrator="implicitfast", iterations="5", ls_iterations="10")
     root.append(apply_pd_gains(copy.deepcopy(src_root.find("default"))))
     asset = copy.deepcopy(src_root.find("asset"))
-    if two_player:
+    if arena:
         ET.SubElement(asset, "mesh", name="arena", file="arena.obj")
     root.append(asset)
     wb = ET.SubElement(root, "worldbody")
     ET.SubElement(wb, "light", pos="0 0 6", dir="0 0 -1", directional="true")
-    if two_player:
+    if arena:
         ET.SubElement(wb, "geom", name="arena", type="mesh", mesh="arena",
                       contype="4", conaffinity="31", condim="3", friction="0.6", rgba="0.45 0.4 0.35 1")
-        robots = [("a_", 1, (-1.4, 0, 0.793), (1, 0, 0, 0)), ("b_", 2, (1.4, 0, 0.793), (0, 0, 0, 1))]
     else:
         ET.SubElement(wb, "geom", name="floor", type="plane", size="0 0 0.05", contype="4", conaffinity="31",
                       condim="3", friction="0.6", rgba="0.4 0.4 0.4 1")
+    if two_player:
+        robots = [("a_", 1, (-1.4, 0, 0.793), (1, 0, 0, 0)), ("b_", 2, (1.4, 0, 0.793), (0, 0, 0, 1))]
+    else:
         robots = [("a_", 1, (0, 0, 0.793), (1, 0, 0, 0))]
     act = ET.Element("actuator"); contact = ET.Element("contact")
     for prefix, bit, pos, quat in robots:
@@ -282,13 +285,14 @@ def strip_for_unity(path_in: str, path_out: str):
     tree.write(path_out, encoding="unicode", xml_declaration=False)
 
 
-def build(two_player: bool):
+def build(two_player: bool, arena: bool | None = None):
     """Authoring XML -> MuJoCo-resolved XML. The resolved text is canonical:
     scene_<tag>_train.xml = resolved + keyframe (Python), scene_<tag>_unity.xml = resolved, stripped (Unity importer).
     Both compile to the identical model (asserted)."""
     src_root = ET.parse(SRC).getroot()
-    tag = "koth_2p" if two_player else "flat_1p"
-    scene = build_scene(src_root, two_player)
+    arena = two_player if arena is None else arena
+    tag = ("koth_" if arena else "flat_") + ("2p" if two_player else "1p")
+    scene = build_scene(src_root, two_player, arena)
     ET.indent(scene)
     authoring = os.path.join(ASSETS, f"scene_{tag}.xml")
     ET.ElementTree(scene).write(authoring, encoding="unicode")
@@ -328,6 +332,7 @@ def build(two_player: bool):
 if __name__ == "__main__":
     print("arena:", write_arena())
     build(two_player=False)
+    build(two_player=False, arena=True)
     build(two_player=True)
     json.dump({"joints": JOINTS, "default_pose": [DEFAULT_POSE.get(j, 0.0) for j in JOINTS],
                "action_scale": ACTION_SCALE, "sim_dt": SIM_DT, "ctrl_dt": CTRL_DT, "decimation": round(CTRL_DT / SIM_DT),
@@ -339,6 +344,6 @@ if __name__ == "__main__":
     import shutil
     unity_models = os.path.normpath(os.path.join(HERE, "..", "..", "Assets", "PoKingHill", "Models"))
     os.makedirs(unity_models, exist_ok=True)
-    for f in ("joint_map.json", "model_dump_flat_1p.json", "model_dump_koth_2p.json"):
+    for f in ("joint_map.json", "model_dump_flat_1p.json", "model_dump_koth_1p.json", "model_dump_koth_2p.json"):
         shutil.copyfile(os.path.join(ASSETS, f), os.path.join(unity_models, f))
     print("copied json to", unity_models)

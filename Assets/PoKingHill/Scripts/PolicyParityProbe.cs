@@ -41,10 +41,31 @@ namespace PoKingHill
             _frames = L(root["frames"]);
             var cmd = L(root["command"]);
             runner.command = new Vector3(F(cmd[0]), F(cmd[1]), F(cmd[2]));
+            if (root.TryGetValue("goal", out var g) && g is string gs && gs != "none")
+            {
+                runner.goal = gs == "center" ? GoalMode.Center : GoalMode.Opponent;
+                runner.goalStopDist = F(root["goal_stop_dist"]); runner.goalVmax = F(root["goal_vmax"]);
+            }
             Replay();
             runner.OnPolicyStep += OnTick;
+            MjScene.Instance.postInitEvent += ApplyInitialState;     // runs after the PolicyRunner handler (execution order -100)
         }
-        void OnDisable() { if (runner != null) runner.OnPolicyStep -= OnTick; }
+        void OnDisable()
+        {
+            if (runner != null) runner.OnPolicyStep -= OnTick;
+            if (MjScene.InstanceExists) MjScene.Instance.postInitEvent -= ApplyInitialState;
+        }
+
+        // Start from the first frame of the reference run (root pose, joint angles, velocities) instead of the keyframe.
+        void ApplyInitialState(object s, MjStepArgs a)
+        {
+            var d = MjScene.Instance.Data; var f = (Dictionary<string, object>)_frames[0]; var map = runner.Map;
+            var p = L(f["root_pos"]); var q = L(f["root_quat"]); var jp = L(f["joint_pos"]); var jv = L(f["joint_vel"]);
+            var lv = L(f["root_linvel"]); var av = L(f["root_angvel"]);
+            for (int k = 0; k < 3; k++) { d->qpos[map.RootQposAdr + k] = D(p[k]); d->qvel[map.RootDofAdr + k] = D(lv[k]); d->qvel[map.RootDofAdr + 3 + k] = D(av[k]); }
+            for (int k = 0; k < 4; k++) d->qpos[map.RootQposAdr + 3 + k] = D(q[k]);
+            for (int i = 0; i < map.N; i++) { d->qpos[map.QposAdr[i]] = D(jp[i]); d->qvel[map.DofAdr[i]] = D(jv[i]); }
+        }
 
         void Replay()
         {

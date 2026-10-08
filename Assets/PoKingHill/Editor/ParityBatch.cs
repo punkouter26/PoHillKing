@@ -30,7 +30,7 @@ namespace PoKingHill.EditorTools
         [MenuItem("PoKingHill/Import testbed scenes (flat_1p + koth_2p)")]
         public static void ImportAll()
         {
-            try { Import("flat_1p"); Import("koth_2p"); }
+            try { Import("flat_1p"); Import("koth_1p"); Import("koth_2p"); }
             catch (Exception e) { Debug.LogError("[ParityBatch] IMPORT FAILED: " + e); if (HasFlag("-kothExit")) EditorApplication.Exit(3); throw; }
             if (HasFlag("-kothExit")) EditorApplication.Exit(0);
         }
