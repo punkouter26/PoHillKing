@@ -1,0 +1,36 @@
+[project]
+name = "koth"
+version = "0.1.0"
+description = "PoKingHill training: Unitree G1 king-of-the-hill in mujoco_warp + rsl_rl"
+requires-python = ">=3.11,<3.12"
+dependencies = [
+  "mujoco==3.15.0",
+  "mujoco-warp==3.15.0",
+  "warp-lang>=1.18",
+  "torch==2.9.1",
+  "rsl-rl-lib>=5.5",
+  "numpy",
+  "onnx",
+  "onnxruntime",
+  "onnxscript",
+  "tensorboard",
+  "pillow",
+]
+
+[tool.uv]
+index-strategy = "unsafe-best-match"
+
+[[tool.uv.index]]
+name = "pytorch-cu128"
+url = "https://download.pytorch.org/whl/cu128"
+explicit = true
+
+[tool.uv.sources]
+torch = { index = "pytorch-cu128" }
+
+[tool.setuptools]
+packages = ["koth"]
+
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
