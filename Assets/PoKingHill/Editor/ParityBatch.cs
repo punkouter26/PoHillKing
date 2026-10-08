@@ -140,6 +140,9 @@ namespace PoKingHill.EditorTools
             director.labelA = "Robot A"; director.labelB = "Robot B"; director.behaviour = "King of the hill: Attacker vs Attacker";
             var cam = Camera.main;                      // 9:16 portrait framing of the summit
             cam.transform.position = new Vector3(0f, 2.6f, -6.2f); cam.transform.LookAt(new Vector3(0f, 0.5f, 0f)); cam.fieldOfView = 38f;
+            var mc = cam.gameObject.AddComponent<MatchCamera>(); mc.robotA = a; mc.robotB = b; mc.director = director;
+            if (cam.GetComponent<AudioListener>() == null) cam.gameObject.AddComponent<AudioListener>();
+            var synth = rig.AddComponent<ImpactSynth>(); synth.robots = new[] { a, b }; synth.sea = sea;   // adds the AudioSource it requires
             int physx = UnityEngine.Object.FindObjectsByType<Collider>(FindObjectsInactive.Include).Length + UnityEngine.Object.FindObjectsByType<Rigidbody>(FindObjectsInactive.Include).Length;
             if (physx > 0) throw new Exception($"PhysX components present in the demo scene: {physx}");
             string path = $"{SceneDir}/Demo_duel.unity";

@@ -14,9 +14,11 @@ namespace PoKingHill
         public Sea sea;                                  // optional; without it the round lasts roundSeconds
         public string labelA = "Robot A", labelB = "Robot B", behaviour = "King of the hill";
         public Vector2 spawnRadiusA = new(0.5f, 1.2f), spawnRadiusB = new(0.5f, 1.2f);
-        public float roundSeconds = 25f, outRadius = 1.7f, pauseBetweenRounds = 1.5f;
+        public float roundSeconds = 25f, outRadius = 1.7f, pauseBetweenRounds = 3.5f;
         [Tooltip("Statistical parity gate: play this many rounds fast, write duel_stats_unity.json, then stop. 0 = off.")]
         public int statsRounds = 0;
+        /// <summary>The robot the camera should follow after a decided round (the loser), else null.</summary>
+        public PolicyRunner FollowTarget { get; private set; }
         readonly System.Collections.Generic.List<double> _times = new();
 
         int _winsA, _winsB, _draws; double _roundStart; float _pauseUntil; string _last = ""; bool _pending;
@@ -49,7 +51,7 @@ namespace PoKingHill
             float ra = Random.Range(spawnRadiusA.x, spawnRadiusA.y), rb = Random.Range(spawnRadiusB.x, spawnRadiusB.y);
             attacker.ResetPose(ra * Mathf.Cos(bearing), ra * Mathf.Sin(bearing), Random.Range(-Mathf.PI, Mathf.PI));
             defender.ResetPose(rb * Mathf.Cos(bearing + Mathf.PI), rb * Mathf.Sin(bearing + Mathf.PI), Random.Range(-Mathf.PI, Mathf.PI));
-            _roundStart = MjScene.Instance.Data->time;
+            _roundStart = MjScene.Instance.Data->time; FollowTarget = null;
             if (sea != null) sea.Restart();
         }
 
@@ -72,8 +74,8 @@ namespace PoKingHill
             double t = d->time - _roundStart;
             bool bell = sea != null ? sea.ReachedSummit : t >= roundSeconds;
             if (!aOut && !bOut && !bell) return;
-            if (bOut && !aOut) { _winsA++; _times.Add(t); _last = $"{labelA} wins in {t:0.0} s"; }
-            else if (aOut && !bOut) { _winsB++; _times.Add(t); _last = $"{labelB} wins in {t:0.0} s"; }
+            if (bOut && !aOut) { _winsA++; _times.Add(t); _last = $"{labelA} wins in {t:0.0} s"; FollowTarget = defender; }
+            else if (aOut && !bOut) { _winsB++; _times.Add(t); _last = $"{labelB} wins in {t:0.0} s"; FollowTarget = attacker; }
             else { _draws++; _last = bell ? "Tie: the sea took the summit" : "Tie: both out"; }
             _pauseUntil = Time.unscaledTime + pauseBetweenRounds;
             if (statsRounds > 0 && _winsA + _winsB + _draws >= statsRounds) WriteStats();
