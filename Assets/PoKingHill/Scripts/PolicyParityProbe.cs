@@ -73,8 +73,9 @@ namespace PoKingHill
         void Replay()
         {
             using var worker = new Worker(ModelLoader.Load(policy), BackendType.CPU);
-            using var input = new Tensor<float>(new TensorShape(1, ObsBuilder.ObsDim));
-            var obs = new float[ObsBuilder.ObsDim]; float max = 0;
+            int dim = L(((Dictionary<string, object>)_frames[0])["obs"]).Count;     // 103, or 112 for combat policies
+            using var input = new Tensor<float>(new TensorShape(1, dim));
+            var obs = new float[dim]; float max = 0;
             foreach (Dictionary<string, object> f in _frames)
             {
                 var o = L(f["obs"]); var a = L(f["action"]);
@@ -96,7 +97,7 @@ namespace PoKingHill
             var d = MjScene.Instance.Data;
             var o = L(f["obs"]); var a = L(f["action"]); var p = L(f["root_pos"]); var c = L(f["ctrl"]);
             float oe = 0, ae = 0;
-            for (int i = 0; i < ObsBuilder.ObsDim; i++) oe = Mathf.Max(oe, Mathf.Abs(r.Obs[i] - F(o[i])));
+            for (int i = 0; i < o.Count && i < r.Obs.Length; i++) oe = Mathf.Max(oe, Mathf.Abs(r.Obs[i] - F(o[i])));
             for (int i = 0; i < r.Map.N; i++)
             {
                 ae = Mathf.Max(ae, Mathf.Abs(r.RawAction[i] - F(a[i])));

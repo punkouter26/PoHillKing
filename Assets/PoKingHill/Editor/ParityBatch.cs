@@ -133,6 +133,25 @@ namespace PoKingHill.EditorTools
             Debug.Log("[ParityBatch] saved " + path);
         }
 
+        /// <summary>Parity gate for the combat policy: Demo_duel with the director replaced by one probe per robot,
+        /// compared against &lt;rung&gt;_reference_trajectory_a/_b.json (recorded with the same two ONNX files).</summary>
+        public static void RunDuelParity()
+        {
+            string rung = Arg("-kothRung", "r4duel");
+            BuildDuelDemo();
+            EditorSceneManager.OpenScene($"{SceneDir}/Demo_duel.unity", OpenSceneMode.Single);
+            foreach (var dd in UnityEngine.Object.FindObjectsByType<DemoDirector>(FindObjectsInactive.Include)) UnityEngine.Object.DestroyImmediate(dd);
+            foreach (var runner in UnityEngine.Object.FindObjectsByType<PolicyRunner>(FindObjectsInactive.Include))
+            {
+                string suffix = "_" + runner.robotPrefix.Trim('_');
+                var reference = AssetDatabase.LoadAssetAtPath<TextAsset>($"{ModelDir}/{rung}_reference_trajectory{suffix}.json");
+                if (reference == null) { Debug.LogError("[ParityBatch] missing reference for " + runner.robotPrefix); if (HasFlag("-kothExit")) EditorApplication.Exit(3); return; }
+                var probe = runner.gameObject.AddComponent<PolicyParityProbe>();
+                probe.referenceJson = reference; probe.policy = runner.policy; probe.runner = runner; probe.rung = rung; probe.suffix = suffix;
+            }
+            EditorApplication.EnterPlaymode();
+        }
+
         /// <summary>Build the duel demo, open it and press Play (used with a normal, visible editor launch).</summary>
         public static void PlayDuelDemo()
         {

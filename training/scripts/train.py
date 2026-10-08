@@ -44,11 +44,11 @@ def main():
     ap.add_argument("--rung", default="r0"); ap.add_argument("--num-envs", type=int, default=4096)
     ap.add_argument("--iters", type=int, default=1500); ap.add_argument("--resume", default=None)
     ap.add_argument("--seed", type=int, default=0); ap.add_argument("--name", default=None)
-    ap.add_argument("--opponent", default=None, help="checkpoint of a frozen policy that drives robot b_")
+    ap.add_argument("--opponent", default=None, nargs="+", help="checkpoint(s) of frozen policies that drive robot b_ (one drawn per world)")
     ap.add_argument("--warm", default=None, help="checkpoint to warm-start from (weights only, pads new inputs)")
     a = ap.parse_args()
     cfg = default_cfg(a.rung)
-    if a.opponent: cfg["frozen_opponent"] = os.path.abspath(a.opponent)
+    if a.opponent: cfg["frozen_opponent"] = [os.path.abspath(o) for o in a.opponent]
     env = KothEnv(cfg, a.num_envs, seed=a.seed)
     run = a.name or time.strftime("%Y%m%d-%H%M%S")
     log_dir = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "runs", a.rung, run)

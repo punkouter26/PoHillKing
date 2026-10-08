@@ -87,6 +87,8 @@ def default_cfg(rung: str = "r0") -> dict:
         cfg.update(default_cfg("r4"))
         cfg["spawn"].update(r=[0.3, 1.3])
         cfg["reward"].update(ring_advantage=0.0, opp_radius=3.0, self_edge=-3.0, push_out=3.0, win=30.0, termination=-10.0, draw=-10.0)
+    elif rung == "r4league":              # learner a_ attacks; b_ is a frozen earlier attacker drawn from a pool, also attacking
+        cfg.update(default_cfg("r4sp"))
     elif rung == "r4probe":               # a_ walks into b_ (no stop distance); b_ holds the plateau, starts at the rim
         cfg.update(scene="scene_koth_2p_train.xml", robots=["a_", "b_"], arena=True, goal=["opponent", "center"])
         cfg["spawn"].update(r=[[0.0, 0.5], [1.25, 1.35]])
@@ -115,6 +117,23 @@ class FrozenPolicy(torch.nn.Module):
         return x
 
 
+class FrozenPool:
+    """Several frozen opponents; each world is assigned one of them, re-drawn whenever that world resets."""
+    def __init__(self, ckpts, device, num_worlds):
+        self.nets = [FrozenPolicy(c, device) for c in ckpts]
+        self.choice = torch.randint(0, len(self.nets), (num_worlds,), device=device)
+
+    def resample(self, world_ids):
+        self.choice[world_ids] = torch.randint(0, len(self.nets), (len(world_ids),), device=self.choice.device)
+
+    def __call__(self, obs):
+        out = torch.empty(obs.shape[0], 29, device=obs.device)
+        for i, net in enumerate(self.nets):
+            sel = self.choice == i
+            if sel.any(): out[sel] = net(obs[sel])
+        return out
+
+
 class KothEnv:
     def __init__(self, cfg: dict, num_envs: int, device: str = "cuda", seed: int = 0):
         """num_envs = number of worlds. self.num_envs (what rsl_rl sees) = worlds x robots."""
@@ -129,7 +148,8 @@ class KothEnv:
         self.arena = bool(cfg["arena"])
         prefixes = cfg["robots"]
         N = self.N = num_envs; A = self.A = len(prefixes); M = self.M = N * A
-        self.frozen = FrozenPolicy(cfg["frozen_opponent"], self.device) if cfg["frozen_opponent"] else None
+        fo = cfg["frozen_opponent"]
+        self.frozen = None if not fo else FrozenPool(fo if isinstance(fo, (list, tuple)) else [fo], self.device, N)
         assert self.frozen is None or A == 2
         self.num_envs = N if self.frozen is not None else M      # rows rsl_rl sees (learner = robot a_ only when b_ is frozen)
 
@@ -324,6 +344,7 @@ class KothEnv:
         self.push_timer[rows] = self._rand(len(rows), *self.cfg["push"]["interval_s"])
         self.proj_timer[ids] = self._rand(n, *self.cfg["projectile"]["interval_s"])
         if self.cfg["goal"] is None: self._resample_commands(rows)
+        if getattr(self, "frozen", None) is not None: self.frozen.resample(ids)
         self._randomize(ids)
 
     def reset(self):

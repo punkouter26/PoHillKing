@@ -83,7 +83,7 @@ def eval_arena(env, policy, rung, steps):
     return dict(pairs=env.N, met_within_6s=round(meet, 4), pairs_with_self_ejection=round(left, 4), **{"pass": meet >= 0.9 and left <= 0.02})
 
 
-def eval_duel(env, policy, steps):
+def eval_duel(env, policy, steps, league=False):
     """Robot a attacks robot b. Counts, per world, the first of: b ejected (radius > 1.7 or fallen), a ejected/fallen."""
     N = env.N; obs = env.reset()
     open_ = torch.ones(N, dtype=torch.bool, device=env.device); win = torch.zeros_like(open_); lose = torch.zeros_like(open_)
@@ -98,7 +98,7 @@ def eval_duel(env, policy, steps):
         open_ &= ~(b_out | a_out | (done if done.shape[0] == N else done.view(N, 2)[:, 0]))
     w = win.float().mean().item(); l = lose.float().mean().item()
     return dict(duels=N, attacker_ejects_defender=round(w, 4), attacker_lost=round(l, 4), undecided=round(1 - w - l, 4),
-                median_time_s=round(float(t_win[win].median()) if win.any() else -1.0, 2), **{"pass": w >= 0.7})
+                median_time_s=round(float(t_win[win].median()) if win.any() else -1.0, 2), **{"pass": w >= 0.7 if not league else (w / max(w + l, 1e-9) > 0.55 and 1 - w - l < 0.15)})
 
 
 def main():
@@ -107,13 +107,14 @@ def main():
     ap.add_argument("--seeds", type=int, default=10); ap.add_argument("--num-envs", type=int, default=256)
     ap.add_argument("--seconds", type=float, default=20.0)
     ap.add_argument("--slope", action="store_true", help="r2 only: also spawn robots on the slope (retired objective)")
-    ap.add_argument("--opponent", default=None, help="frozen checkpoint driving robot b_ (duel rungs)")
+    ap.add_argument("--opponent", default=None, nargs="+", help="frozen checkpoint(s) driving robot b_ (duel rungs)")
     a = ap.parse_args()
     cfg = default_cfg(a.rung)
-    duel = a.rung in ("r4probe", "r4att")
-    if duel: cfg["max_radius"] = 1.7; cfg["spawn"].update(r=[[0.0, 0.5], [1.25, 1.35]])
+    duel = a.rung in ("r4probe", "r4att", "r4league")
+    if duel: cfg["max_radius"] = 1.7
+    if a.rung in ("r4probe", "r4att"): cfg["spawn"].update(r=[[0.0, 0.5], [1.25, 1.35]])
     if a.rung == "r2" and a.slope: cfg["spawn"].update(r=[0.0, 2.6])
-    if a.opponent: cfg["frozen_opponent"] = os.path.abspath(a.opponent)
+    if a.opponent: cfg["frozen_opponent"] = [os.path.abspath(o) for o in a.opponent]
     if a.rung in ("r0", "r1"):
         cfg["push"] = dict(interval_s=[5.0, 5.0], vel=[2.0, 2.0]); cfg["projectile"].update(speed=[6.0, 6.0])
     else:
@@ -123,7 +124,7 @@ def main():
     steps = int(a.seconds / env.ctrl_dt); rows = []
     for seed in range(a.seeds):
         torch.manual_seed(1000 + seed)
-        if duel: row = eval_duel(env, policy, steps)
+        if duel: row = eval_duel(env, policy, steps, league=a.rung == "r4league")
         else: row = (eval_flat if a.rung in ("r0", "r1") else eval_arena)(env, policy, a.rung, steps)
         row = dict(seed=seed, **row); rows.append(row); print(json.dumps(row), flush=True)
     ok = all(r["pass"] for r in rows)

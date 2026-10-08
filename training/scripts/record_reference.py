@@ -12,7 +12,7 @@ Checks: torch policy vs ONNX max abs error < 1e-5 on 1000 random observations.""
 import argparse, json, os, shutil, sys
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 import numpy as np, torch, mujoco, onnx, onnxruntime as ort
-from koth.obs import build_obs, goal_command, OBS_DIM, GAIT_FREQ_HZ
+from koth.obs import build_obs, build_combat, goal_command, OBS_DIM, GAIT_FREQ_HZ
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 ASSETS = os.path.join(ROOT, "assets", "g1")
@@ -45,6 +45,9 @@ def export_onnx(ckpt: str, out_path: str) -> None:
 
 
 def record(onnx_path, scene, prefixes, cmd, seconds, goal="none", spawns=None, stop_dist=0.3, vmax=0.8) -> dict:
+    # onnx_path, goal, stop_dist and vmax may each be one value or one per robot (a duel has two different brains)
+    per = lambda v: list(v) if isinstance(v, (list, tuple)) else [v] * len(prefixes)
+    onnx_paths, goals, stops, vmaxs = per(onnx_path), per(goal), per(stop_dist), per(vmax)
     """Returns {prefix: reference dict}. spawns: {prefix: (r, bearing, yaw)} or None for the keyframe pose."""
     spec = json.load(open(os.path.join(ASSETS, "joint_map.json")))
     m = mujoco.MjModel.from_xml_path(os.path.join(ASSETS, scene)); d = mujoco.MjData(m)
@@ -66,21 +69,27 @@ def record(onnx_path, scene, prefixes, cmd, seconds, goal="none", spawns=None, s
     pool = [(m.jnt_qposadr[mujoco.mj_name2id(m, J, b + "_free")], m.jnt_dofadr[mujoco.mj_name2id(m, J, b + "_free")]) for b in spec["pool_bodies"]]
     park = [d.qpos[q:q + 7].copy() for q, _ in pool]
     default = np.array(spec["default_pose"], dtype=np.float32)
-    sess = ort.InferenceSession(onnx_path, providers=["CPUExecutionProvider"])
+    sessions = [ort.InferenceSession(p_, providers=["CPUExecutionProvider"]) for p_ in onnx_paths]
     f32 = lambda a: [float(np.float32(v)) for v in a]; f64 = lambda a: [float(v) for v in a]
     T = lambda a: torch.tensor(np.asarray(a, dtype=np.float64))[None]
     for tick in range(int(round(seconds / spec["ctrl_dt"]))):
-        for p in prefixes:                        # all robots observe the same pre-step state, as in Unity
-            s = R[p]; rq, rd = s["rq"], s["rd"]
+        for pi, p in enumerate(prefixes):         # all robots observe the same pre-step state, as in Unity
+            s = R[p]; rq, rd = s["rq"], s["rd"]; goal = goals[pi]; sess = sessions[pi]
+            other = R[[q for q in prefixes if q != p][0]] if len(prefixes) == 2 else None
             if goal == "center":
                 gv = [-d.qpos[rq], -d.qpos[rq + 1]]
             elif goal == "opponent":
-                o = R[[q for q in prefixes if q != p][0]]["rq"]; gv = [d.qpos[o] - d.qpos[rq], d.qpos[o + 1] - d.qpos[rq + 1]]
+                o = other["rq"]; gv = [d.qpos[o] - d.qpos[rq], d.qpos[o + 1] - d.qpos[rq + 1]]
             if goal != "none":
-                s["cmd"] = goal_command(T(d.qpos[rq + 3:rq + 7]), T(gv), stop_dist, vmax)[0].numpy().astype(np.float32)
+                s["cmd"] = goal_command(T(d.qpos[rq + 3:rq + 7]), T(gv), stops[pi], vmaxs[pi])[0].numpy().astype(np.float32)
             obs = build_obs(T(d.qpos[rq + 3:rq + 7]), T(d.qvel[rd:rd + 3]), T(d.qvel[rd + 3:rd + 6]), T(d.qpos[s["qadr"]]), T(d.qvel[s["dadr"]]),
                             torch.tensor(default, dtype=torch.float64), T(s["last"]), T(s["cmd"]),
-                            torch.tensor([float(s["phase"])], dtype=torch.float64))[0].numpy().astype(np.float32)
+                            torch.tensor([float(s["phase"])], dtype=torch.float64))
+            if sess.get_inputs()[0].shape[1] > OBS_DIM:      # combat policy: append the opponent/ring block
+                oq, od = other["rq"], other["rd"]
+                obs = torch.cat([obs, build_combat(T(d.qpos[rq:rq + 3]), T(d.qpos[rq + 3:rq + 7]), T(d.qvel[rd:rd + 3]),
+                                                   T(d.qpos[oq:oq + 3]), T(d.qpos[oq + 3:oq + 7]), T(d.qvel[od:od + 3]))], 1)
+            obs = obs[0].numpy().astype(np.float32)
             raw = sess.run(None, {"obs": obs[None]})[0][0]
             act = np.clip(raw, -1, 1).astype(np.float32)
             s["ctrl"] = np.clip(default.astype(np.float64) + spec["action_scale"] * act.astype(np.float64), s["lo"], s["hi"])
@@ -101,8 +110,9 @@ def record(onnx_path, scene, prefixes, cmd, seconds, goal="none", spawns=None, s
         rad = [float(np.hypot(*f["root_pos"][:2])) for f in fr]
         print(f"{p} reference: {len(fr)} ticks, pelvis z {fr[0]['root_pos'][2]:.4f} -> {fr[-1]['root_pos'][2]:.4f}, min upright {min(up):.4f}, "
               f"radius {rad[0]:.3f} -> {rad[-1]:.3f} m, moved {np.hypot(fr[-1]['root_pos'][0] - fr[0]['root_pos'][0], fr[-1]['root_pos'][1] - fr[0]['root_pos'][1]):.3f} m")
-        out[p] = dict(scene=scene, prefix=p, command=f32(cmd), goal=goal, goal_stop_dist=stop_dist, goal_vmax=vmax,
-                      ctrl_dt=spec["ctrl_dt"], decimation=spec["decimation"], obs_dim=OBS_DIM, frames=fr)
+        pi = prefixes.index(p)
+        out[p] = dict(scene=scene, prefix=p, command=f32(cmd), goal=goals[pi], goal_stop_dist=stops[pi], goal_vmax=vmaxs[pi],
+                      ctrl_dt=spec["ctrl_dt"], decimation=spec["decimation"], obs_dim=len(fr[0]["obs"]), frames=fr)
     if len(prefixes) == 2:
         a, b = (R[p]["frames"][-1]["root_pos"] for p in prefixes); print(f"final separation {np.hypot(a[0] - b[0], a[1] - b[1]):.3f} m")
     return out
@@ -114,7 +124,8 @@ def main():
     ap.add_argument("--policy-rung", default=None, help="reuse <policy-rung>_policy.onnx instead of exporting")
     ap.add_argument("--scene", default="scene_flat_1p_train.xml"); ap.add_argument("--robots", nargs="+", default=["a_"])
     ap.add_argument("--cmd", type=float, nargs=3, default=[0, 0, 0]); ap.add_argument("--seconds", type=float, default=5.0)
-    ap.add_argument("--goal", default="none", choices=["none", "center", "opponent"]); ap.add_argument("--stop-dist", type=float, default=0.3)
+    ap.add_argument("--goal", default=["none"], nargs="+", choices=["none", "center", "opponent"]); ap.add_argument("--stop-dist", type=float, nargs="+", default=[0.3])
+    ap.add_argument("--vmax", type=float, nargs="+", default=[0.8]); ap.add_argument("--policies", nargs="+", default=None, help="existing <name>_policy.onnx per robot (skips export)")
     ap.add_argument("--spawn", type=float, nargs="+", default=None, help="r bearing yaw per robot (3 or 6 numbers)")
     a = ap.parse_args()
     os.makedirs(UNITY_MODELS, exist_ok=True)
@@ -122,7 +133,9 @@ def main():
     if a.ckpt: export_onnx(a.ckpt, onnx_path)
     elif a.policy_rung: shutil.copyfile(os.path.join(UNITY_MODELS, f"{a.policy_rung}_policy.onnx"), onnx_path)
     spawns = {p: a.spawn[3 * i:3 * i + 3] for i, p in enumerate(a.robots)} if a.spawn else None
-    refs = record(onnx_path, a.scene, a.robots, a.cmd, a.seconds, a.goal, spawns, a.stop_dist)
+    one = lambda v: v[0] if len(v) == 1 else v
+    paths = [os.path.join(UNITY_MODELS, f"{n}_policy.onnx") for n in a.policies] if a.policies else onnx_path
+    refs = record(paths, a.scene, a.robots, a.cmd, a.seconds, one(a.goal), spawns, one(a.stop_dist), one(a.vmax))
     for p, ref in refs.items():
         suffix = "" if len(refs) == 1 else "_" + p.strip("_")
         out = os.path.join(UNITY_MODELS, f"{a.rung}_reference_trajectory{suffix}.json")
