@@ -48,7 +48,7 @@ def main():
     ap.add_argument("--warm", default=None, help="checkpoint to warm-start from (weights only, pads new inputs)")
     a = ap.parse_args()
     cfg = default_cfg(a.rung)
-    if a.opponent: cfg["frozen_opponent"] = [os.path.abspath(o) for o in a.opponent]; cfg["frozen_stochastic"] = True
+    if a.opponent: cfg["frozen_opponent"] = [(os.path.abspath(o[:-6]) + ":stand") if o.endswith(":stand") else os.path.abspath(o) for o in a.opponent]; cfg["frozen_stochastic"] = True
     env = KothEnv(cfg, a.num_envs, seed=a.seed)
     run = a.name or time.strftime("%Y%m%d-%H%M%S")
     log_dir = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "runs", a.rung, run)

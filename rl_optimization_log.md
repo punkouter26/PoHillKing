@@ -89,3 +89,20 @@ Decision: always step through a captured CUDA graph (`wp.ScopedCapture`), eager 
 - **Mirror self-play `r4sp_a`** (draw = loss): decided rounds 65-87 % at the start, 40-52 % after 110 iterations. Stopped.
 - **League (`scripts/league.py`, rung `r4league`):** generation k is warm-started from k-1 and trained as robot a_ against a per-world random draw from the previous five generations, frozen, as robot b_. Both sides use the attack command. gen1 = `r4att_c/500`. After each generation: 3 seeds x 256 duels x 25 s against its pool, written to `runs/league/results.jsonl`. R5 bar per generation: win share of decided rounds > 55 %, ties < 15 %, median winning time < 20 s.
 - **R5 definition under the summit-only rule:** leaving r < 1.7 m or falling already ends the round, so the rising sea only acts as the deadline (20-30 s) that turns a standoff into a tie. Buoyancy and drag apply only to bodies that have already left the summit and are a Unity presentation item, not a training input.
+
+## 2026-10-08 (evening) — league results, Unity sea, statistical parity
+
+- **Noise handicap fixed:** frozen opponents now sample actions with their own exploration std during training. Direct check with identical policies: both noisy 51/49, both clean 49/51, noisy vs clean 35/65.
+- **League results** (3 seeds x 256 duels x 25 s, deterministic, against the pool of earlier generations):
+  | gen | pool | win | loss | tie | win share of decided | median win time | R5 bar |
+  |---|---|---|---|---|---|---|---|
+  | 2 | 1 | 33.9 % | 66.2 % | 0 % | 33.9 % | 3.1 s | fail |
+  | 3 | 1-2 | 63.3 % | 33.0 % | 3.8 % | 65.8 % | 3.1 s | pass |
+  | 4 | 1-3 | 63.0 % | 30.9 % | 6.1 % | 67.1 % | 2.7 s | pass |
+  | 5 | 1-4 | 49.9 % | 47.5 % | 2.6 % | 51.2 % | 2.6 s | fail |
+  | 6 | 1-5 | 57.2 % | 39.6 % | 3.3 % | 59.1 % | 3.3 s | pass |
+  Not monotonic (gen5 dipped), but gen6 clears the bar against the full five-generation pool.
+- **gen6 against itself:** 94-98 % of rounds decided, wins split about evenly, median 5.2 s. R4 mirror bar (>= 50 % decided) met.
+- **Forgetting:** gen6 against the standing walker at the rim wins only 4-7 % and loses 65 % (gen1 won 98.7 %). League play against chargers alone drops the skill of dealing with a stationary opponent. gen7 trains against a pool that includes the standing walker twice plus gens 1, 3, 4, 5, 6 (`path.pt:stand` entries in `--opponent`).
+- **Unity:** `Sea.cs` (rising water as the round deadline, buoyancy and drag through `xfrc_applied` on robot bodies below the surface, render-only disc with its collider removed), `DemoDirector` now attacker vs attacker with the sea, 60 FPS cap. `Demo_duel.unity` rebuilt by the menu item.
+- **Trajectory parity is the wrong gate for adversarial rounds.** Attacker vs attacker in Unity: replay 1e-6, tick 1 at 2e-6, then 22 cm and 57 cm apart after 3 s because each robot reacts to the other. Replaced by a statistical gate: N rounds in Unity (`ParityBatch.RunDuelStats`) against N rounds in CPU MuJoCo with the same rules (`scripts/duel_stats.py`), comparing decided share and winning-time quartiles. Python, gen3 vs gen3, 200 rounds: 53.5 % decided, median 3.4 s, quartiles 2.9 / 4.0 s.

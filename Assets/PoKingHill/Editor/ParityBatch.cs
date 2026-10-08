@@ -110,24 +110,38 @@ namespace PoKingHill.EditorTools
             EditorApplication.EnterPlaymode();
         }
 
-        /// <summary>Builds and saves Demo_duel.unity from the imported two-robot arena: a_ = Attacker (112 inputs),
-        /// b_ = Walker standing its ground, both starting on the summit, rounds restarting automatically.</summary>
+        /// <summary>Builds and saves Demo_duel.unity from the imported two-robot arena: both robots run the latest
+        /// Attacker brain (112 inputs) and charge each other, both start on the summit, the sea rises as the round
+        /// clock, and rounds restart automatically. No PhysX components are created (the water disc loses its collider).</summary>
         [MenuItem("PoKingHill/Build duel demo scene")]
         public static void BuildDuelDemo()
         {
             AssetDatabase.Refresh();
             var scene = EditorSceneManager.OpenScene($"{SceneDir}/Testbed_koth_2p.unity", OpenSceneMode.Single);
             var attacker = AssetDatabase.LoadAssetAtPath<Unity.InferenceEngine.ModelAsset>($"{ModelDir}/attacker_policy.onnx");
-            var walker = AssetDatabase.LoadAssetAtPath<Unity.InferenceEngine.ModelAsset>($"{ModelDir}/r1_policy.onnx");
-            if (attacker == null || walker == null) throw new Exception("attacker_policy.onnx / r1_policy.onnx missing in " + ModelDir);
+            if (attacker == null) throw new Exception("attacker_policy.onnx missing in " + ModelDir);
             var runners = UnityEngine.Object.FindObjectsByType<PolicyRunner>(FindObjectsInactive.Include).OrderBy(r => r.robotPrefix).ToArray();
             var a = runners[0]; var b = runners[1];
-            a.policy = attacker; a.policyObsDim = 112; a.goal = GoalMode.Opponent; a.goalStopDist = 0f; a.goalVmax = 1f; a.opponent = b;
-            b.policy = walker; b.policyObsDim = 103; b.goal = GoalMode.None; b.command = Vector3.zero; b.opponent = a;
+            foreach (var (r, o) in new[] { (a, b), (b, a) })
+            {
+                r.policy = attacker; r.policyObsDim = 112; r.goal = GoalMode.Opponent; r.goalStopDist = 0f; r.goalVmax = 1f; r.opponent = o;
+            }
             foreach (var probe in UnityEngine.Object.FindObjectsByType<ParityProbe>(FindObjectsInactive.Include)) UnityEngine.Object.DestroyImmediate(probe);
-            var director = a.transform.parent.gameObject.AddComponent<DemoDirector>(); director.attacker = a; director.defender = b;
+            var rig = a.transform.parent.gameObject;
+
+            var water = GameObject.CreatePrimitive(PrimitiveType.Cylinder); water.name = "Sea (render only)";
+            UnityEngine.Object.DestroyImmediate(water.GetComponent<Collider>());                 // PhysX stays out of the scene
+            water.transform.localScale = new Vector3(60f, 0.01f, 60f);
+            var mat = new Material(MjcfImporter.GetLitShader()) { color = new Color(0.10f, 0.35f, 0.55f, 1f) };
+            AssetDatabase.CreateAsset(mat, $"{SceneDir}/SeaMaterial.mat"); water.GetComponent<MeshRenderer>().sharedMaterial = mat;
+            var sea = rig.AddComponent<Sea>(); sea.waterVisual = water.transform;
+
+            var director = rig.AddComponent<DemoDirector>(); director.attacker = a; director.defender = b; director.sea = sea;
+            director.labelA = "Robot A"; director.labelB = "Robot B"; director.behaviour = "King of the hill: Attacker vs Attacker";
             var cam = Camera.main;                      // 9:16 portrait framing of the summit
             cam.transform.position = new Vector3(0f, 2.6f, -6.2f); cam.transform.LookAt(new Vector3(0f, 0.5f, 0f)); cam.fieldOfView = 38f;
+            int physx = UnityEngine.Object.FindObjectsByType<Collider>(FindObjectsInactive.Include).Length + UnityEngine.Object.FindObjectsByType<Rigidbody>(FindObjectsInactive.Include).Length;
+            if (physx > 0) throw new Exception($"PhysX components present in the demo scene: {physx}");
             string path = $"{SceneDir}/Demo_duel.unity";
             EditorSceneManager.SaveScene(scene, path);
             Debug.Log("[ParityBatch] saved " + path);
@@ -141,6 +155,7 @@ namespace PoKingHill.EditorTools
             BuildDuelDemo();
             EditorSceneManager.OpenScene($"{SceneDir}/Demo_duel.unity", OpenSceneMode.Single);
             foreach (var dd in UnityEngine.Object.FindObjectsByType<DemoDirector>(FindObjectsInactive.Include)) UnityEngine.Object.DestroyImmediate(dd);
+            foreach (var sea in UnityEngine.Object.FindObjectsByType<Sea>(FindObjectsInactive.Include)) UnityEngine.Object.DestroyImmediate(sea);
             foreach (var runner in UnityEngine.Object.FindObjectsByType<PolicyRunner>(FindObjectsInactive.Include))
             {
                 string suffix = "_" + runner.robotPrefix.Trim('_');
@@ -149,6 +164,18 @@ namespace PoKingHill.EditorTools
                 var probe = runner.gameObject.AddComponent<PolicyParityProbe>();
                 probe.referenceJson = reference; probe.policy = runner.policy; probe.runner = runner; probe.rung = rung; probe.suffix = suffix;
             }
+            EditorApplication.EnterPlaymode();
+        }
+
+        /// <summary>Statistical parity gate for the combat rungs: play N fast rounds of the duel demo without the sea
+        /// (fixed 25 s bell, as in training evaluation) and write duel_stats_unity.json.</summary>
+        public static void RunDuelStats()
+        {
+            BuildDuelDemo();
+            EditorSceneManager.OpenScene($"{SceneDir}/Demo_duel.unity", OpenSceneMode.Single);
+            foreach (var sea in UnityEngine.Object.FindObjectsByType<Sea>(FindObjectsInactive.Include)) UnityEngine.Object.DestroyImmediate(sea);
+            var dd = UnityEngine.Object.FindAnyObjectByType<DemoDirector>(); dd.sea = null; dd.roundSeconds = 25f;
+            dd.statsRounds = int.Parse(Arg("-kothRounds", "200"));
             EditorApplication.EnterPlaymode();
         }
 

@@ -125,7 +125,9 @@ class FrozenPolicy(torch.nn.Module):
 class FrozenPool:
     """Several frozen opponents; each world is assigned one of them, re-drawn whenever that world resets."""
     def __init__(self, ckpts, device, num_worlds, stochastic=False):
-        self.nets = [FrozenPolicy(c, device, stochastic) for c in ckpts]
+        # an entry "path.pt:stand" is an opponent that gets a zero command (holds its ground) instead of attacking
+        self.stands = torch.tensor([c.endswith(":stand") for c in ckpts], device=device)
+        self.nets = [FrozenPolicy(c[:-6] if c.endswith(":stand") else c, device, stochastic) for c in ckpts]
         self.choice = torch.randint(0, len(self.nets), (num_worlds,), device=device)
 
     def resample(self, world_ids):
@@ -288,6 +290,8 @@ class KothEnv:
         if self.cfg["goal"] is None: return
         pos, quat, _, _ = self._root()
         cmd = goal_command(quat, self._goal_vec(pos), self.goal_stop, self.goal_vmax)
+        if self.frozen is not None and self.frozen.stands.any():
+            self.goal_is_none[1::2] = self.frozen.stands[self.frozen.choice]     # per-world: is this world's opponent a stander?
         cmd[self.goal_is_none] = 0.0                       # "stand": zero command, the robot just holds its ground
         self.command[:] = cmd
 

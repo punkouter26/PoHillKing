@@ -114,7 +114,7 @@ def main():
     if duel: cfg["max_radius"] = 1.7
     if a.rung in ("r4probe", "r4att"): cfg["spawn"].update(r=[[0.0, 0.5], [1.25, 1.35]])
     if a.rung == "r2" and a.slope: cfg["spawn"].update(r=[0.0, 2.6])
-    if a.opponent: cfg["frozen_opponent"] = [os.path.abspath(o) for o in a.opponent]
+    if a.opponent: cfg["frozen_opponent"] = [(os.path.abspath(o[:-6]) + ":stand") if o.endswith(":stand") else os.path.abspath(o) for o in a.opponent]
     if a.rung in ("r0", "r1"):
         cfg["push"] = dict(interval_s=[5.0, 5.0], vel=[2.0, 2.0]); cfg["projectile"].update(speed=[6.0, 6.0])
     else:
