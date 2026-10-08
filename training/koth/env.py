@@ -43,7 +43,7 @@ def default_cfg(rung: str = "r0") -> dict:
         reward=dict(tracking_lin_vel=1.0, tracking_ang_vel=0.75, alive=0.5, upright=0.5, orientation=-2.0, ang_vel_xy=-0.05,
                     lin_vel_z=-0.5, feet_air_time=2.0, feet_slip=-0.1, feet_phase=1.0, pose=-0.1, joint_deviation_hip=-0.25,
                     joint_deviation_knee=-0.1, dof_pos_limits=-1.0, action_rate=-0.01, joint_vel=-2e-4, stand_still=-0.1,
-                    plateau=0.0, off_rim=0.0, termination=-1.0),
+                    tracking_heading=1.0, plateau=0.0, off_rim=0.0, termination=-1.0),
         tracking_sigma=0.25, swing_height=0.12, terminate_on_leg_contact=True, max_radius=8.0,
     )
     if rung == "r0":                       # stand only: zero command, disturbances on
@@ -136,6 +136,7 @@ class KothEnv:
         self.episode_length_buf = torch.zeros(N, dtype=torch.long, device=device)           # per world
         self.command = z(M, 3); self.last_action = z(M, 29); self.action = z(M, 29); self.phase = z(M)
         self.feet_air_time = z(M, 2); self.feet_contact = torch.zeros(M, 2, dtype=torch.bool, device=device); self.prev_feet_xy = z(M, 2, 2)
+        self.yaw_target = z(M)     # integral of the commanded yaw rate, leashed to the actual heading
         self.push_timer = z(M); self.proj_timer = z(N); self.next_box = torch.zeros(N, dtype=torch.long, device=device)
         self.dr_params = z(M, 3)   # mass scale, friction, kp scale  (critic obs)
         self.latency = torch.zeros(M, dtype=torch.bool, device=device); self.pending_ctrl = z(M, 29)
@@ -235,18 +236,18 @@ class KothEnv:
         jq = q[:, self.qadr] + (torch.rand(n, A, 29, device=self.device) * 2 - 1) * rn["joint_pos"]
         q[:, self.qadr] = torch.clamp(jq, self.jnt_lo, self.jnt_hi)
         v[:, self.dadr] = (torch.rand(n, A, 29, device=self.device) * 2 - 1) * rn["joint_vel"]
+        yaw = self._rand((n, A), -rn["yaw"], rn["yaw"])
         xy = self._spawn_xy(n)
         if xy is not None:
             slope = 2 * SLOPE_K * (xy.norm(dim=2) - PLATEAU_R).clamp(min=0)
             q[:, self.rq + 0] = xy[:, :, 0]; q[:, self.rq + 1] = xy[:, :, 1]
             q[:, self.rq + 2] = self.key_root_z + terrain_height(xy, self.arena) + 0.02 + 0.12 * slope
-        yaw = self._rand((n, A), -rn["yaw"], rn["yaw"])
         q[:, self.rq + 3] = torch.cos(yaw / 2); q[:, self.rq + 4] = 0; q[:, self.rq + 5] = 0; q[:, self.rq + 6] = torch.sin(yaw / 2)
         for i in range(len(self.box_q)):                       # park the pool
             b = int(self.box_q[i]); q[:, b:b + 3] = self.box_park[i]; q[:, b + 3] = 1; q[:, b + 4:b + 7] = 0
         self.qpos[ids] = q; self.qvel[ids] = v; self.box_life[ids] = 0
         self.ctrl[ids] = self.key_ctrl; self.pending_ctrl[rows] = self.key_ctrl[self.aid[0]]
-        self.last_action[rows] = 0; self.phase[rows] = 0
+        self.last_action[rows] = 0; self.phase[rows] = 0; self.yaw_target[rows] = yaw.reshape(-1)
         self.feet_air_time[rows] = 0; self.feet_contact[rows] = True
         fxy = q[:, self.rq + 0], q[:, self.rq + 1]   # feet start under the pelvis; exact value only matters for one step of slip
         self.prev_feet_xy[rows] = torch.stack(fxy, 2).reshape(-1, 1, 2).expand(-1, 2, -1)
@@ -354,6 +355,13 @@ class KothEnv:
         t = {}
         t["tracking_lin_vel"] = torch.exp(-((cmd[:, :2] - linv[:, :2]) ** 2).sum(1) / s)
         t["tracking_ang_vel"] = torch.exp(-((cmd[:, 2] - angv[:, 2]) ** 2) / s)
+        # Heading tracking: the gait makes the instantaneous yaw rate oscillate by 0.3-0.4 rad/s (std), which buries
+        # the mean yaw-rate error in the term above; run r1_a tracked linear velocity but ignored yaw commands.
+        # The integral of the commanded rate is a clean target. The leash keeps a shove from winding it up.
+        w_, x_, y_, z_ = quat.unbind(1); yaw = torch.atan2(2 * (w_ * z_ + x_ * y_), 1 - 2 * (y_ * y_ + z_ * z_))
+        err = self.yaw_target + cmd[:, 2] * dt - yaw; err = torch.atan2(torch.sin(err), torch.cos(err)).clamp(-0.6, 0.6)
+        self.yaw_target = yaw + err
+        t["tracking_heading"] = torch.exp(-(err ** 2) / 0.1)
         t["orientation"] = (grav[:, :2] ** 2).sum(1)
         t["ang_vel_xy"] = (angv[:, :2] ** 2).sum(1)
         t["lin_vel_z"] = linv[:, 2] ** 2

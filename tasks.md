@@ -70,18 +70,20 @@ PoHillKing/
 Per-rung procedure: train → TensorBoard → viewer spot-check → `record_reference.py` (5 s: obs, actions, root pose/vel, joint pos/vel) → `export_onnx.py` (opset 17, batch 1, obs-norm folded in, JAX-vs-ONNX max err < 1e-5) → Unity replay gate (< 1e-4) → Unity closed-loop gate (Step 2 §4) → log → commit checkpoint + onnx + reference json. **Divergence halts the ladder.**
 
 ### R0 — Stand & recover (flat, single robot)
-- [ ] C0.1 `koth/env.py` flat single-robot variant: obs 103, playground-style rewards with zero velocity command, terminate on fall / foot–shin contact / NaN.
-- [ ] C0.2 Disturbances: pelvis velocity kicks 0.5–2.0 m/s every 5–10 s; pool fires a 2 kg box at 3–8 m/s every 3–8 s.
-- [ ] C0.3 DR: mass ±15 %, friction 0.4–0.9, kp ±20 %, damping ±20 %, solref ±15 %, 0/1-step latency.
-- [ ] C0.4 Train PPO (brax, 4096 envs). Pass: upright 20 s in 10/10 seeds, survives 90 % of impacts.
-- [ ] C0.5 Export + Unity replay gate + closed-loop gate.
-- [ ] C0.6 Log + commit.
+- [x] C0.1 `koth/env.py` flat single-robot variant: obs 103, playground-style rewards with zero velocity command, terminate on fall / foot–shin contact / NaN.
+- [x] C0.2 Disturbances: pelvis velocity kicks 0.5–2.0 m/s every 5–10 s; pool fires a 2 kg box at 3–8 m/s every 3–8 s.
+- [x] C0.3 DR: mass ±15 %, friction 0.4–0.9, kp ±20 %, damping ±20 %, solref ±15 %, 0/1-step latency.
+- [x] C0.4 Train PPO (brax, 4096 envs). Pass: upright 20 s in 10/10 seeds, survives 90 % of impacts.
+- [x] C0.5 Export + Unity replay gate + closed-loop gate.
+- [x] C0.6 Log + commit.
 
 ### R1 — Walk & turn (flat) — THE early verification gate
-- [ ] C1.1 Velocity commands (vx ±1, vy ±0.5, yaw ±1), gait-phase reward, feet air-time.
-- [ ] C1.2 Train from R0. Pass: tracking err < 0.15 m/s and 0.2 rad/s, 10/10 upright under pushes.
+- [x] C1.1 Velocity commands (vx ±1, vy ±0.5, yaw ±1), gait-phase reward, feet air-time.
+- [~] C1.2 Train from R0. Pass: tracking err < 0.15 m/s and 0.2 rad/s, 10/10 upright under pushes.
 - [ ] C1.3 Export + Unity gates. Halt on divergence; fix step/decimation/friction/gains before anything else.
 - [ ] C1.4 Log + commit.
+
+> R2/R3 use the 103-dim policy with a goal-driven command law instead of the extended observations below (see rl_optimization_log.md, 2026-10-08).
 
 ### R2 — Slope & plateau holding
 - [ ] C2.1 Arena hfield env; add rim distance/direction + ground-normal obs (103→109; new input weights zero-init); reward r<1.2 m, penalty per metre outside rim.
@@ -91,8 +93,8 @@ Per-rung procedure: train → TensorBoard → viewer spot-check → `record_refe
 
 ### R3 — Approach opponent
 - [ ] C3.1 Two-robot env; opponent obs appended (→130); reward −Δdistance, stall penalty, rim-step penalty. Opponent: frozen / random-walk R2.
-- [ ] C3.2 Train. Pass: < 0.6 m within 6 s in 9/10, no self-ejection.
-- [ ] C3.3 Export + Unity gates (two Workers). Log + commit.
+- [x] C3.2 Train. Pass: < 0.6 m within 6 s in 9/10, no self-ejection.
+- [x] C3.3 Export + Unity gates (two Workers). Log + commit.
 
 ### R4 — Push & strike displacement
 - [ ] C4.1 Reward: outward impulse on opponent CoM, opponent r > 1.5 m, terminal ejection bonus; penalty own r > 1.5 m.

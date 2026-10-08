@@ -88,17 +88,25 @@ namespace PoKingHill.EditorTools
         /// with &lt;rung&gt;_reference_trajectory.json, enter play mode. Scene changes are in memory only (not saved).</summary>
         public static void RunPolicy()
         {
-            string tag = Arg("-kothScene", "flat_1p"), rung = Arg("-kothRung", "r0"), prefix = Arg("-kothPrefix", "a_");
+            string tag = Arg("-kothScene", "flat_1p"), rung = Arg("-kothRung", "r0");
             AssetDatabase.Refresh();
             EditorSceneManager.OpenScene($"{SceneDir}/Testbed_{tag}.unity", OpenSceneMode.Single);
             var policy = AssetDatabase.LoadAssetAtPath<Unity.InferenceEngine.ModelAsset>($"{ModelDir}/{rung}_policy.onnx");
-            var reference = AssetDatabase.LoadAssetAtPath<TextAsset>($"{ModelDir}/{rung}_reference_trajectory.json");
-            if (policy == null || reference == null) { Debug.LogError($"[ParityBatch] missing {rung}_policy.onnx or reference json in {ModelDir}"); if (HasFlag("-kothExit")) EditorApplication.Exit(3); return; }
-            var runner = UnityEngine.Object.FindObjectsByType<PolicyRunner>(FindObjectsInactive.Include).First(r => r.robotPrefix == prefix);
-            runner.policy = policy;
+            var runners = UnityEngine.Object.FindObjectsByType<PolicyRunner>(FindObjectsInactive.Include).OrderBy(r => r.robotPrefix).ToArray();
             foreach (var hold in UnityEngine.Object.FindObjectsByType<ParityProbe>(FindObjectsInactive.Include)) hold.enabled = false;
-            var probe = runner.gameObject.AddComponent<PolicyParityProbe>();
-            probe.referenceJson = reference; probe.policy = policy; probe.runner = runner; probe.rung = rung;
+            int probes = 0;
+            foreach (var runner in runners)
+            {
+                string suffix = runners.Length == 1 ? "" : "_" + runner.robotPrefix.Trim('_');
+                var reference = AssetDatabase.LoadAssetAtPath<TextAsset>($"{ModelDir}/{rung}_reference_trajectory{suffix}.json");
+                if (policy == null || reference == null) continue;
+                runner.policy = policy;
+                runner.opponent = runners.FirstOrDefault(r => r != runner);
+                var probe = runner.gameObject.AddComponent<PolicyParityProbe>();
+                probe.referenceJson = reference; probe.policy = policy; probe.runner = runner; probe.rung = rung; probe.suffix = suffix;
+                probes++;
+            }
+            if (probes != runners.Length) { Debug.LogError($"[ParityBatch] missing {rung}_policy.onnx or reference json in {ModelDir} ({probes}/{runners.Length} robots)"); if (HasFlag("-kothExit")) EditorApplication.Exit(3); return; }
             EditorApplication.EnterPlaymode();
         }
 

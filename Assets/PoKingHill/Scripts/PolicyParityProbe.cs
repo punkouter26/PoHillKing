@@ -22,6 +22,8 @@ namespace PoKingHill
         public ModelAsset policy;
         public PolicyRunner runner;
         public string rung = "r0";
+        public string suffix = "";          // "" for one robot, "_a" / "_b" for two
+        static int s_active, s_failed;       // the editor exits when every probe in the scene has finished
 
         List<object> _frames;
         float _replayMaxErr = -1;
@@ -37,6 +39,7 @@ namespace PoKingHill
 
         void OnEnable()
         {
+            s_active++;
             var root = (Dictionary<string, object>)MiniJson.Parse(referenceJson.text);
             _frames = L(root["frames"]);
             var cmd = L(root["command"]);
@@ -123,11 +126,13 @@ namespace PoKingHill
                       $"\"mean_ctrl_rel_diff\": {S(ctrlRel)}, \"min_upright\": {S(_minUp)}, \"min_pelvis_z\": {S(_minZ)}, \"pass\": {(loopOk ? "true" : "false")}}},\n");
             sb.Append($" \"inference_ms_last\": {S(r.LastInferenceMs)},\n");
             sb.Append(" \"samples\": [\n  " + _rows + "\n ]\n}\n");
-            string path = Path.GetFullPath(Path.Combine(Application.dataPath, "..", "training", "assets", "g1", $"unity_policy_parity_{rung}.json"));
+            string path = Path.GetFullPath(Path.Combine(Application.dataPath, "..", "training", "assets", "g1", $"unity_policy_parity_{rung}{suffix}.json"));
             File.WriteAllText(path, sb.ToString());
             Debug.Log($"[PolicyParity] wrote {path}\n{sb}");
 #if UNITY_EDITOR
-            if (Application.isBatchMode || System.Array.IndexOf(System.Environment.GetCommandLineArgs(), "-kothExit") >= 0) UnityEditor.EditorApplication.Exit(replayOk && loopOk ? 0 : 4);
+            s_active--; if (!(replayOk && loopOk)) s_failed++;
+            if (s_active <= 0 && (Application.isBatchMode || System.Array.IndexOf(System.Environment.GetCommandLineArgs(), "-kothExit") >= 0))
+                UnityEditor.EditorApplication.Exit(s_failed == 0 ? 0 : 4);
 #endif
         }
     }
