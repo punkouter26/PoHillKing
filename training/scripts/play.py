@@ -37,7 +37,7 @@ def newest(pattern):
 
 
 ap = argparse.ArgumentParser()
-ap.add_argument("mode", choices=["walk", "approach", "duel"]); ap.add_argument("--ckpt", default=None); ap.add_argument("--opponent", default=None)
+ap.add_argument("mode", choices=["walk", "approach", "duel", "mirror"]); ap.add_argument("--ckpt", default=None); ap.add_argument("--opponent", default=None)
 a = ap.parse_args()
 spec = json.load(open(os.path.join(ASSETS, "joint_map.json")))
 if a.mode == "walk":
@@ -46,6 +46,9 @@ if a.mode == "walk":
 elif a.mode == "approach":
     scene, prefixes, goals = "scene_koth_2p_train.xml", ["a_", "b_"], ["opponent", "opponent"]
     ckpts = [a.ckpt or newest("runs/r1/*/model_*.pt")] * 2
+elif a.mode == "mirror":                      # two attackers, both start on the summit
+    scene, prefixes, goals = "scene_koth_2p_train.xml", ["a_", "b_"], ["attack", "attack"]
+    ckpts = [a.ckpt or newest("runs/league/gen*.pt"), a.opponent or newest("runs/league/gen*.pt")]
 else:
     scene, prefixes, goals = "scene_koth_2p_train.xml", ["a_", "b_"], ["attack", "stand"]
     ckpts = [a.ckpt or newest("runs/r4att/*/model_*.pt"), a.opponent or newest("runs/r1/*/model_*.pt")]
@@ -71,7 +74,7 @@ def reset():
     mujoco.mj_resetDataKeyframe(m, d, 0)
     if a.mode != "walk":
         if a.mode == "duel": rs = [rng.uniform(0.0, 0.5), rng.uniform(1.2, 1.35)]
-        else: rs = [rng.uniform(0.6, 1.3), rng.uniform(0.6, 1.3)]
+        else: rs = [rng.uniform(0.5, 1.2), rng.uniform(0.5, 1.2)]
         ang = rng.uniform(0, 2 * np.pi)
         for i, s in enumerate(R):
             b = ang + i * np.pi; yaw = rng.uniform(-np.pi, np.pi)
@@ -118,9 +121,9 @@ with mujoco.viewer.launch_passive(m, d) as v:
             out.append((1 - 2 * (q[1] ** 2 + q[2] ** 2) < 0.3) or (p[2] - h < 0.3) or (a.mode != "walk" and r > 1.7))
         limit = 28.0 if a.mode == "walk" else 15.0
         if any(out) or t_round > limit:
-            if a.mode == "duel":
+            if a.mode in ("duel", "mirror"):
                 k = "b" if out[0] and not out[1] else "a" if out[1] else "draw"; score[k] += 1
-                print(f"round over after {t_round:4.1f}s: {'attacker wins' if k == 'a' else 'defender wins' if k == 'b' else 'draw'}   score attacker {score['a']} / defender {score['b']} / draws {score['draw']}", flush=True)
+                print(f"round over after {t_round:4.1f}s: {'robot A wins' if k == 'a' else 'robot B wins' if k == 'b' else 'draw'}   score A {score['a']} / B {score['b']} / draws {score['draw']}", flush=True)
             v.sync(); time.sleep(0.8)
             park = reset(); t_round = 0.0
         v.sync()

@@ -45,7 +45,8 @@ def default_cfg(rung: str = "r0") -> dict:
                     joint_deviation_knee=-0.1, dof_pos_limits=-1.0, action_rate=-0.01, joint_vel=-2e-4, stand_still=-0.1,
                     tracking_heading=1.0, plateau=0.0, off_rim=0.0, ring_advantage=0.0, opp_radius=0.0, self_edge=0.0, push_out=0.0, win=0.0, draw=0.0, termination=-1.0),
         tracking_sigma=0.25, swing_height=0.12, terminate_on_leg_contact=True, max_radius=8.0, combat=False,
-        frozen_opponent=None,      # checkpoint path: robot b_ is driven by this policy and only robot a_ learns
+        frozen_opponent=None,      # checkpoint path(s): robot b_ is driven by these policies and only robot a_ learns
+        frozen_stochastic=False,   # True while training: frozen opponents sample actions like the learner does
     )
     if rung == "r0":                       # stand only: zero command, disturbances on
         cfg["command"].update(zero_prob=1.0)
@@ -100,9 +101,12 @@ def default_cfg(rung: str = "r0") -> dict:
 class FrozenPolicy(torch.nn.Module):
     """Deterministic actor rebuilt from an rsl_rl checkpoint (obs normalizer + ELU MLP). Used for opponents that do
     not learn. Reads only as many observation columns as it was trained on."""
-    def __init__(self, ckpt: str, device):
+    def __init__(self, ckpt: str, device, stochastic: bool = False):
         super().__init__()
         sd = torch.load(ckpt, map_location=device, weights_only=False)["actor_state_dict"]
+        # Training: sample actions with the policy's own exploration std. The learner explores with that noise, and a
+        # noise-free opponent beat an identical noisy learner in about 95 % of rounds (league gen2, first attempt).
+        self.noise_std = sd["distribution.std_param"].abs() if stochastic and "distribution.std_param" in sd else None
         self.mean, self.std = sd["obs_normalizer._mean"], sd["obs_normalizer._std"]
         idx = sorted(int(k.split(".")[1]) for k in sd if k.startswith("mlp.") and k.endswith(".weight"))
         self.layers = [(sd[f"mlp.{i}.weight"], sd[f"mlp.{i}.bias"]) for i in idx]
@@ -114,13 +118,14 @@ class FrozenPolicy(torch.nn.Module):
         for i, (w, b) in enumerate(self.layers):
             x = torch.nn.functional.linear(x, w, b)
             if i < len(self.layers) - 1: x = torch.nn.functional.elu(x)
+        if self.noise_std is not None: x = x + torch.randn_like(x) * self.noise_std
         return x
 
 
 class FrozenPool:
     """Several frozen opponents; each world is assigned one of them, re-drawn whenever that world resets."""
-    def __init__(self, ckpts, device, num_worlds):
-        self.nets = [FrozenPolicy(c, device) for c in ckpts]
+    def __init__(self, ckpts, device, num_worlds, stochastic=False):
+        self.nets = [FrozenPolicy(c, device, stochastic) for c in ckpts]
         self.choice = torch.randint(0, len(self.nets), (num_worlds,), device=device)
 
     def resample(self, world_ids):
@@ -149,7 +154,7 @@ class KothEnv:
         prefixes = cfg["robots"]
         N = self.N = num_envs; A = self.A = len(prefixes); M = self.M = N * A
         fo = cfg["frozen_opponent"]
-        self.frozen = None if not fo else FrozenPool(fo if isinstance(fo, (list, tuple)) else [fo], self.device, N)
+        self.frozen = None if not fo else FrozenPool(fo if isinstance(fo, (list, tuple)) else [fo], self.device, N, cfg["frozen_stochastic"])
         assert self.frozen is None or A == 2
         self.num_envs = N if self.frozen is not None else M      # rows rsl_rl sees (learner = robot a_ only when b_ is frozen)
 
