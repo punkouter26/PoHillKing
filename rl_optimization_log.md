@@ -122,3 +122,19 @@ Decision: always step through a captured CUDA graph (`wp.ScopedCapture`), eager 
   | R5 win share vs last five, ties, time | gen7 | 80 % of decided, 9.6 % ties, 4.3 s |
 - **Not met by one brain:** no single policy passes both the standing-opponent bar and the league bar. The separate "self-ejection under 5 %" clause of the R4 bar was not measured on its own.
 - **Unity:** `attacker_policy.onnx` is now gen7. The statistical gate above was run with gen3.
+
+## 2026-10-08 (late) — one combat brain for all bars, Unity camera and audio
+
+- **gen7 statistical parity:** Unity 60 rounds 15 % decided, mean winning time 13.2 s; CPU MuJoCo 200 rounds 14.5 %, 13.0 s. Parity holds, and it shows gen7 is passive against itself.
+- **gen8** (from gen7, half standing opponents): draws kept rising; stopped at iteration 220.
+- **allround1** (700 iterations from gen1, pool = standing walker x6, gens 1, 3, 4, 5, 6, 7). Starting from the brain that already beats a standing opponent kept that skill alive while it learned to duel:
+  | bar | result |
+  |---|---|
+  | standing walker at the rim (>= 70 % ejections) | 93.4 % (89.5 / 94.9 / 95.7), median 2.0 s |
+  | self-ejection against that opponent (< 5 %) | 6.6 % (10.5 / 5.1 / 4.3): narrow miss |
+  | vs gens 3-7 (> 55 % of decided, < 15 % ties, < 20 s) | 87 % of decided, 3.6 % ties, 2.5 s |
+  | vs itself (>= 50 % decided) | 86 % decided, median 5.1 s |
+- **allround2** (400 more iterations, pool adds allround1): beats allround1 head to head 68 / 27, but is worse elsewhere: standing walker 87.4 % with 12.6 % self-ejection, gens 3-7 78 / 20. Not promoted.
+- **Unity statistical parity, allround1 vs itself:** Unity 100 rounds 96 % decided, winning time median 8.4 s (quartiles 6.2 / 13.7); CPU MuJoCo 200 rounds 96 % decided, median 7.3 s (5.4 / 12.1). `attacker_policy.onnx` is allround1.
+- **Unity presentation:** `MatchCamera` (combat framing, follows the loser off the summit, returns), `ImpactSynth` (thuds from pelvis velocity jumps, footfall clicks, splash and bubbles at the waterline, all synthesized in `OnAudioFilterRead`, no audio files). Both compile and run without exceptions in an 8-round editor run; neither has been looked at or listened to.
+- **Three-hour champion league started 19:08** (`scripts/allround_league.py`): each generation warm-starts from the champion (allround1), trains 350 iterations with `self_edge = -5` against standing walkers, gens 1 / 6 / 7 and recent all-rounders, and is promoted only if it beats the champion, keeps >= 85 % against the standing walker, and does not self-eject more.

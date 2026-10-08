@@ -61,19 +61,26 @@ GRID = [
         C("even match", 50, "okay", "against a copy of itself: 82% of rounds decided, wins split evenly; never beat a centre-holding Walker", "Getting there"),
         C("Yes", 95, "strong", "inputs and brain match exactly; over 60 Unity rounds the share decided and the winning times match training", "Verified"),
     ]),
-    dict(name="Duelist (generation 6)", note="League-trained against generations 1 to 5.", cells=[
+    dict(name="Duelist (generation 6)", retired=True, note="League-trained against generations 1 to 5.", cells=[
         C("inherited", 0, "na"), C("inherited", 0, "na"), C("inherited", 0, "na"), NA(), NA("shelved"),
         C("Yes", 100, "strong", "rounds last about 5 s"),
         C("4 to 7%", 6, "fail", "forgot how to handle an opponent that stands still"),
         C("59% / 95%", 77, "strong", "wins 59% of decided rounds against the five earlier generations; against itself 95% of rounds are decided"),
         C("Not yet", 0, "na", "generation 3 was the one checked"),
     ]),
-    dict(name="Duelist (generation 7)", note="Latest. Trained against generations 1 to 6 plus the standing Walker.", cells=[
+    dict(name="Duelist (generation 7)", retired=True, note="Superseded. Strong against other attackers, passive otherwise.", cells=[
         C("inherited", 0, "na"), C("inherited", 0, "na"), C("inherited", 0, "na"), NA(), NA("shelved"),
         C("Yes", 100, "strong", "rounds last about 4 s"),
         C("7%", 7, "fail", "62% of those rounds end in a standoff"),
-        C("80%", 80, "strong", "of decided rounds won against generations 2 to 6, 10% ties; against itself only half the rounds are decided"),
-        C("Not yet", 0, "na", "exported to Unity, statistics not re-run"),
+        C("80%", 80, "strong", "of decided rounds won against generations 2 to 6; against itself only 15 to 50% of rounds are decided"),
+        C("Yes", 95, "strong", "15% decided in Unity and in training", "Verified"),
+    ]),
+    dict(name="All-rounder", note="Current champion. Started from the Attacker and trained against standing and attacking opponents.", cells=[
+        C("inherited", 0, "na"), C("inherited", 0, "na"), C("inherited", 0, "na"), NA(), NA("shelved"),
+        C("Yes", 100, "strong", "reaches the opponent in about 1 s"),
+        C("93%", 93, "strong", "in about 2 s; goes out by itself in 6.6% of those rounds, bar is 5%"),
+        C("87%", 87, "strong", "of decided rounds won against Duelists 3 to 7, 4% ties; against itself 86% of rounds are decided"),
+        C("Yes", 95, "strong", "96% of rounds decided in Unity and in training; typical win 8.4 s against 7.3 s", "Verified"),
     ]),
     dict(name="Stand-only v1", retired=True, note="Retired. First attempt, taught standing with no walking.", cells=[
         C("47%", 47, "weak", "could not step to recover"), C("0%", 2, "fail", "never taught"), C("0%", 2, "fail", "never taught"),
