@@ -121,11 +121,11 @@
     <mesh name="right_wrist_pitch_link" file="right_wrist_pitch_link.STL" />
     <mesh name="right_wrist_yaw_link" file="right_wrist_yaw_link.STL" />
     <mesh name="right_rubber_hand" file="right_rubber_hand.STL" />
-    <hfield name="arena" file="arena.bin" nrow="257" ncol="257" size="10.0 10.0 10.0 0.5" />
+    <mesh name="arena" file="arena.obj" />
   </asset>
   <worldbody>
     <light pos="0 0 6" dir="0 0 -1" directional="true" />
-    <geom name="arena" type="hfield" hfield="arena" pos="0 0 -10.0" contype="4" conaffinity="31" condim="3" friction="0.6" rgba="0.45 0.4 0.35 1" />
+    <geom name="arena" type="mesh" mesh="arena" contype="4" conaffinity="31" condim="3" friction="0.6" rgba="0.45 0.4 0.35 1" />
     <body name="a_pelvis" pos="-1.4 0 0.793" childclass="g1" quat="1 0 0 0">
       <inertial pos="0 0 -0.07605" quat="1 0 -0.000399148 0" mass="3.813" diaginertia="0.010549 0.0093089 0.0079184" />
       <freejoint name="a_floating_base_joint" />

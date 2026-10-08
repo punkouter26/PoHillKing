@@ -121,10 +121,10 @@
     <mesh name="right_wrist_pitch_link" file="right_wrist_pitch_link.STL" />
     <mesh name="right_wrist_yaw_link" file="right_wrist_yaw_link.STL" />
     <mesh name="right_rubber_hand" file="right_rubber_hand.STL" />
-    <hfield name="arena" size="10 10 10 0.5" file="arena.bin" />
+    <mesh name="arena" content_type="model/obj" file="arena.obj" />
   </asset>
   <worldbody>
-    <geom name="arena" pos="0 0 -10" type="hfield" contype="4" conaffinity="31" friction="0.6" rgba="0.45 0.4 0.35 1" hfield="arena" />
+    <geom name="arena" pos="0 0 0" quat="1 0 0 0" type="mesh" contype="4" conaffinity="31" friction="0.6" rgba="0.45 0.4 0.35 1" mesh="arena" />
     <geom name="parking_shelf" size="3 0.5 0.1" pos="0 0 -50.2" type="box" contype="32" conaffinity="8" rgba="0 0 0 0" />
     <light pos="0 0 6" type="directional" />
     <body name="a_pelvis" childclass="g1" pos="-1.4 0 0.793">

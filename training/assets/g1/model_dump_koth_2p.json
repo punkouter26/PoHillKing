@@ -2382,12 +2382,12 @@
  "geoms": [
   {
    "name": "arena",
-   "type": 1,
+   "type": 7,
    "body": "world",
    "size": [
-    10.0,
-    10.0,
-    2.75
+    6.741489406720598,
+    10.986829757690458,
+    10.986829757690458
    ],
    "contype": 4,
    "conaffinity": 31,
@@ -3533,18 +3533,11 @@
    "condim": 3
   }
  ],
- "hfield": [
+ "meshes": [
   {
-   "nrow": 257,
-   "ncol": 257,
-   "size": [
-    10.0,
-    10.0,
-    10.0,
-    0.5
-   ],
-   "data_min": 0.0,
-   "data_max": 1.0
+   "name": "arena",
+   "nvert": 818,
+   "nface": 1632
   }
  ]
 }

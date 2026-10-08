@@ -39,7 +39,7 @@ PoHillKing/
 
 - [x] A.1 Copy menagerie `unitree_g1` meshes to `training/assets/g1/`. Author `g1_koth.xml` on `g1_mjx_feetonly.xml` conventions: position actuators kp 75 / ankle-pitch 20 / ankle-roll+wrists 2; joint damping/armature/frictionloss per Step 2; Euler; dt 0.002; iterations 3; ls_iterations 5; eulerdamp off; `stand` keyframe.
 - [x] A.2 Collision set: foot boxes 0.09×0.03×0.008; thigh/shin/torso/upper-arm/forearm/hand capsules; head sphere. Bitmasks: robot A=1, robot B=2, arena=4. Self-collision off except foot–foot and foot–shin. Friction 0.6 feet, 0.8 body.
-- [x] A.3 Arena: generate `arena_hfield.npy` (radius 12 m; plateau flat for r≤1.5 m; convex z(r)=−k(r−1.5)², 45° at r≈6 m; ±2 cm roughness; fixed seed). Reference as `<hfield>` in `scene_koth.xml`. Export identical PNG for the Unity importer.
+- [x] A.3 Arena: convex mesh dome `assets/arena.obj` (flat disc r≤1.5 m at z=0; z(r)=−k(r−1.5)², 45° at r≈6 m; 10 m deep). Was an hfield: mujoco_warp emits only one contact per hfield pair, so feet would rock and CPU/Unity would differ from training. Roughness dropped (hull); slope bumps as separate static geoms are a later option.
 - [x] A.4 Projectile pool: 8 × 0.2 m, 2 kg box bodies with free joints parked at z=−50 in the scene.
 - [x] A.5 `scene_koth_2p.xml`: `g1_koth.xml` included twice (prefixes `a_`, `b_`), spawns at x=±1.4 m facing inward.
 - [x] A.6 `scripts/dump_model.py` → `model_dump.json` (nq, nv, nu, nbody, timestep, integrator, iterations, ls_iterations, per-joint name/range/damping/armature, per-actuator name/kp/ctrlrange, per-body mass, hfield meta). Commit as the parity reference.
@@ -49,7 +49,7 @@ PoHillKing/
 
 ## Phase B — Early Unity ingestion & zero-brain parity test (CRITICAL, before any training)
 
-- [ ] B.1 Asset → Import MuJoCo Scene on `scene_koth_2p.xml`. Record what imports cleanly: hfield, contact pairs/excludes, position-actuator gains, solver options, keyframe. Anything unsupported → change the MJCF on the Python side first. Never let the two diverge.
+- [ ] B.1 Asset → Import MuJoCo Scene on `training/assets/g1/scene_koth_2p_unity.xml` (and `scene_flat_1p_unity.xml`). Record what imports cleanly: arena mesh, excludes, actuator gainprm/biasprm, solver options. Anything unsupported → change the MJCF on the Python side first. Never let the two diverge.
 - [ ] B.2 Zero-PhysX audit: EditMode test asserts 0 Collider, 0 Rigidbody, 0 CharacterController, 0 Joint in every PoKingHill scene.
 - [ ] B.3 `JointMap.cs`: on `postInitEvent`, resolve the 29 canonical names → qpos/qvel/actuator ids for both robots via `mj_name2id`; hard assert all found; log the map.
 - [ ] B.4 `ModelDumpCheck.cs`: dump the Unity-compiled mjModel to the A.6 schema and diff against `model_dump.json` (mass/range 1e-6, kp exact, timestep exact). PlayMode test fails on any mismatch.
