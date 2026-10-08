@@ -83,6 +83,24 @@ def eval_arena(env, policy, rung, steps):
     return dict(pairs=env.N, met_within_6s=round(meet, 4), pairs_with_self_ejection=round(left, 4), **{"pass": meet >= 0.9 and left <= 0.02})
 
 
+def eval_duel(env, policy, steps):
+    """Robot a attacks robot b. Counts, per world, the first of: b ejected (radius > 1.7 or fallen), a ejected/fallen."""
+    N = env.N; obs = env.reset()
+    open_ = torch.ones(N, dtype=torch.bool, device=env.device); win = torch.zeros_like(open_); lose = torch.zeros_like(open_)
+    t_win = torch.full((N,), float('nan'), device=env.device)
+    for t in range(steps):
+        with torch.no_grad():
+            act = policy(obs)
+        obs, _, done, extras = env.step(act)
+        out = (extras["radius"] > 1.7) | extras["fallen"]; out = out.view(N, 2)
+        b_out = out[:, 1] & open_; a_out = out[:, 0] & open_ & ~b_out
+        win |= b_out; lose |= a_out; t_win[b_out] = t * env.ctrl_dt
+        open_ &= ~(b_out | a_out | done.view(N, 2)[:, 0])
+    w = win.float().mean().item(); l = lose.float().mean().item()
+    return dict(duels=N, attacker_ejects_defender=round(w, 4), attacker_lost=round(l, 4), undecided=round(1 - w - l, 4),
+                median_time_s=round(float(t_win[win].median()) if win.any() else -1.0, 2), **{"pass": w >= 0.7})
+
+
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--rung", default="r0"); ap.add_argument("--ckpt", required=True)
@@ -90,6 +108,7 @@ def main():
     ap.add_argument("--seconds", type=float, default=20.0)
     a = ap.parse_args()
     cfg = default_cfg(a.rung)
+    if a.rung == "r4probe": cfg["max_radius"] = 1.7
     if a.rung in ("r0", "r1"):
         cfg["push"] = dict(interval_s=[5.0, 5.0], vel=[2.0, 2.0]); cfg["projectile"].update(speed=[6.0, 6.0])
     else:
@@ -99,7 +118,8 @@ def main():
     steps = int(a.seconds / env.ctrl_dt); rows = []
     for seed in range(a.seeds):
         torch.manual_seed(1000 + seed)
-        row = (eval_flat if a.rung in ("r0", "r1") else eval_arena)(env, policy, a.rung, steps)
+        if a.rung == "r4probe": row = eval_duel(env, policy, steps)
+        else: row = (eval_flat if a.rung in ("r0", "r1") else eval_arena)(env, policy, a.rung, steps)
         row = dict(seed=seed, **row); rows.append(row); print(json.dumps(row), flush=True)
     ok = all(r["pass"] for r in rows)
     print("VERDICT", a.rung, "PASS" if ok else "FAIL", f"({sum(r['pass'] for r in rows)}/{len(rows)} seeds)")

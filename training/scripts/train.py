@@ -22,11 +22,29 @@ def train_cfg(num_steps_per_env=24, save_interval=100):
     }
 
 
+def warm_start(runner, ckpt_path):
+    """Load actor/critic from a checkpoint whose observation was narrower. Tensors that differ only in the
+    last (input) dimension are copied into the leading columns; new actor input weights are zeroed so the
+    policy starts out behaving exactly like the old one. Optimizer state and iteration count are not loaded."""
+    ck = torch.load(ckpt_path, map_location="cuda", weights_only=False)
+    for name, model in (("actor", runner.alg._raw_actor), ("critic", runner.alg._raw_critic)):
+        new = model.state_dict(); padded = 0
+        for k, v in ck[f"{name}_state_dict"].items():
+            if k not in new: continue
+            if new[k].shape == v.shape: new[k] = v
+            elif new[k].dim() == v.dim() and new[k].shape[:-1] == v.shape[:-1] and new[k].shape[-1] > v.shape[-1]:
+                if k.endswith("weight"): new[k] = torch.zeros_like(new[k])
+                new[k][..., :v.shape[-1]] = v; padded += 1
+            else: raise ValueError(f"cannot warm-start {name}.{k}: {tuple(v.shape)} -> {tuple(new[k].shape)}")
+        model.load_state_dict(new); print(f"warm start {name}: {padded} tensors padded")
+
+
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--rung", default="r0"); ap.add_argument("--num-envs", type=int, default=4096)
     ap.add_argument("--iters", type=int, default=1500); ap.add_argument("--resume", default=None)
     ap.add_argument("--seed", type=int, default=0); ap.add_argument("--name", default=None)
+    ap.add_argument("--warm", default=None, help="checkpoint to warm-start from (weights only, pads new inputs)")
     a = ap.parse_args()
     cfg = default_cfg(a.rung)
     env = KothEnv(cfg, a.num_envs, seed=a.seed)
@@ -37,6 +55,8 @@ def main():
     runner = OnPolicyRunner(env, train_cfg(), log_dir=log_dir, device="cuda")
     if a.resume:
         runner.load(a.resume)
+    if a.warm:
+        warm_start(runner, a.warm)
     runner.learn(a.iters, init_at_random_ep_len=True)
     runner.save(os.path.join(log_dir, "model_final.pt"))
     runner.export_policy_to_onnx(log_dir, "policy.onnx")

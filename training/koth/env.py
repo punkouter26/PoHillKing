@@ -13,7 +13,7 @@ from __future__ import annotations
 import json, math, os
 import numpy as np, torch, mujoco, warp as wp, mujoco_warp as mjw
 from tensordict import TensorDict
-from koth.obs import build_obs, quat_rotate_inverse, goal_command, OBS_DIM, GAIT_FREQ_HZ
+from koth.obs import build_obs, build_combat, quat_rotate_inverse, goal_command, OBS_DIM, COMBAT_DIM, GAIT_FREQ_HZ
 
 ASSETS = os.path.normpath(os.path.join(os.path.dirname(__file__), "..", "assets", "g1"))
 PLATEAU_R, SLOPE_K = 1.5, 1.0 / 9.0          # must match build_mjcf.py
@@ -43,8 +43,8 @@ def default_cfg(rung: str = "r0") -> dict:
         reward=dict(tracking_lin_vel=1.0, tracking_ang_vel=0.75, alive=0.5, upright=0.5, orientation=-2.0, ang_vel_xy=-0.05,
                     lin_vel_z=-0.5, feet_air_time=2.0, feet_slip=-0.1, feet_phase=1.0, pose=-0.1, joint_deviation_hip=-0.25,
                     joint_deviation_knee=-0.1, dof_pos_limits=-1.0, action_rate=-0.01, joint_vel=-2e-4, stand_still=-0.1,
-                    tracking_heading=1.0, plateau=0.0, off_rim=0.0, termination=-1.0),
-        tracking_sigma=0.25, swing_height=0.12, terminate_on_leg_contact=True, max_radius=8.0,
+                    tracking_heading=1.0, plateau=0.0, off_rim=0.0, ring_advantage=0.0, push_out=0.0, win=0.0, termination=-1.0),
+        tracking_sigma=0.25, swing_height=0.12, terminate_on_leg_contact=True, max_radius=8.0, combat=False,
     )
     if rung == "r0":                       # stand only: zero command, disturbances on
         cfg["command"].update(zero_prob=1.0)
@@ -57,6 +57,18 @@ def default_cfg(rung: str = "r0") -> dict:
         cfg["spawn"].update(r=[0.3, 1.3])
         cfg["goal_cmd"].update(stop_dist=0.5)
         cfg["reward"].update(off_rim=-0.5)
+        cfg["projectile"].update(enabled=False)
+    elif rung == "r4":                     # sumo: both robots walk into each other; leaving r < 1.7 m or falling loses
+        cfg.update(scene="scene_koth_2p_train.xml", robots=["a_", "b_"], arena=True, goal="opponent", combat=True, max_radius=1.7)
+        cfg["spawn"].update(r=[0.5, 1.3])
+        cfg["goal_cmd"].update(stop_dist=0.0, vmax=1.0)
+        cfg["projectile"].update(enabled=False); cfg["push"].update(interval_s=[1e6, 1e6])
+        cfg["reward"].update(tracking_lin_vel=0.5, tracking_ang_vel=0.3, tracking_heading=0.3, stand_still=0.0,
+                             ring_advantage=1.0, push_out=1.0, win=10.0, termination=-10.0)
+    elif rung == "r4probe":               # a_ walks into b_ (no stop distance); b_ holds the plateau, starts at the rim
+        cfg.update(scene="scene_koth_2p_train.xml", robots=["a_", "b_"], arena=True, goal=["opponent", "center"])
+        cfg["spawn"].update(r=[[0.0, 0.5], [1.25, 1.35]])
+        cfg["goal_cmd"].update(stop_dist=[0.0, 0.3], vmax=[1.0, 0.8])
         cfg["projectile"].update(enabled=False)
     return cfg
 
@@ -142,6 +154,10 @@ class KothEnv:
         self.latency = torch.zeros(M, dtype=torch.bool, device=device); self.pending_ctrl = z(M, 29)
         self.extras: dict = {}
         self.reward_terms: dict[str, torch.Tensor] = {}
+        per = lambda v: (v if isinstance(v, (list, tuple)) else [v] * A)          # scalar or one value per robot
+        self.goal_is_opp = torch.tensor([g == "opponent" for g in per(cfg["goal"])], device=device).repeat(N)
+        self.goal_stop = torch.tensor(per(cfg["goal_cmd"]["stop_dist"]), device=device, dtype=torch.float32).repeat(N)
+        self.goal_vmax = torch.tensor(per(cfg["goal_cmd"]["vmax"]), device=device, dtype=torch.float32).repeat(N)
 
         mjw.step(self.m, self.d)                        # warm up kernels before capture
         with wp.ScopedCapture() as cap:
@@ -161,6 +177,10 @@ class KothEnv:
         """Per row: pos (M,3), quat wxyz (M,4), world linvel (M,3), body angvel (M,3)."""
         q = self._flat(self.qpos[:, self.rq7]); v = self._flat(self.qvel[:, self.rd6])
         return q[:, :3], q[:, 3:7], v[:, :3], v[:, 3:6]
+
+    def _opp(self, x):
+        """Per-row tensor of the other robot in the same world (A == 2)."""
+        return x.view(self.N, 2, *x.shape[1:]).flip(1).reshape(x.shape)
 
     def _joints(self):
         return self._flat(self.qpos[:, self.qadr]), self._flat(self.qvel[:, self.dadr])
@@ -187,16 +207,17 @@ class KothEnv:
         self.command[rows] = cmd
 
     def _goal_vec(self, pos):
-        """World xy vector from each robot to its goal (M,2)."""
-        if self.cfg["goal"] == "center":
-            return -pos[:, :2]
-        p = pos[:, :2].view(self.N, self.A, 2)
-        return (p.flip(1) - p).reshape(self.M, 2)          # opponent (A == 2)
+        """World xy vector from each robot to its goal (M,2). cfg['goal'] is one mode or one per robot."""
+        to_center = -pos[:, :2]
+        if self.A == 1:
+            return to_center
+        p = pos[:, :2].view(self.N, self.A, 2); to_opp = (p.flip(1) - p).reshape(self.M, 2)
+        return torch.where(self.goal_is_opp[:, None], to_opp, to_center)
 
     def _update_goal_commands(self):
         if self.cfg["goal"] is None: return
-        pos, quat, _, _ = self._root(); g = self.cfg["goal_cmd"]
-        self.command[:] = goal_command(quat, self._goal_vec(pos), g["stop_dist"], g["vmax"])
+        pos, quat, _, _ = self._root()
+        self.command[:] = goal_command(quat, self._goal_vec(pos), self.goal_stop, self.goal_vmax)
 
     # ------------------------------------------------------------------ reset / randomization
     def _randomize(self, ids):
@@ -220,13 +241,14 @@ class KothEnv:
 
     def _spawn_xy(self, n):
         """(n, A, 2) spawn positions. Flat scenes keep the keyframe position."""
-        sp = self.cfg["spawn"]; lo, hi = sp["r"]
-        if hi <= 0:
+        sp = self.cfg["spawn"]; rr = sp["r"]
+        rr = rr if isinstance(rr[0], (list, tuple)) else [rr] * self.A
+        if max(h for _, h in rr) <= 0:
             return None
-        r = torch.sqrt(self._rand((n, self.A), lo * lo, hi * hi)); ang = self._rand((n, self.A), 0, 2 * math.pi)
+        r = torch.stack([torch.sqrt(self._rand(n, lo * lo, hi * hi)) for lo, hi in rr], 1); ang = self._rand((n, self.A), 0, 2 * math.pi)
         if self.A == 2:                                   # opposite-ish sides, never overlapping
             ang[:, 1] = ang[:, 0] + math.pi + self._rand(n, -1.0, 1.0)
-            r[:, 1] = torch.maximum(r[:, 1], sp["min_separation"] - r[:, 0])
+            r[:, 1] = torch.maximum(r[:, 1], (sp["min_separation"] - r[:, 0]).clamp(max=1.35))
         return torch.stack([r * torch.cos(ang), r * torch.sin(ang)], 2)
 
     def reset_idx(self, ids: torch.Tensor):
@@ -329,10 +351,16 @@ class KothEnv:
         done = world_done.repeat_interleave(A)
         term = self.cfg["reward"]["termination"] * fallen.float()      # one-off, outside the clip, not scaled by dt
         rew += term; self.reward_terms["termination"] = term
+        if self.A == 2 and self.cfg["reward"]["win"] != 0.0:
+            won = self._opp(fallen) & ~fallen; win = self.cfg["reward"]["win"] * won.float()
+            rew += win; self.reward_terms["win"] = win
         self.extras = {"time_outs": done & ~fallen, "log": {f"rew/{k}": v.mean() for k, v in self.reward_terms.items()},
                        "fallen": fallen, "nan": nan, "radius": radius}
         self.extras["log"]["ep/leg_contact_term"] = leg.float().mean(); self.extras["log"]["ep/fallen"] = fallen.float().mean()
         if self.arena: self.extras["log"]["ep/on_plateau"] = (radius < PLATEAU_R).float().mean()
+        if self.A == 2:
+            self.extras["log"]["ep/decided"] = (fallen.view(N, A).any(1).float().sum() / world_done.float().sum().clamp(min=1))
+            self.extras["log"]["ep/separation"] = (pos[:, :2] - self._opp(pos)[:, :2]).norm(dim=1).mean()
         self.last_action = self.action.clone()
         self.feet_contact = feet; self.prev_feet_xy = self._flat(self.xpos[:, self.feet_body])[:, :, :2].clone()
         if self.cfg["goal"] is None:
@@ -388,6 +416,11 @@ class KothEnv:
         t["upright"] = torch.exp(-(grav[:, :2] ** 2).sum(1) / 0.05)
         t["joint_vel"] = (jvel ** 2).sum(1)
         radius = pos[:, :2].norm(dim=1)
+        if self.A == 2:
+            opos = self._opp(pos); ovel = self._opp(linv_w); orad = opos[:, :2].norm(dim=1)
+            near = ((opos[:, :2] - pos[:, :2]).norm(dim=1) < 0.9).float()
+            t["ring_advantage"] = (orad - radius).clamp(-1.0, 1.0)                     # be more central than the opponent
+            t["push_out"] = ((ovel[:, :2] * opos[:, :2]).sum(1) / orad.clamp(min=0.1)).clamp(-1.0, 2.0) * near   # its outward speed while I am on it
         t["plateau"] = (radius < 1.2).float()
         t["off_rim"] = (radius - PLATEAU_R).clamp(min=0)
         self.reward_terms = {k: R[k] * v * dt for k, v in t.items() if R.get(k, 0.0) != 0.0}
@@ -406,6 +439,9 @@ class KothEnv:
         noisy[:, 12:41] += u(29, nz["joint_pos"]); noisy[:, 41:70] += u(29, nz["joint_vel"])
         height = pos[:, 2:3] - terrain_height(pos[:, :2], self.arena)[:, None]
         critic = torch.cat([clean, linv_w, height, self.feet_contact.float(), self.dr_params], 1)
+        if self.cfg["combat"]:
+            block = build_combat(pos, quat, linv_w, self._opp(pos), self._opp(quat), self._opp(linv_w))
+            noisy = torch.cat([noisy, block], 1); critic = torch.cat([critic, block], 1)
         return TensorDict({"policy": noisy, "critic": critic}, batch_size=[self.M])
 
 
@@ -413,7 +449,7 @@ if __name__ == "__main__":
     import time, sys
     rung = sys.argv[1] if len(sys.argv) > 1 else "r0"; N = int(sys.argv[2]) if len(sys.argv) > 2 else 1024
     env = KothEnv(default_cfg(rung), N)
-    obs = env.get_observations(); assert obs["policy"].shape == (env.num_envs, OBS_DIM), obs["policy"].shape
+    obs = env.get_observations(); assert obs["policy"].shape == (env.num_envs, OBS_DIM + (COMBAT_DIM if env.cfg["combat"] else 0)), obs["policy"].shape
     for _ in range(3): env.step(torch.zeros(env.num_envs, 29, device=env.device))
     torch.cuda.synchronize(); t = time.perf_counter(); S = 100; falls = 0
     for i in range(S):

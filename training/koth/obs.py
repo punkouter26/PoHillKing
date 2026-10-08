@@ -40,6 +40,27 @@ def build_obs(root_quat, root_linvel_world, root_angvel_body, jpos, jvel, defaul
     ], dim=1)
 
 
+COMBAT_DIM = 9
+
+
+def build_combat(root_pos, root_quat, root_linvel_w, opp_pos, opp_quat, opp_linvel_w):
+    """Opponent and ring awareness appended to the 103-dim state for the combat rungs (r4+). All (M, ...).
+      [0:2] opponent position relative to me, in my heading frame (m)
+      [2:4] opponent velocity relative to me, in my heading frame (m/s)
+      [4:6] plateau centre relative to me, in my heading frame (m)
+      [6]   my distance from the centre (m)      [7] opponent distance from the centre (m)
+      [8]   opponent uprightness (world-z component of its pelvis z axis, 1 = upright)
+    Heading frame = world frame rotated by my yaw only, so the block stays meaningful when I am tilted."""
+    w, x, y, z = root_quat.unbind(1)
+    yaw = torch.atan2(2 * (w * z + x * y), 1 - 2 * (y * y + z * z)); c, s = torch.cos(yaw), torch.sin(yaw)
+    def to_heading(v):
+        return torch.stack([c * v[:, 0] + s * v[:, 1], -s * v[:, 0] + c * v[:, 1]], 1)
+    opp_up = 1 - 2 * (opp_quat[:, 1] ** 2 + opp_quat[:, 2] ** 2)
+    return torch.cat([to_heading(opp_pos[:, :2] - root_pos[:, :2]), to_heading(opp_linvel_w[:, :2] - root_linvel_w[:, :2]),
+                      to_heading(-root_pos[:, :2]), root_pos[:, :2].norm(dim=1, keepdim=True), opp_pos[:, :2].norm(dim=1, keepdim=True),
+                      opp_up[:, None]], 1)
+
+
 def goal_command(root_quat, goal_vec_xy, stop_dist: float, vmax: float = 0.8):
     """Velocity command (vx, vy, yaw rate) that walks toward a goal. Fixed law, mirrored by Unity's GoalCommand.cs.
     root_quat (M,4) wxyz, goal_vec_xy (M,2) world vector from the robot to the goal.
@@ -52,7 +73,7 @@ def goal_command(root_quat, goal_vec_xy, stop_dist: float, vmax: float = 0.8):
     dist = goal_vec_xy.norm(dim=1)
     ang = torch.atan2(goal_vec_xy[:, 1], goal_vec_xy[:, 0]) - yaw
     ang = torch.atan2(torch.sin(ang), torch.cos(ang))
-    speed = (dist - stop_dist).clamp(0.0, vmax)
+    speed = torch.minimum((dist - stop_dist).clamp(min=0.0), torch.as_tensor(vmax, dtype=dist.dtype, device=dist.device))
     moving = (speed > 0.05).to(speed.dtype)
     return torch.stack([(speed * torch.cos(ang)).clamp(-1.0, 1.0), (speed * torch.sin(ang)).clamp(-0.5, 0.5),
                         (2.0 * ang).clamp(-1.0, 1.0) * moving], dim=1)
