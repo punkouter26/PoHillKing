@@ -79,27 +79,27 @@ Per-rung procedure: train → TensorBoard → viewer spot-check → `record_refe
 
 ### R1 — Walk & turn (flat) — THE early verification gate
 - [x] C1.1 Velocity commands (vx ±1, vy ±0.5, yaw ±1), gait-phase reward, feet air-time.
-- [~] C1.2 Train from R0. Pass: tracking err < 0.15 m/s and 0.2 rad/s, 10/10 upright under pushes.
-- [ ] C1.3 Export + Unity gates. Halt on divergence; fix step/decimation/friction/gains before anything else.
-- [ ] C1.4 Log + commit.
+- [x] C1.2 Train from R0. Pass: tracking err < 0.15 m/s and 0.2 rad/s, 10/10 upright under pushes.
+- [x] C1.3 Export + Unity gates. Halt on divergence; fix step/decimation/friction/gains before anything else.
+- [x] C1.4 Log + commit.
 
 > R2/R3 use the 103-dim policy with a goal-driven command law instead of the extended observations below (see rl_optimization_log.md, 2026-10-08).
 
 ### R2 — Slope & plateau holding
-- [ ] C2.1 Arena hfield env; add rim distance/direction + ground-normal obs (103→109; new input weights zero-init); reward r<1.2 m, penalty per metre outside rim.
-- [ ] C2.2 Spawn curriculum: centre → rim → r=2.5 m on slope.
-- [ ] C2.3 Train. Pass: 9/10 hold from rim, 8/10 climb back from r=2.5 m.
-- [ ] C2.4 Export + Unity gates on the arena scene. Log + commit.
+- [x] C2.1 Arena hfield env; add rim distance/direction + ground-normal obs (103→109; new input weights zero-init); reward r<1.2 m, penalty per metre outside rim.
+- [x] C2.2 Spawn curriculum: centre → rim → r=2.5 m on slope.
+- [x] C2.3 Train. Pass: 9/10 hold from rim, 8/10 climb back from r=2.5 m.
+- [x] C2.4 Export + Unity gates on the arena scene. Log + commit.
 
 ### R3 — Approach opponent
-- [ ] C3.1 Two-robot env; opponent obs appended (→130); reward −Δdistance, stall penalty, rim-step penalty. Opponent: frozen / random-walk R2.
+- [x] C3.1 Two-robot env; opponent obs appended (→130); reward −Δdistance, stall penalty, rim-step penalty. Opponent: frozen / random-walk R2.
 - [x] C3.2 Train. Pass: < 0.6 m within 6 s in 9/10, no self-ejection.
 - [x] C3.3 Export + Unity gates (two Workers). Log + commit.
 
 ### R4 — Push & strike displacement
-- [ ] C4.1 Reward: outward impulse on opponent CoM, opponent r > 1.5 m, terminal ejection bonus; penalty own r > 1.5 m.
-- [ ] C4.2 Self-play: shared policy; opponent 50 % current / 50 % from last-10 checkpoint pool.
-- [ ] C4.3 Train. Pass: 70 % ejection of frozen R2 at rim within 15 s; mirror match 50 % ejection endings, < 5 % self-ejection.
+- [x] C4.1 Reward: outward impulse on opponent CoM, opponent r > 1.5 m, terminal ejection bonus; penalty own r > 1.5 m.
+- [~] C4.2 Self-play: shared policy; opponent 50 % current / 50 % from last-10 checkpoint pool.
+- [~] C4.3 Train. Pass: 70 % ejection of frozen R2 at rim within 15 s; mirror match 50 % ejection endings, < 5 % self-ejection.
 - [ ] C4.4 Export + Unity gates. Log + commit.
 
 ### R5 — Full match with rising sea

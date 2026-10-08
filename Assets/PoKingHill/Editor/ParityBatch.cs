@@ -110,6 +110,37 @@ namespace PoKingHill.EditorTools
             EditorApplication.EnterPlaymode();
         }
 
+        /// <summary>Builds and saves Demo_duel.unity from the imported two-robot arena: a_ = Attacker (112 inputs),
+        /// b_ = Walker standing its ground, both starting on the summit, rounds restarting automatically.</summary>
+        [MenuItem("PoKingHill/Build duel demo scene")]
+        public static void BuildDuelDemo()
+        {
+            AssetDatabase.Refresh();
+            var scene = EditorSceneManager.OpenScene($"{SceneDir}/Testbed_koth_2p.unity", OpenSceneMode.Single);
+            var attacker = AssetDatabase.LoadAssetAtPath<Unity.InferenceEngine.ModelAsset>($"{ModelDir}/attacker_policy.onnx");
+            var walker = AssetDatabase.LoadAssetAtPath<Unity.InferenceEngine.ModelAsset>($"{ModelDir}/r1_policy.onnx");
+            if (attacker == null || walker == null) throw new Exception("attacker_policy.onnx / r1_policy.onnx missing in " + ModelDir);
+            var runners = UnityEngine.Object.FindObjectsByType<PolicyRunner>(FindObjectsInactive.Include).OrderBy(r => r.robotPrefix).ToArray();
+            var a = runners[0]; var b = runners[1];
+            a.policy = attacker; a.policyObsDim = 112; a.goal = GoalMode.Opponent; a.goalStopDist = 0f; a.goalVmax = 1f; a.opponent = b;
+            b.policy = walker; b.policyObsDim = 103; b.goal = GoalMode.None; b.command = Vector3.zero; b.opponent = a;
+            foreach (var probe in UnityEngine.Object.FindObjectsByType<ParityProbe>(FindObjectsInactive.Include)) UnityEngine.Object.DestroyImmediate(probe);
+            var director = a.transform.parent.gameObject.AddComponent<DemoDirector>(); director.attacker = a; director.defender = b;
+            var cam = Camera.main;                      // 9:16 portrait framing of the summit
+            cam.transform.position = new Vector3(0f, 2.6f, -6.2f); cam.transform.LookAt(new Vector3(0f, 0.5f, 0f)); cam.fieldOfView = 38f;
+            string path = $"{SceneDir}/Demo_duel.unity";
+            EditorSceneManager.SaveScene(scene, path);
+            Debug.Log("[ParityBatch] saved " + path);
+        }
+
+        /// <summary>Build the duel demo, open it and press Play (used with a normal, visible editor launch).</summary>
+        public static void PlayDuelDemo()
+        {
+            BuildDuelDemo();
+            EditorSceneManager.OpenScene($"{SceneDir}/Demo_duel.unity", OpenSceneMode.Single);
+            EditorApplication.EnterPlaymode();
+        }
+
         /// <summary>Open Testbed_&lt;tag&gt; and enter play mode. ParityProbe writes the trace and exits the editor in batch mode.</summary>
         public static void RunHold()
         {

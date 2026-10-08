@@ -76,7 +76,7 @@ def eval_arena(env, policy, rung, steps):
         alive &= ~done
     if rung == "r2":
         plat = r0 < 1.4; slope = r0 > 2.3
-        hold = inside_late[plat].float().mean().item(); climb = inside_late[slope].float().mean().item()
+        hold = inside_late[plat].float().mean().item(); climb = inside_late[slope].float().mean().item() if slope.any() else 1.0
         return dict(n_plateau=int(plat.sum()), plateau_hold=round(hold, 4), n_slope=int(slope.sum()), slope_return=round(climb, 4),
                     all_return=round(inside_late.float().mean().item(), 4), **{"pass": hold >= 0.9 and climb >= 0.8})
     meet = met.view(env.N, 2).any(1).float().mean().item(); left = left_plateau.view(env.N, 2).any(1).float().mean().item()
@@ -106,11 +106,13 @@ def main():
     ap.add_argument("--rung", default="r0"); ap.add_argument("--ckpt", required=True)
     ap.add_argument("--seeds", type=int, default=10); ap.add_argument("--num-envs", type=int, default=256)
     ap.add_argument("--seconds", type=float, default=20.0)
+    ap.add_argument("--slope", action="store_true", help="r2 only: also spawn robots on the slope (retired objective)")
     ap.add_argument("--opponent", default=None, help="frozen checkpoint driving robot b_ (duel rungs)")
     a = ap.parse_args()
     cfg = default_cfg(a.rung)
     duel = a.rung in ("r4probe", "r4att")
     if duel: cfg["max_radius"] = 1.7; cfg["spawn"].update(r=[[0.0, 0.5], [1.25, 1.35]])
+    if a.rung == "r2" and a.slope: cfg["spawn"].update(r=[0.0, 2.6])
     if a.opponent: cfg["frozen_opponent"] = os.path.abspath(a.opponent)
     if a.rung in ("r0", "r1"):
         cfg["push"] = dict(interval_s=[5.0, 5.0], vel=[2.0, 2.0]); cfg["projectile"].update(speed=[6.0, 6.0])

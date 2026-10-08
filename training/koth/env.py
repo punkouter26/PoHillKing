@@ -51,7 +51,9 @@ def default_cfg(rung: str = "r0") -> dict:
         cfg["command"].update(zero_prob=1.0)
     elif rung == "r2":                     # arena, return to and hold the plateau
         cfg.update(scene="scene_koth_1p_train.xml", arena=True, goal="center")
-        cfg["spawn"].update(r=[0.0, 2.6])
+        # 2026-10-08: every agent starts on the summit and nobody is asked to climb. Slope spawns ([0, 2.6]) were
+        # used for run r2_a and are kept only as an eval option (eval.py --slope).
+        cfg["spawn"].update(r=[0.0, 1.3])
         cfg["reward"].update(plateau=0.5, off_rim=-0.5)
     elif rung == "r3":                     # arena, two robots, walk up to the opponent
         cfg.update(scene="scene_koth_2p_train.xml", robots=["a_", "b_"], arena=True, goal="opponent")
@@ -81,6 +83,10 @@ def default_cfg(rung: str = "r0") -> dict:
         cfg["reward"].update(ring_advantage=0.0, opp_radius=3.0, self_edge=-3.0, push_out=3.0, win=30.0, termination=-10.0, draw=-10.0)
         cfg["spawn"].update(r=[[0.0, 0.9], [0.9, 1.35]])
         cfg["goal_cmd"].update(stop_dist=[0.0, 0.3], vmax=[1.0, 0.8])
+    elif rung == "r4sp":                   # mirror self-play: both robots attack and both learn (rows = 2 per world)
+        cfg.update(default_cfg("r4"))
+        cfg["spawn"].update(r=[0.3, 1.3])
+        cfg["reward"].update(ring_advantage=0.0, opp_radius=3.0, self_edge=-3.0, push_out=3.0, win=30.0, termination=-10.0, draw=-10.0)
     elif rung == "r4probe":               # a_ walks into b_ (no stop distance); b_ holds the plateau, starts at the rim
         cfg.update(scene="scene_koth_2p_train.xml", robots=["a_", "b_"], arena=True, goal=["opponent", "center"])
         cfg["spawn"].update(r=[[0.0, 0.5], [1.25, 1.35]])

@@ -63,3 +63,22 @@ Decision: always step through a captured CUDA graph (`wp.ScopedCapture`), eager 
 - **Arena zero-shot with r1_a/1200:** R3 passes (512 pairs x 2 seeds: 100 % meet within 6 s, 0 self-ejections). R2: plateau hold 100 %, return from the slope (spawn r > 2.3 m) 30-33 %, so R2 needs arena fine-tuning.
 - **R3 Unity gate (two robots, two policy runners):** replay 5e-7. Closed loop over 6 s: exact for the first 10 ticks, then chaotic drift through foot contacts; final pelvis error 1.6 cm after 1.2 m of walking, ctrl difference 3-6 %, both upright, same end separation. Passes the 10 cm / 10 % bars.
 - **Env throughput at full GPU power (4096 worlds):** flat 1 robot about 37k policy steps/s; arena 1 robot about 100k world sim-steps/s; arena 2 robots about 99k world sim-steps/s (20k policy steps/s) while sharing the GPU with a training run.
+
+## 2026-10-08 (midday) — R1 and R2 pass, attacker stage 1, Unity duel demo, scope change
+
+- **R1 final (`r1_b/model_final`, 2700 iterations):** R0 bar 99.4 % impact survival; R1 bar tracking error 0.14 m/s and 0.10 rad/s, 97.8 % survival, 3/3 seeds. Yaw response 0.69 rad/s for a 0.8 command (was 0.0 before the heading term). Unity gates: standing drift 1.2 mm in 5 s, walking 3.7 cm after 2.1 m, ctrl difference 2.6 %.
+- **R2 (`r2_a/model_2900`, 200 arena iterations from R1):** plateau hold 100 %, return from slope spawns 93-100 %, 3/3 seeds. Unity gate from a slope spawn at r = 2.4 m: 3.2 cm final error after a 2 m climb, ctrl difference 7.9 %.
+- **Scope change from the user (2026-10-08):** all agents start on top of the hill and nobody is asked to climb. `default_cfg("r2")` now spawns on the plateau only; slope spawns remain as `eval.py --slope`. The slope result above is kept for the record.
+- **R4 experiments:**
+  | run | setup | outcome |
+  |---|---|---|
+  | probe | untrained ramming (walker + attack command) vs centre-holding walker | 0 ejections in 1024 duels |
+  | r4_a | symmetric self-play, alive 0.5 / upright 0.5 / win 10 | stalemate in 130 iterations: a 20 s draw paid 40, a win 10 |
+  | r4_b | win 20, lose -20, draw -10, smaller survival terms | 8-30 % of rounds decided, defence learns faster than attack |
+  | r4att_a | learner vs frozen walker that walks back to the centre | learner stops falling, zero wins |
+  | r4att_b | same, reward on opponent radius instead of ring advantage (which is flat while pushing from inside) | zero wins in 110 iterations |
+  | r4att_c | defender = frozen walker with a zero command near the rim | **98.7 % ejections, median 2.0 s, attacker loses 1.3 %** (768 duels). Control: that defender drifts out unaided in 10 % of 15 s rounds |
+  | r4sp_a | mirror self-play from r4att_c/500, draw = loss = -10, win 30 | starts at 65-87 % decided, falling to about 40 % by iteration 110 |
+- **Why a centre-holding defender cannot be shoved out:** same mass, same friction limit, and a controller that already survives 2 m/s kicks. Winning needs toppling or out-manoeuvring, not pushing.
+- **GPU memory:** two 4096-world trainings plus an evaluation fill 12 GB and slow everything about 100x. Run one training at a time; evaluations at 256 worlds fit beside one training.
+- **Unity:** `ObsBuilder.FillCombat` mirrors `obs.build_combat` (9 values), `PolicyRunner.policyObsDim` selects 103 or 112 inputs, `DemoDirector` runs duel rounds with mjData resets and a HUD. `Demo_duel.unity` is built by `PoKingHill/Build duel demo scene`. The combat block has no parity gate yet.

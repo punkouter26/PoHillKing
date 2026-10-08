@@ -21,10 +21,12 @@ namespace PoKingHill
         public GoalMode goal = GoalMode.None;
         public float goalStopDist = 0.3f, goalVmax = 0.8f;
         public PolicyRunner opponent;
+        [Tooltip("Network input size: 103 = locomotion state, 112 = state + 9 opponent/ring values (combat policies).")]
+        public int policyObsDim = ObsBuilder.ObsDim;
         public bool paused;
 
         public JointMap Map { get; private set; }
-        public float[] Obs { get; } = new float[ObsBuilder.ObsDim];
+        public float[] Obs { get; private set; } = new float[ObsBuilder.ObsDim];
         public float[] LastAction { get; private set; }
         public float[] RawAction { get; private set; }   // network output before clamping
         public double[] Ctrl { get; private set; }        // held position targets, canonical order
@@ -48,7 +50,8 @@ namespace PoKingHill
             if (policy != null)
             {
                 _worker = new Worker(ModelLoader.Load(policy), BackendType.CPU);
-                _input = new Tensor<float>(new TensorShape(1, ObsBuilder.ObsDim));
+                Obs = new float[policyObsDim];
+                _input = new Tensor<float>(new TensorShape(1, policyObsDim));
             }
             MjScene.Instance.postInitEvent += OnSceneInit;
             MjScene.Instance.preUpdateEvent += OnPreStep;
@@ -106,6 +109,8 @@ namespace PoKingHill
                 command = new Vector3(_cmd[0], _cmd[1], _cmd[2]);
             }
             ObsBuilder.Fill(Obs, d, Map, _cmd, LastAction, _phase);
+            if (policyObsDim > ObsBuilder.ObsDim && opponent != null && opponent.Map != null)
+                ObsBuilder.FillCombat(Obs, ObsBuilder.ObsDim, d, Map, opponent.Map);
             _sw.Restart();
             _input.Upload(Obs);
             _worker.Schedule(_input);
@@ -140,6 +145,14 @@ namespace PoKingHill
             }
             _substep = 0; _phase = 0;
             System.Array.Clear(LastAction, 0, LastAction.Length);
+        }
+
+        /// <summary>Keyframe pose at a chosen spot on the summit (MuJoCo frame x, y in metres, yaw in radians).</summary>
+        public void ResetPose(float x, float y, float yaw)
+        {
+            ResetPose();
+            var d = MjScene.Instance.Data; double* q = d->qpos + Map.RootQposAdr;
+            q[0] = x; q[1] = y; q[3] = System.Math.Cos(yaw / 2); q[4] = 0; q[5] = 0; q[6] = System.Math.Sin(yaw / 2);
         }
     }
 }
