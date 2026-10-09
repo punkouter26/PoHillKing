@@ -4,7 +4,7 @@ using UnityEngine;
 namespace PoKingHill
 {
     /// <summary>
-    /// Autonomous 9:16 match camera. Combat framing keeps both robots and the summit in view; when a round ends
+    /// Autonomous 9:16 match camera. Combat framing keeps every fighter that is still in and the summit in view; when a round ends
     /// with a loser, the camera follows that robot down the slope, then returns to the summit.
     /// Reads robot positions from mjData (MuJoCo x, y, z maps to Unity x, z, y); render only, no physics.
     /// </summary>
@@ -35,9 +35,15 @@ namespace PoKingHill
                 look = p; pos = p + outward * 3.2f + Vector3.up * 1.6f; k = followSmooth;
             }
             else
-            {                                                   // combat framing: both robots, summit rim in frame
-                look = (a + b) * 0.5f; look.y = Mathf.Max(0.5f, look.y * 0.8f);
-                float sep = Vector3.Distance(a, b);
+            {                                                   // combat framing: the fighters still in, summit rim in frame
+                look = (a + b) * 0.5f; float sep = Vector3.Distance(a, b);
+                var alive = director != null ? director.Alive : null;
+                if (alive != null && alive.Count > 0)
+                {
+                    look = Vector3.zero; foreach (var r in alive) look += Pelvis(r); look /= alive.Count;
+                    sep = 0f; foreach (var r in alive) sep = Mathf.Max(sep, 2f * Vector3.Distance(Pelvis(r), look));
+                }
+                look.y = Mathf.Max(0.5f, look.y * 0.8f);
                 pos = new Vector3(look.x * 0.5f, height, look.z * 0.5f - (baseDistance + distancePerMetre * sep)); k = smooth;
             }
             float t = 1f - Mathf.Exp(-k * Time.unscaledDeltaTime);

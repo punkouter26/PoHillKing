@@ -21,15 +21,21 @@ namespace PoKingHill
     }
 
     /// <summary>
-    /// Match flow for king of the hill: pre-match menu (fighter A, fighter B, random matchup, map), launch, round,
-    /// result, back to the menu. Both robots always start on top of the hill. A round ends when one leaves the
-    /// plateau (radius &gt; outRadius), falls, or the sea reaches the summit (tie). Everything is done by writing
+    /// Match flow for king of the hill: pre-match menu (a tick per agent, map), launch, round, result, back to the
+    /// menu. Every ticked agent gets one of the scene's fighter bodies (two to fighters.Length of them; unused bodies
+    /// are parked in the sky) and all start on top of the hill. A fighter is out when it leaves the plateau
+    /// (radius &gt; outRadius) or falls; the round ends when one is left (it wins), none is left, or the sea reaches
+    /// the summit (tie). The brains were trained one against one: in a larger fight each one sees and chases the
+    /// nearest fighter that is still in. Everything is done by writing
     /// mjData (no scene reload, no Instantiate/Destroy). HUD anchors: TL title, TC telemetry, TR menu / behaviour,
     /// BL score and reset, BR version.
     /// </summary>
     public unsafe class DemoDirector : MonoBehaviour
     {
-        public PolicyRunner attacker, defender;          // robot A and robot B
+        [Tooltip("Every fighter body in the scene (a_, b_, ...). A match seats agents on the first ones.")]
+        public PolicyRunner[] fighters = Array.Empty<PolicyRunner>();
+        public PolicyRunner attacker => fighters[0];     // seat A and seat B: the pair the two-fighter gates measure
+        public PolicyRunner defender => fighters[1];
         public Sea sea;                                  // optional; without it the round lasts roundSeconds
         public ImpactSynth synth;                        // optional, for the audio counters in the verification file
         public Fighter[] roster = Array.Empty<Fighter>();
@@ -48,9 +54,14 @@ namespace PoKingHill
         /// <summary>The robot the camera should follow after a decided round (the loser), else null.</summary>
         public PolicyRunner FollowTarget { get; private set; }
         public bool InMenu { get; private set; } = true;
+        /// <summary>Fighters of the current round that are still in (what the camera frames).</summary>
+        public IReadOnlyList<PolicyRunner> Alive => _alive;
+        readonly List<PolicyRunner> _alive = new();
+        int[] _seat = Array.Empty<int>(), _wins = Array.Empty<int>(), _score = Array.Empty<int>();   // roster index per body (-1 = parked); wins per seat; wins per agent
+        bool[] _out = Array.Empty<bool>(); int _playing;
 
         readonly List<double> _times = new();
-        int _winsA, _winsB, _draws, _roundsThisMatch; double _roundStart; float _pauseUntil; string _last = ""; bool _pending;
+        int _draws, _roundsThisMatch; double _roundStart; float _pauseUntil; string _last = ""; bool _pending;
         float _fps; readonly System.Diagnostics.Stopwatch _sw = new(); double _stepMs;
         string _shotDir; readonly HashSet<string> _shots = new(); float _menuShotAt = -1;
 
@@ -89,21 +100,65 @@ namespace PoKingHill
         void OnInit(object s, MjStepArgs a) => _pending = true;   // act on the first physics step, once every runner has its map
         void Pre(object s, MjStepArgs a)
         {
-            if (_pending && attacker.Map != null && defender.Map != null)
+            if (_pending && Ready())
             {
                 _pending = false;
+                _seat = new int[fighters.Length]; _wins = new int[fighters.Length]; _out = new bool[fighters.Length]; _score = new int[Mathf.Max(1, roster.Length)];
                 if (autoLaunch) Launch(); else EnterMenu();
             }
+            if (!_pending && _seat.Length > 0)
+            {
+                for (int i = _playing; i < fighters.Length; i++) Park(i);
+                Retarget();
+            }
             _sw.Restart();
+        }
+
+        bool Ready()
+        {
+            if (fighters.Length < 2) return false;
+            foreach (var f in fighters) if (f == null || f.Map == null) return false;
+            return true;
+        }
+
+        // A body nobody is seated on waits far above the sea, re-pinned before every physics step.
+        void Park(int i)
+        {
+            fighters[i].ResetPose(100f + 2f * i, 0f, 0f);
+            MjScene.Instance.Data->qpos[fighters[i].Map.RootQposAdr + 2] = 50.0;
+        }
+
+        // Each fighter watches the nearest one that is still in (with two fighters: always the other one).
+        void Retarget()
+        {
+            var d = MjScene.Instance.Data;
+            for (int i = 0; i < _playing; i++)
+            {
+                double* q = d->qpos + fighters[i].Map.RootQposAdr; double best = double.MaxValue; PolicyRunner pick = null, any = null;
+                for (int j = 0; j < _playing; j++)
+                {
+                    if (j == i) continue;
+                    double* o = d->qpos + fighters[j].Map.RootQposAdr; double dist = (o[0] - q[0]) * (o[0] - q[0]) + (o[1] - q[1]) * (o[1] - q[1]);
+                    any ??= fighters[j];
+                    if (!_out[j] && dist < best) { best = dist; pick = fighters[j]; }
+                }
+                fighters[i].opponent = pick ?? any;
+            }
+        }
+
+        void Seat(int count)
+        {
+            _playing = count;
+            for (int i = 0; i < fighters.Length; i++) { fighters[i].paused = i >= count; if (i >= count) _seat[i] = -1; }
         }
 
         // ------------------------------------------------------------------ flow
         void EnterMenu()
         {
             InMenu = true; FollowTarget = null; _pauseUntil = 0; _roundsThisMatch = 0;
-            attacker.SetBrain(null, ObsBuilder.ObsDim, GoalMode.None, 0.3f, 0.8f);      // passive stance while the menu is up
-            defender.SetBrain(null, ObsBuilder.ObsDim, GoalMode.None, 0.3f, 0.8f);
-            Place();
+            foreach (var f in fighters) f.SetBrain(null, ObsBuilder.ObsDim, GoalMode.None, 0.3f, 0.8f);      // passive stance while the menu is up
+            Seat(2); _seat[0] = _seat[1] = 0;
+            Place(); ClearOut();
             if (sea != null) sea.Park();
             _menuShotAt = Time.unscaledTime + 1.5f;
         }
@@ -112,19 +167,26 @@ namespace PoKingHill
         {
             if (roster.Length > 0)
             {
-                // Menu launch: the two fighters are drawn from the ticked agents (one ticked = it fights itself).
-                // The statistics gate keeps the pair it was started with.
-                if (statsRounds == 0)
+                // Menu launch: every ticked agent takes a seat, in random order (one ticked = it fights itself; more
+                // ticked than bodies = that many are drawn). The statistics gate keeps the pair it was started with.
+                var seats = new List<int>();
+                if (statsRounds > 0) { seats.Add(Mathf.Clamp(selectedA, 0, roster.Length - 1)); seats.Add(Mathf.Clamp(selectedB, 0, roster.Length - 1)); }
+                else
                 {
                     var pool = InGame(); if (pool.Count == 0) return;
-                    selectedA = pool[UnityEngine.Random.Range(0, pool.Count)];
-                    if (pool.Count > 1) pool.Remove(selectedA);
-                    selectedB = pool[UnityEngine.Random.Range(0, pool.Count)];
+                    if (pool.Count == 1) pool.Add(pool[0]);
+                    while (pool.Count > 0 && seats.Count < fighters.Length) { int k = UnityEngine.Random.Range(0, pool.Count); seats.Add(pool[k]); pool.RemoveAt(k); }
+                    selectedA = seats[0]; selectedB = seats[1];
                 }
-                var fa = roster[Mathf.Clamp(selectedA, 0, roster.Length - 1)]; var fb = roster[Mathf.Clamp(selectedB, 0, roster.Length - 1)];
-                attacker.SetBrain(fa.policy, fa.obsDim, fa.goal, fa.stopDist, fa.vmax, fa.shove);
-                defender.SetBrain(fb.policy, fb.obsDim, fb.goal, fb.stopDist, fb.vmax, fb.shove);
+                Seat(seats.Count);
+                for (int i = 0; i < fighters.Length; i++)
+                {
+                    if (i >= _playing) { fighters[i].SetBrain(null, ObsBuilder.ObsDim, GoalMode.None, 0.3f, 0.8f); continue; }
+                    var f = roster[seats[i]]; _seat[i] = seats[i];
+                    fighters[i].SetBrain(f.policy, f.obsDim, f.goal, f.stopDist, f.vmax, f.shove);
+                }
             }
+            else Seat(2);
             InMenu = false; _roundsThisMatch = 0;
             NewRound();
         }
@@ -138,16 +200,25 @@ namespace PoKingHill
 
         void Place()
         {
+            // Everyone starts on the summit, evenly spread around it (two fighters: opposite sides). Yaw is random,
+            // as in training and duel_stats.py.
             float bearing = UnityEngine.Random.Range(0f, 2f * Mathf.PI);
-            float ra = UnityEngine.Random.Range(spawnRadiusA.x, spawnRadiusA.y), rb = UnityEngine.Random.Range(spawnRadiusB.x, spawnRadiusB.y);
-            // Everyone starts on the summit, on opposite sides. Yaw is random, as in training and duel_stats.py.
-            attacker.ResetPose(ra * Mathf.Cos(bearing), ra * Mathf.Sin(bearing), UnityEngine.Random.Range(-Mathf.PI, Mathf.PI));
-            defender.ResetPose(rb * Mathf.Cos(bearing + Mathf.PI), rb * Mathf.Sin(bearing + Mathf.PI), UnityEngine.Random.Range(-Mathf.PI, Mathf.PI));
+            for (int i = 0; i < _playing; i++)
+            {
+                var band = i == 1 ? spawnRadiusB : spawnRadiusA; float r = UnityEngine.Random.Range(band.x, band.y), a = bearing + 2f * Mathf.PI * i / _playing;
+                fighters[i].ResetPose(r * Mathf.Cos(a), r * Mathf.Sin(a), UnityEngine.Random.Range(-Mathf.PI, Mathf.PI));
+            }
+        }
+
+        void ClearOut()
+        {
+            _alive.Clear();
+            for (int i = 0; i < _playing; i++) { _out[i] = false; fighters[i].paused = false; _alive.Add(fighters[i]); }
         }
 
         void NewRound()
         {
-            Place();
+            Place(); ClearOut();
             _roundStart = MjScene.Instance.Data->time; FollowTarget = null;
             if (sea != null) sea.Restart();
         }
@@ -164,7 +235,7 @@ namespace PoKingHill
         void Post(object s, MjStepArgs a)
         {
             _stepMs = 0.95 * _stepMs + 0.05 * _sw.Elapsed.TotalMilliseconds;
-            if (attacker.Map == null || defender.Map == null || _pending || InMenu) return;
+            if (_pending || InMenu || !Ready()) return;
             var d = MjScene.Instance.Data;
             if (_pauseUntil > 0)
             {
@@ -175,22 +246,39 @@ namespace PoKingHill
                 if (roundsPerMatch > 0 && _roundsThisMatch >= roundsPerMatch && !(_shotDir != null && Flag("-kothExit"))) EnterMenu(); else NewRound();
                 return;
             }
-            bool aOut = Out(d, attacker, outRadius), bOut = Out(d, defender, outRadius);
             double t = d->time - _roundStart;
             if (t > 1.2) Shot("combat");
+            PolicyRunner justOut = null; int alive = 0, last = -1;
+            for (int i = 0; i < _playing; i++)
+            {
+                if (!_out[i] && Out(d, fighters[i], outRadius))
+                {
+                    _out[i] = true; justOut = fighters[i]; _alive.Remove(fighters[i]);
+                    if (_playing > 2) fighters[i].paused = true;        // in a free-for-all an eliminated fighter goes limp
+                }
+                if (!_out[i]) { alive++; last = i; }
+            }
             bool bell = sea != null ? sea.ReachedSummit : t >= roundSeconds;
-            if (!aOut && !bOut && !bell) return;
-            string na = NameOf(selectedA, "Robot A"), nb = NameOf(selectedB, "Robot B");
-            if (bOut && !aOut) { _winsA++; _times.Add(t); _last = $"A ({na}) wins in {t:0.0} s"; FollowTarget = defender; }
-            else if (aOut && !bOut) { _winsB++; _times.Add(t); _last = $"B ({nb}) wins in {t:0.0} s"; FollowTarget = attacker; }
-            else { _draws++; _last = bell ? "Tie: the sea took the summit" : "Tie: both out"; }
+            if (alive > 1 && !bell) return;
+            if (alive == 1)
+            {
+                _wins[last]++; if (_seat[last] >= 0 && _seat[last] < _score.Length) _score[_seat[last]]++;
+                _times.Add(t); _last = $"{(char)('A' + last)} ({NameOf(_seat[last], "Robot")}) wins in {t:0.0} s"; FollowTarget = justOut;
+            }
+            else { _draws++; _last = alive > 1 ? "Tie: the sea took the summit" : "Tie: nobody left on the summit"; }
             _roundsThisMatch++;
             _pauseUntil = Time.unscaledTime + pauseBetweenRounds;
-            if (statsRounds > 0 && _winsA + _winsB + _draws >= statsRounds) WriteStats();
+            if (statsRounds > 0 && _wins[0] + _wins[1] + _draws >= statsRounds) WriteStats();
             else if (statsRounds > 0) { _pauseUntil = 0; NewRound(); }
         }
 
         string NameOf(int i, string fallback) => roster.Length > 0 ? roster[Mathf.Clamp(i, 0, roster.Length - 1)].name : fallback;
+        // "G1 All-rounder (champion)" -> "All-rounder": what fits on a line when four fight.
+        string ShortName(int i)
+        {
+            string n = NameOf(i, "Robot"); int p = n.IndexOf(" ("); if (p > 0) n = n.Substring(0, p);
+            return n.StartsWith("G1 ") ? n.Substring(3) : n;
+        }
 
         // ------------------------------------------------------------------ verification helpers
         void Shot(string name)
@@ -216,7 +304,7 @@ namespace PoKingHill
 
         void WriteStats()
         {
-            _times.Sort(); int n = _winsA + _winsB + _draws;
+            _times.Sort(); int _winsA = _wins[0], _winsB = _wins[1], n = _winsA + _winsB + _draws;
             double Q(double f) => _times.Count == 0 ? -1 : _times[Math.Min(_times.Count - 1, (int)(f * _times.Count))];
             double mean = 0; foreach (var x in _times) mean += x; mean = _times.Count > 0 ? mean / _times.Count : -1;
             string F(double v) => v.ToString("0.##", System.Globalization.CultureInfo.InvariantCulture);
@@ -273,13 +361,17 @@ namespace PoKingHill
             Label(new Rect(pad, pad, w, lh), "PoKingHill", big);                                                          // top left: title
             double t = !InMenu && MjScene.InstanceExists && MjScene.Instance.Data != null ? MjScene.Instance.Data->time - _roundStart : 0;
             string seaText = sea != null && !InMenu ? $"   sea {sea.Level:0.0} m, arrives at {sea.Duration:0} s" : "";
-            float brainMs = attacker != null ? (float)attacker.LastInferenceMs : 0f;
+            float brainMs = fighters.Length > 0 && fighters[0] != null ? (float)fighters[0].LastInferenceMs : 0f;
             Label(new Rect(0, pad + lh, w, lh * 2), $"{_fps:0} FPS   physics {_stepMs:0.00} ms   brain {brainMs:0.00} ms\n" + (InMenu ? "menu" : $"round {t:0.0} s{seaText}"), mid);   // top centre: telemetry
-            Label(new Rect(pad, h - pad - lh * 2, w, lh * 2), $"A {_winsA}   B {_winsB}   Ties {_draws}\n{_last}", st);    // bottom left: score
+            var score = new System.Text.StringBuilder();                                                                  // bottom left: wins per agent
+            for (int i = 0; i < roster.Length && i < _score.Length; i++) if (roster[i].available && (roster[i].inGame || _score[i] > 0)) score.Append($"{ShortName(i)} {_score[i]}   ");
+            Label(new Rect(pad, h - pad - lh * 2, w, lh * 2), $"{score}Ties {_draws}\n{_last}", st);
             Label(new Rect(0, h - pad - lh, w - pad, lh), "v0.3", right);                                               // bottom right: version
             if (!InMenu)
             {
-                Label(new Rect(0, pad + lh * 2.9f, w, lh), $"{NameOf(selectedA, "A")}  vs  {NameOf(selectedB, "B")}", mid);
+                string title = _playing == 2 ? $"{NameOf(_seat[0], "A")}  vs  {NameOf(_seat[1], "B")}" : "";
+                for (int i = 0; _playing > 2 && i < _playing; i++) title += (i > 0 ? "  vs  " : "") + ShortName(_seat[i]);
+                Label(new Rect(0, pad + lh * 2.9f, w, lh), title, mid);
                 if (statsRounds == 0 && GUI.Button(new Rect(w - pad - 80 * k, pad, 80 * k, lh), "Menu", btn)) EnterMenu();              // top right: menu
                 if (statsRounds == 0 && GUI.Button(new Rect(pad, h - pad - lh * 3.3f, 90 * k, lh), "Reset", btn)) NewRound();           // bottom left: reset
                 return;
@@ -296,7 +388,7 @@ namespace PoKingHill
                 y += lh * 1.1f;
             }
             GUI.enabled = true; int ticked = InGame().Count;
-            Label(new Rect(x, y, mw, lh), ticked == 0 ? "Tick at least one agent" : ticked == 1 ? "One agent: it fights itself" : ticked == 2 ? "These two fight" : "Two are drawn at random each match", st); y += lh * 1.3f;
+            Label(new Rect(x, y, mw, lh), ticked == 0 ? "Tick at least one agent" : ticked == 1 ? "One agent: it fights itself" : ticked == 2 ? "These two fight" : ticked <= fighters.Length ? $"All {ticked} fight at once: the last one on the summit wins" : $"{fighters.Length} of them are drawn for each match", st); y += lh * 1.3f;
             Label(new Rect(x, y, mw * 0.3f, lh), "Map", st);
             selectedMap = GUI.SelectionGrid(new Rect(x + mw * 0.3f, y, mw * 0.7f, lh), selectedMap, maps, 1, btn); y += lh * 1.6f;
             GUI.enabled = ticked > 0;

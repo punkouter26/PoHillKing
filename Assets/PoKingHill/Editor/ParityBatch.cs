@@ -35,7 +35,15 @@ namespace PoKingHill.EditorTools
         [MenuItem("PoKingHill/Import testbed scenes (flat_1p + koth_2p)")]
         public static void ImportAll()
         {
-            try { Import("flat_1p", Robot); Import("koth_1p", Robot); Import("koth_2p", Robot); }
+            try { Import("flat_1p", Robot); Import("koth_1p", Robot); Import("koth_2p", Robot); if (Robot == "g1") Import("koth_4p", Robot); }
+            catch (Exception e) { Debug.LogError("[ParityBatch] IMPORT FAILED: " + e); if (HasFlag("-kothExit")) EditorApplication.Exit(3); throw; }
+            if (HasFlag("-kothExit")) EditorApplication.Exit(0);
+        }
+
+        /// <summary>Import one testbed scene only: -kothScene &lt;tag&gt; (for example koth_4p), -kothRobot as usual.</summary>
+        public static void ImportOne()
+        {
+            try { Import(Arg("-kothScene", "koth_4p"), Robot); }
             catch (Exception e) { Debug.LogError("[ParityBatch] IMPORT FAILED: " + e); if (HasFlag("-kothExit")) EditorApplication.Exit(3); throw; }
             if (HasFlag("-kothExit")) EditorApplication.Exit(0);
         }
@@ -64,7 +72,7 @@ namespace PoKingHill.EditorTools
             if (jointMap == null || dump == null) throw new Exception("joint_map.json / model_dump json missing under " + models + " (run koth.build_mjcf)");
 
             var rig = new GameObject("KothRig");
-            foreach (string prefix in tag.EndsWith("2p") ? new[] { "a_", "b_" } : new[] { "a_" })
+            foreach (string prefix in tag.EndsWith("4p") ? new[] { "a_", "b_", "c_", "d_" } : tag.EndsWith("2p") ? new[] { "a_", "b_" } : new[] { "a_" })
             {
                 var go = new GameObject("Policy_" + prefix); go.transform.SetParent(rig.transform);
                 var pr = go.AddComponent<PolicyRunner>(); pr.jointMapJson = jointMap; pr.robotPrefix = prefix;
@@ -161,19 +169,22 @@ namespace PoKingHill.EditorTools
             EditorApplication.EnterPlaymode();
         }
 
-        /// <summary>Builds and saves Demo_duel.unity from the imported two-robot arena: both robots run the latest
-        /// Attacker brain (112 inputs) and charge each other, both start on the summit, the sea rises as the round
-        /// clock, and rounds restart automatically. No PhysX components are created (the water disc loses its collider).</summary>
         [MenuItem("PoKingHill/Build duel demo scene")]
-        public static void BuildDuelDemo()
+        public static void BuildDuelDemo() => BuildDuelDemo("koth_4p");
+
+        /// <summary>Builds and saves Demo_duel.unity from an imported arena scene: the game uses the four-fighter one
+        /// (koth_4p, default), the two-fighter parity gates the scene the brains were trained in (koth_2p). The menu
+        /// seats the ticked agents on the bodies, everyone starts on the summit and the sea rises as the round clock.
+        /// No PhysX components are created (the water disc loses its collider).</summary>
+        public static void BuildDuelDemo(string tag)
         {
             AssetDatabase.Refresh();
-            var scene = EditorSceneManager.OpenScene($"{SceneDir}/Testbed_koth_2p.unity", OpenSceneMode.Single);
+            var scene = EditorSceneManager.OpenScene($"{SceneDir}/Testbed_{tag}.unity", OpenSceneMode.Single);
             var attacker = AssetDatabase.LoadAssetAtPath<Unity.InferenceEngine.ModelAsset>($"{ModelDir}/attacker_policy.onnx");
             if (attacker == null) throw new Exception("attacker_policy.onnx missing in " + ModelDir);
             var runners = UnityEngine.Object.FindObjectsByType<PolicyRunner>(FindObjectsInactive.Include).OrderBy(r => r.robotPrefix).ToArray();
             var a = runners[0]; var b = runners[1];
-            a.opponent = b; b.opponent = a;      // brains are assigned at launch by DemoDirector from the roster
+            foreach (var r in runners) r.opponent = r == a ? b : a;      // brains and opponents are assigned at launch by DemoDirector
             foreach (var probe in UnityEngine.Object.FindObjectsByType<ParityProbe>(FindObjectsInactive.Include)) UnityEngine.Object.DestroyImmediate(probe);
             var rig = a.transform.parent.gameObject;
 
@@ -184,7 +195,7 @@ namespace PoKingHill.EditorTools
             AssetDatabase.CreateAsset(mat, $"{SceneDir}/SeaMaterial.mat"); water.GetComponent<MeshRenderer>().sharedMaterial = mat;
             var sea = rig.AddComponent<Sea>(); sea.waterVisual = water.transform;
 
-            var director = rig.AddComponent<DemoDirector>(); director.attacker = a; director.defender = b; director.sea = sea;
+            var director = rig.AddComponent<DemoDirector>(); director.fighters = runners; director.sea = sea;
             Fighter F(string name, string file, int dim, GoalMode goal) => new Fighter { name = name, obsDim = dim, goal = goal, stopDist = 0f, vmax = 1f,
                 policy = AssetDatabase.LoadAssetAtPath<Unity.InferenceEngine.ModelAsset>($"{ModelDir}/{file}_policy.onnx") };
             director.roster = new[] { F("G1 All-rounder (champion)", "attacker", 112, GoalMode.Opponent), F("G1 Duelist (generation 7)", "duelist", 112, GoalMode.Opponent),
@@ -200,7 +211,7 @@ namespace PoKingHill.EditorTools
             cam.transform.position = new Vector3(0f, 2.6f, -6.2f); cam.transform.LookAt(new Vector3(0f, 0.5f, 0f)); cam.fieldOfView = 38f;
             var mc = cam.gameObject.AddComponent<MatchCamera>(); mc.robotA = a; mc.robotB = b; mc.director = director;
             if (cam.GetComponent<AudioListener>() == null) cam.gameObject.AddComponent<AudioListener>();
-            var synth = rig.AddComponent<ImpactSynth>(); synth.robots = new[] { a, b }; synth.sea = sea;   // adds the AudioSource it requires
+            var synth = rig.AddComponent<ImpactSynth>(); synth.robots = runners; synth.sea = sea;   // adds the AudioSource it requires
             director.synth = synth;
             rig.AddComponent<PerfProbe>();              // inert unless started with -kothPerf <seconds>
             int physx = UnityEngine.Object.FindObjectsByType<Collider>(FindObjectsInactive.Include).Length + UnityEngine.Object.FindObjectsByType<Rigidbody>(FindObjectsInactive.Include).Length;
@@ -270,7 +281,7 @@ namespace PoKingHill.EditorTools
         public static void RunDuelParity()
         {
             string rung = Arg("-kothRung", "r4duel");
-            BuildDuelDemo();
+            BuildDuelDemo("koth_2p");
             EditorSceneManager.OpenScene($"{SceneDir}/Demo_duel.unity", OpenSceneMode.Single);
             var champion = AssetDatabase.LoadAssetAtPath<Unity.InferenceEngine.ModelAsset>($"{ModelDir}/attacker_policy.onnx");
             foreach (var r in UnityEngine.Object.FindObjectsByType<PolicyRunner>(FindObjectsInactive.Include)) { r.policy = champion; r.policyObsDim = 112; r.goal = GoalMode.Opponent; r.goalStopDist = 0f; r.goalVmax = 1f; }
@@ -291,7 +302,7 @@ namespace PoKingHill.EditorTools
         /// (fixed 25 s bell, as in training evaluation) and write duel_stats_unity.json.</summary>
         public static void RunDuelStats()
         {
-            BuildDuelDemo();
+            BuildDuelDemo("koth_2p");
             EditorSceneManager.OpenScene($"{SceneDir}/Demo_duel.unity", OpenSceneMode.Single);
             foreach (var sea in UnityEngine.Object.FindObjectsByType<Sea>(FindObjectsInactive.Include)) UnityEngine.Object.DestroyImmediate(sea);
             var dd = UnityEngine.Object.FindAnyObjectByType<DemoDirector>(); dd.sea = null; dd.roundSeconds = 25f;
@@ -322,6 +333,7 @@ namespace PoKingHill.EditorTools
         {
             BuildDuelDemo();
             EditorSceneManager.OpenScene($"{SceneDir}/Demo_duel.unity", OpenSceneMode.Single);
+            EditorApplication.ExecuteMenuItem("Window/General/Game");      // the Simulator view turns clicks into touches, which the IMGUI menu ignores
             EditorApplication.EnterPlaymode();
         }
 

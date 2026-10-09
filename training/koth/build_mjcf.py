@@ -4,6 +4,7 @@ Outputs (all under training/assets/):
   g1/assets/arena.obj          convex dome arena mesh (flat 3 m disc on top, convex slope)
   g1/scene_flat_1p.xml         one G1 on a plane + projectile pool          (R0/R1 training)
   g1/scene_koth_2p.xml         two G1 on the hfield arena + projectile pool (R2+ training)
+  g1/scene_koth_4p.xml         four G1 on the arena (Unity free-for-all only; `python -m koth.build_mjcf 4p`)
   g1/scene_*_train.xml         MuJoCo-resolved canonical model + keyframe (what training loads)
   g1/scene_*_unity.xml         same text minus keyframe/sensor (what the Unity importer loads)
   g1/model_dump.json           parity reference (nq/nv/nu, masses, ranges, gains, options, hfield meta)
@@ -11,7 +12,7 @@ Outputs (all under training/assets/):
 
 Design constraints (from the org.mujoco 3.15 plugin audit): no <contact><pair>, no keyframes, no sensors,
 timestep/gravity come from Unity settings, no ls_iterations/eulerdamp knobs -> implicitfast + MuJoCo defaults.
-Collision bitmasks:  1=robot A  2=robot B  4=arena  8=box  16=foot/shin extra
+Collision bitmasks:  1=robot A  2=robot B  4=arena  8=box  16=foot/shin extra  32=robot C  64=robot D
 """
 from __future__ import annotations
 import copy, json, os, struct, xml.etree.ElementTree as ET
@@ -150,14 +151,14 @@ def _prefix(elem: ET.Element, p: str):
                 e.set(a, p + e.get(a))
 
 
-def make_robot(src_root: ET.Element, prefix: str, mask_bit: int, pos, quat) -> tuple[ET.Element, list[ET.Element], list[ET.Element]]:
-    """Returns (pelvis body, actuator elements, exclude elements) for one robot."""
+def make_robot(src_root: ET.Element, prefix: str, mask_bit: int, pos, quat, others: int | None = None) -> tuple[ET.Element, list[ET.Element], list[ET.Element]]:
+    """Returns (pelvis body, actuator elements, exclude elements) for one robot. others = bits of the other robots."""
     pelvis = copy.deepcopy(src_root.find("worldbody/body[@name='pelvis']"))
     for junk in pelvis.findall("camera"):
         pelvis.remove(junk)
     pelvis.set("pos", " ".join(f"{v:g}" for v in pos))
     pelvis.set("quat", " ".join(f"{v:g}" for v in quat))
-    other = 3 - mask_bit                              # 1 <-> 2
+    other = 3 - mask_bit if others is None else others      # two robots: 1 <-> 2
     for g in pelvis.iter("geom"):
         cls = g.get("class", "")
         if cls == "visual":
@@ -190,7 +191,11 @@ def pool_park(i: int) -> tuple[float, float, float]:
     return (100.0 + 0.5 * i, 0.0, 50.0)
 
 
-def make_pool(n: int = POOL_N) -> list[ET.Element]:
+ROBOT_BITS = [1, 2, 32, 64]      # a_, b_, c_, d_
+PREFIXES = ["a_", "b_", "c_", "d_"]
+
+
+def make_pool(n: int = POOL_N, robots_mask: int = 3) -> list[ET.Element]:
     """Pre-allocated projectile pool. Parked boxes float in the sky with no contacts: both sims re-pin parked boxes
     (qpos = park pose, qvel = 0) every control step instead of resting them on a shelf, which cost ~30 permanent
     contacts per world. Measured in mujoco_warp: 8 boxes on a shelf 1297 ms per control step, 2 pinned boxes 563 ms."""
@@ -199,14 +204,15 @@ def make_pool(n: int = POOL_N) -> list[ET.Element]:
         b = ET.Element("body", name=f"box{i}", pos=" ".join(f"{v:g}" for v in pool_park(i)))
         ET.SubElement(b, "freejoint", name=f"box{i}_free")
         ET.SubElement(b, "geom", name=f"box{i}_geom", type="box", size="0.1 0.1 0.1", mass=f"{POOL_MASS:g}",
-                      contype="8", conaffinity="15", condim="3", friction="0.5", rgba="0.9 0.3 0.1 1")
+                      contype="8", conaffinity=str(12 | robots_mask), condim="3", friction="0.5", rgba="0.9 0.3 0.1 1")
         bodies.append(b)
     return bodies
 
 
-def build_scene(src_root: ET.Element, two_player: bool, arena: bool | None = None) -> ET.Element:
+def build_scene(src_root: ET.Element, two_player: bool, arena: bool | None = None, players: int | None = None) -> ET.Element:
     arena = two_player if arena is None else arena
-    root = ET.Element("mujoco", model=f"{ROBOT}_koth_2p" if two_player else f"{ROBOT}_koth_1p")
+    n = players or (2 if two_player else 1)
+    root = ET.Element("mujoco", model=f"{ROBOT}_koth_{n}p")
     ET.SubElement(root, "compiler", angle="radian", assetdir="assets", autolimits="true")
     # implicitfast: Unity-settable, and makes the eulerdamp flag irrelevant. iterations=5 like menagerie mjx.
     # ls_iterations: the Unity plugin cannot import it, so PolicyRunner writes model->opt.ls_iterations after init.
@@ -224,15 +230,20 @@ def build_scene(src_root: ET.Element, two_player: bool, arena: bool | None = Non
     else:
         ET.SubElement(wb, "geom", name="floor", type="plane", size="0 0 0.05", contype="4", conaffinity="31",
                       condim="3", friction="0.6", rgba="0.4 0.4 0.4 1")
-    if two_player:
+    mask = sum(ROBOT_BITS[:n]); others = lambda bit: None
+    if n > 2:        # a ring on the plateau, everyone facing the centre
+        robots = [(PREFIXES[i], ROBOT_BITS[i], (np.cos(2 * np.pi * i / n), np.sin(2 * np.pi * i / n), SPAWN_Z),
+                   (np.cos((2 * np.pi * i / n + np.pi) / 2), 0, 0, np.sin((2 * np.pi * i / n + np.pi) / 2))) for i in range(n)]
+        others = lambda bit: mask - bit
+    elif two_player:
         robots = [("a_", 1, (-1.4, 0, SPAWN_Z), (1, 0, 0, 0)), ("b_", 2, (1.4, 0, SPAWN_Z), (0, 0, 0, 1))]
     else:
         robots = [("a_", 1, (0, 0, SPAWN_Z), (1, 0, 0, 0))]
     act = ET.Element("actuator"); contact = ET.Element("contact")
     for prefix, bit, pos, quat in robots:
-        pelvis, acts, excl = make_robot(src_root, prefix, bit, pos, quat)
+        pelvis, acts, excl = make_robot(src_root, prefix, bit, pos, quat, others(bit))
         wb.append(pelvis); act.extend(acts); contact.extend(excl)
-    wb.extend(make_pool())
+    wb.extend(make_pool(robots_mask=mask if n > 2 else 3))
     root.append(contact); root.append(act)
     return root
 
@@ -304,21 +315,22 @@ def strip_for_unity(path_in: str, path_out: str):
     tree.write(path_out, encoding="unicode", xml_declaration=False)
 
 
-def build(two_player: bool, arena: bool | None = None):
+def build(two_player: bool, arena: bool | None = None, players: int | None = None):
     """Authoring XML -> MuJoCo-resolved XML. The resolved text is canonical:
     scene_<tag>_train.xml = resolved + keyframe (Python), scene_<tag>_unity.xml = resolved, stripped (Unity importer).
     Both compile to the identical model (asserted)."""
     src_root = ET.parse(SRC).getroot()
     arena = two_player if arena is None else arena
-    tag = ("koth_" if arena else "flat_") + ("2p" if two_player else "1p")
-    scene = build_scene(src_root, two_player, arena)
+    n = players or (2 if two_player else 1)
+    tag = ("koth_" if arena else "flat_") + f"{n}p"
+    scene = build_scene(src_root, two_player, arena, players)
     ET.indent(scene)
     authoring = os.path.join(ASSETS, f"scene_{tag}.xml")
     ET.ElementTree(scene).write(authoring, encoding="unicode")
     resolved = os.path.join(ASSETS, f"scene_{tag}_train.xml")
     mujoco.mj_saveLastXML(resolved, mujoco.MjModel.from_xml_path(authoring))
     m = mujoco.MjModel.from_xml_path(resolved)
-    prefixes = ["a_", "b_"] if two_player else ["a_"]
+    prefixes = PREFIXES[:n]
     q0 = default_qpos(m, prefixes)
     ctrl = hold_ctrl(m, q0)
     tree = ET.parse(resolved); root = tree.getroot()
@@ -349,6 +361,13 @@ def build(two_player: bool, arena: bool | None = None):
 
 
 if __name__ == "__main__":
+    import sys
+    if sys.argv[1:] == ["4p"]:      # the free-for-all scene only; leaves every training asset untouched
+        import shutil
+        build(two_player=True, players=4)
+        dst = os.path.normpath(os.path.join(HERE, "..", "..", "Assets", "PoKingHill", "Models", *([] if ROBOT == "g1" else [ROBOT])))
+        shutil.copyfile(os.path.join(ASSETS, "model_dump_koth_4p.json"), os.path.join(dst, "model_dump_koth_4p.json"))
+        sys.exit(0)
     if ROBOT == "kim":
         from koth.build_kim import build as build_kim_body
         build_kim_body()
