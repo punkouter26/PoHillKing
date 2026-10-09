@@ -33,6 +33,8 @@ namespace PoKingHill
         public int selectedA, selectedB;
         public bool randomMatchup;
         public string[] maps = { "Summit (baseline)" };
+        [Tooltip("Render-only scenery per map, same order as maps. Physics is the same dome for every map.")]
+        public GameObject[] mapVisuals = Array.Empty<GameObject>();
         public int selectedMap;
         public Vector2 spawnRadiusA = new(0.5f, 1.2f), spawnRadiusB = new(0.5f, 1.2f);
         public float roundSeconds = 25f, outRadius = 1.7f, pauseBetweenRounds = 3.5f;
@@ -217,6 +219,7 @@ namespace PoKingHill
 
         void Update()
         {
+            for (int i = 0; i < mapVisuals.Length; i++) if (mapVisuals[i] != null && mapVisuals[i].activeSelf != (i == selectedMap)) mapVisuals[i].SetActive(i == selectedMap);
             _fps = Mathf.Lerp(_fps, 1f / Mathf.Max(Time.unscaledDeltaTime, 1e-4f), 0.05f);
             if (InMenu && _menuShotAt > 0 && Time.unscaledTime >= _menuShotAt)
             {

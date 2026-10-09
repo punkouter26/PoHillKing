@@ -31,3 +31,6 @@ training/checkpoints/
 # OS
 .DS_Store
 Thumbs.db
+
+# Poly Haven source photos (CC0); tools/make_mountain_map.py downloads them when missing
+tools/polyhaven/

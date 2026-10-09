@@ -144,7 +144,7 @@ namespace PoKingHill.EditorTools
 
             var water = GameObject.CreatePrimitive(PrimitiveType.Cylinder); water.name = "Sea (render only)";
             UnityEngine.Object.DestroyImmediate(water.GetComponent<Collider>());                 // PhysX stays out of the scene
-            water.transform.localScale = new Vector3(60f, 0.01f, 60f);
+            water.transform.localScale = new Vector3(900f, 0.01f, 900f);         // reaches past the distant peaks
             var mat = new Material(MjcfImporter.GetLitShader()) { color = new Color(0.10f, 0.35f, 0.55f, 1f) };
             AssetDatabase.CreateAsset(mat, $"{SceneDir}/SeaMaterial.mat"); water.GetComponent<MeshRenderer>().sharedMaterial = mat;
             var sea = rig.AddComponent<Sea>(); sea.waterVisual = water.transform;
@@ -155,6 +155,10 @@ namespace PoKingHill.EditorTools
             director.roster = new[] { F("G1 All-rounder (champion)", "attacker", 112, GoalMode.Opponent), F("G1 Duelist (generation 7)", "duelist", 112, GoalMode.Opponent),
                                       F("G1 Rammer (generation 1)", "rammer", 112, GoalMode.Opponent), F("G1 Walker (stands its ground)", "r1", 103, GoalMode.None) };
             if (director.roster.Any(f => f.policy == null)) throw new Exception("a roster policy is missing in " + ModelDir);
+            director.maps = new[] { "Mountain top", "Summit (baseline)" };
+            director.mapVisuals = new[] { BuildMountainVisual(), GameObject.Find("ArenaVisual (render only)") };
+            RenderSettings.fog = true; RenderSettings.fogMode = FogMode.Exponential; RenderSettings.fogDensity = 0.0022f;      // haze gives the peaks distance
+            RenderSettings.fogColor = new Color(0.72f, 0.80f, 0.90f, 1f);
             var cam = Camera.main;                      // 9:16 portrait framing of the summit
             cam.transform.position = new Vector3(0f, 2.6f, -6.2f); cam.transform.LookAt(new Vector3(0f, 0.5f, 0f)); cam.fieldOfView = 38f;
             var mc = cam.gameObject.AddComponent<MatchCamera>(); mc.robotA = a; mc.robotB = b; mc.director = director;
@@ -167,6 +171,43 @@ namespace PoKingHill.EditorTools
             string path = $"{SceneDir}/Demo_duel.unity";
             EditorSceneManager.SaveScene(scene, path);
             Debug.Log("[ParityBatch] saved " + path);
+        }
+
+        const string MapDir = "Assets/PoKingHill/Maps/Mountain";
+
+        static Texture2D MapTexture(string name, bool normal, bool srgb)
+        {
+            string path = $"{MapDir}/{name}.png"; var imp = AssetImporter.GetAtPath(path) as TextureImporter;
+            if (imp == null) throw new Exception(path + " missing (run tools/make_mountain_map.py in Blender)");
+            var type = normal ? TextureImporterType.NormalMap : TextureImporterType.Default;
+            if (imp.textureType != type || imp.sRGBTexture != srgb) { imp.textureType = type; imp.sRGBTexture = srgb; imp.SaveAndReimport(); }
+            return AssetDatabase.LoadAssetAtPath<Texture2D>(path);
+        }
+
+        /// <summary>The "Mountain top" map: scenery exported from Blender by tools/make_mountain_map.py, shown instead of
+        /// the plain dome. Render only: no collider, the collision shape stays the MuJoCo arena mesh.</summary>
+        static GameObject BuildMountainVisual()
+        {
+            var prefab = AssetDatabase.LoadAssetAtPath<GameObject>($"{MapDir}/mountain.fbx");
+            if (prefab == null) throw new Exception($"{MapDir}/mountain.fbx missing (run tools/make_mountain_map.py in Blender)");
+            var root = (GameObject)PrefabUtility.InstantiatePrefab(prefab); root.name = "MountainVisual (render only)";
+            var lit = Shader.Find("Universal Render Pipeline/Lit");
+            var rock = new Material(lit); var mask = MapTexture("mountain_mask", false, false);
+            rock.SetTexture("_BaseMap", MapTexture("mountain_albedo", false, true));
+            rock.SetTexture("_BumpMap", MapTexture("mountain_normal", true, false)); rock.EnableKeyword("_NORMALMAP");
+            rock.SetTexture("_MetallicGlossMap", mask); rock.EnableKeyword("_METALLICSPECGLOSSMAP"); rock.SetFloat("_Smoothness", 1f);   // smoothness = mask alpha
+            rock.SetTexture("_OcclusionMap", mask); rock.EnableKeyword("_OCCLUSIONMAP");
+            rock.SetTexture("_DetailAlbedoMap", MapTexture("rock_detail_albedo", false, false));
+            rock.SetTexture("_DetailNormalMap", MapTexture("rock_detail_normal", true, false));
+            rock.SetTextureScale("_DetailAlbedoMap", new Vector2(10.97f, 10.97f)); rock.EnableKeyword("_DETAIL_MULX2");  // value printed by make_mountain_map.py (2.7 m tile)
+            var far = new Material(lit); far.SetTexture("_BaseMap", MapTexture("backdrop_albedo", false, true)); far.SetFloat("_Smoothness", 0.1f);
+            var boulder = new Material(lit); boulder.SetTexture("_BaseMap", MapTexture("boulder_albedo", false, true)); boulder.SetFloat("_Smoothness", 0.15f);
+            boulder.SetTexture("_BumpMap", MapTexture("rock_detail_normal", true, false)); boulder.EnableKeyword("_NORMALMAP");
+            AssetDatabase.CreateAsset(rock, $"{MapDir}/MountainRock.mat"); AssetDatabase.CreateAsset(far, $"{MapDir}/BackdropRock.mat"); AssetDatabase.CreateAsset(boulder, $"{MapDir}/BoulderRock.mat");
+            foreach (var r in root.GetComponentsInChildren<MeshRenderer>()) r.sharedMaterial = r.name.StartsWith("Backdrop") ? far : r.name.StartsWith("Rocks") ? boulder : rock;
+            foreach (var c in root.GetComponentsInChildren<Collider>()) UnityEngine.Object.DestroyImmediate(c);
+            foreach (var f in root.GetComponentsInChildren<MeshFilter>()) Debug.Log($"[ParityBatch] map mesh {f.name}: {f.sharedMesh.vertexCount} verts, world bounds {f.GetComponent<Renderer>().bounds}");
+            return root;
         }
 
         /// <summary>Parity gate for the combat policy: Demo_duel with the director replaced by one probe per robot,
