@@ -188,8 +188,10 @@ namespace PoKingHill.EditorTools
             Fighter F(string name, string file, int dim, GoalMode goal) => new Fighter { name = name, obsDim = dim, goal = goal, stopDist = 0f, vmax = 1f,
                 policy = AssetDatabase.LoadAssetAtPath<Unity.InferenceEngine.ModelAsset>($"{ModelDir}/{file}_policy.onnx") };
             director.roster = new[] { F("G1 All-rounder (champion)", "attacker", 112, GoalMode.Opponent), F("G1 Duelist (generation 7)", "duelist", 112, GoalMode.Opponent),
-                                      F("G1 Rammer (generation 1)", "rammer", 112, GoalMode.Opponent), F("G1 Walker (stands its ground)", "r1", 103, GoalMode.None) };
-            if (director.roster.Any(f => f.policy == null)) throw new Exception("a roster policy is missing in " + ModelDir);
+                                      F("G1 Rammer (generation 1)", "rammer", 112, GoalMode.Opponent), F("G1 Walker (stands its ground)", "r1", 103, GoalMode.None),
+                                      // Kim has a body (Testbed_kim_* scenes) but no trained brain yet, and this scene holds two G1 bodies.
+                                      new Fighter { name = "Kim", available = false, inGame = false, note = "in training, cannot stand yet" } };
+            if (director.roster.Any(f => f.available && f.policy == null)) throw new Exception("a roster policy is missing in " + ModelDir);
             director.maps = new[] { "Mountain top", "Summit (baseline)" };
             director.mapVisuals = new[] { BuildMountainVisual(), GameObject.Find("ArenaVisual (render only)") };
             RenderSettings.fog = true; RenderSettings.fogMode = FogMode.Exponential; RenderSettings.fogDensity = 0.0022f;      // haze gives the peaks distance

@@ -15,6 +15,9 @@ namespace PoKingHill
         public GoalMode goal = GoalMode.Opponent;
         public float stopDist = 0f, vmax = 1f;
         [Tooltip("Trained in the shove style (arm pose + action smoothing)")] public bool shove;
+        [Tooltip("Ticked in the menu: this agent takes part in matches")] public bool inGame = true;
+        [Tooltip("False = listed in the menu but cannot be ticked yet; note says why")] public bool available = true;
+        public string note = "";
     }
 
     /// <summary>
@@ -31,7 +34,6 @@ namespace PoKingHill
         public ImpactSynth synth;                        // optional, for the audio counters in the verification file
         public Fighter[] roster = Array.Empty<Fighter>();
         public int selectedA, selectedB;
-        public bool randomMatchup;
         public string[] maps = { "Summit (baseline)" };
         [Tooltip("Render-only scenery per map, same order as maps. Physics is the same dome for every map.")]
         public GameObject[] mapVisuals = Array.Empty<GameObject>();
@@ -110,13 +112,28 @@ namespace PoKingHill
         {
             if (roster.Length > 0)
             {
-                if (randomMatchup) { selectedA = UnityEngine.Random.Range(0, roster.Length); selectedB = UnityEngine.Random.Range(0, roster.Length); }
+                // Menu launch: the two fighters are drawn from the ticked agents (one ticked = it fights itself).
+                // The statistics gate keeps the pair it was started with.
+                if (statsRounds == 0)
+                {
+                    var pool = InGame(); if (pool.Count == 0) return;
+                    selectedA = pool[UnityEngine.Random.Range(0, pool.Count)];
+                    if (pool.Count > 1) pool.Remove(selectedA);
+                    selectedB = pool[UnityEngine.Random.Range(0, pool.Count)];
+                }
                 var fa = roster[Mathf.Clamp(selectedA, 0, roster.Length - 1)]; var fb = roster[Mathf.Clamp(selectedB, 0, roster.Length - 1)];
                 attacker.SetBrain(fa.policy, fa.obsDim, fa.goal, fa.stopDist, fa.vmax, fa.shove);
                 defender.SetBrain(fb.policy, fb.obsDim, fb.goal, fb.stopDist, fb.vmax, fb.shove);
             }
             InMenu = false; _roundsThisMatch = 0;
             NewRound();
+        }
+
+        List<int> InGame()
+        {
+            var pool = new List<int>();
+            for (int i = 0; i < roster.Length; i++) if (roster[i].available && roster[i].inGame) pool.Add(i);
+            return pool;
         }
 
         void Place()
@@ -269,18 +286,22 @@ namespace PoKingHill
             }
             // ---- pre-match menu
             float mw = Mathf.Min(w - 2 * pad, 420 * k), x = (w - mw) / 2, y = h * 0.16f;
-            GUI.Box(new Rect(x - pad, y - pad, mw + 2 * pad, lh * (7.5f + 2 * roster.Length) + 4 * pad), GUIContent.none);
-            var names = new string[roster.Length]; for (int i = 0; i < names.Length; i++) names[i] = roster[i].name;
-            Label(new Rect(x, y, mw, lh), "Fighter A", big); y += lh * 1.2f;
-            GUI.enabled = !randomMatchup;
-            selectedA = GUI.SelectionGrid(new Rect(x, y, mw, lh * roster.Length), selectedA, names, 1, btn); y += lh * roster.Length + pad;
-            Label(new Rect(x, y, mw, lh), "Fighter B", big); y += lh * 1.2f;
-            selectedB = GUI.SelectionGrid(new Rect(x, y, mw, lh * roster.Length), selectedB, names, 1, btn); y += lh * roster.Length + pad;
-            GUI.enabled = true;
-            randomMatchup = GUI.Toggle(new Rect(x, y, mw, lh), randomMatchup, " Random matchup", _toggle); y += lh * 1.2f;
+            GUI.Box(new Rect(x - pad, y - pad, mw + 2 * pad, lh * (6.2f + 1.1f * roster.Length) + 4 * pad), GUIContent.none);
+            Label(new Rect(x, y, mw, lh), "Agents in the game", big); y += lh * 1.2f;
+            foreach (var f in roster)                 // one tick box per agent; an agent without a brain is listed but locked
+            {
+                GUI.enabled = f.available;
+                bool on = f.available && f.inGame;      // the stock tick box is a few pixels wide at this scale, so the mark is drawn as text
+                f.inGame = GUI.Toggle(new Rect(x, y, mw, lh), on, (on ? "[x]  " : "[  ]  ") + f.name + (f.note.Length > 0 ? "  (" + f.note + ")" : ""), st);
+                y += lh * 1.1f;
+            }
+            GUI.enabled = true; int ticked = InGame().Count;
+            Label(new Rect(x, y, mw, lh), ticked == 0 ? "Tick at least one agent" : ticked == 1 ? "One agent: it fights itself" : ticked == 2 ? "These two fight" : "Two are drawn at random each match", st); y += lh * 1.3f;
             Label(new Rect(x, y, mw * 0.3f, lh), "Map", st);
             selectedMap = GUI.SelectionGrid(new Rect(x + mw * 0.3f, y, mw * 0.7f, lh), selectedMap, maps, 1, btn); y += lh * 1.6f;
+            GUI.enabled = ticked > 0;
             if (GUI.Button(new Rect(x, y, mw, lh * 1.5f), "Launch", _launch)) Launch();
+            GUI.enabled = true;
         }
     }
 }
