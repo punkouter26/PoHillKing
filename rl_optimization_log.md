@@ -138,3 +138,20 @@ Decision: always step through a captured CUDA graph (`wp.ScopedCapture`), eager 
 - **Unity statistical parity, allround1 vs itself:** Unity 100 rounds 96 % decided, winning time median 8.4 s (quartiles 6.2 / 13.7); CPU MuJoCo 200 rounds 96 % decided, median 7.3 s (5.4 / 12.1). `attacker_policy.onnx` is allround1.
 - **Unity presentation:** `MatchCamera` (combat framing, follows the loser off the summit, returns), `ImpactSynth` (thuds from pelvis velocity jumps, footfall clicks, splash and bubbles at the waterline, all synthesized in `OnAudioFilterRead`, no audio files). Both compile and run without exceptions in an 8-round editor run; neither has been looked at or listened to.
 - **Three-hour champion league started 19:08** (`scripts/allround_league.py`): each generation warm-starts from the champion (allround1), trains 350 iterations with `self_edge = -5` against standing walkers, gens 1 / 6 / 7 and recent all-rounders, and is promoted only if it beats the champion, keeps >= 85 % against the standing walker, and does not self-eject more.
+
+## 2026-10-08 19:08-21:57 — three-hour champion league (user request)
+
+`scripts/allround_league.py --hours 3`, 350 iterations per generation, `self_edge = -5`, each generation warm-started from the champion.
+
+| generation | from | standing walker: win / self-out | vs gens 3-7: share of decided / ties | vs champion: share / ties | promoted |
+|---|---|---|---|---|---|
+| allround3 | allround1 | 92.6 % / 7.4 % | 76.4 % / 2.5 % | 80.5 % / 15.8 % | yes |
+| allround4 | allround3 | 92.7 % / 7.3 % | 78.2 % / 0.9 % | 59.0 % / 11.5 % | yes |
+| allround5 | allround4 | 83.6 % / 16.4 % | 68.0 % / 0.8 % | 33.8 % / 5.6 % | no |
+| allround6 | allround4 | 82.0 % / 18.0 % | 62.8 % / 0.5 % | 27.8 % / 11.6 % | no |
+| allround7 | allround4 | 88.7 % / 11.3 % | 77.3 % / 0.8 % | 57.8 % / 20.1 % | no (self-out) |
+
+- **Champion: allround4.** Against itself 89 % of rounds decided (median 5.5 s). Against allround1: wins 74.5 %, loses 15.9 % (82 % of decided).
+- **Self-ejection did not improve.** 7.3 % against the standing walker (allround1: 6.6 %, bar 5 %). The stronger rim penalty made no measurable difference; three later generations were worse (11-18 %).
+- **Strength against the older Duelists (gens 3-7) is lower than allround1's** (78 % vs 87 % of decided) while head-to-head strength rose. The league is non-transitive: beating the current champion is not the same as beating everything before it.
+- **Unity statistical parity, allround4 vs itself:** Unity 100 rounds: 96 % decided, winning time median 6.75 s, quartiles 4.84 / 9.70, mean 7.34. CPU MuJoCo 200 rounds: 99.5 % decided, median 6.84 s, quartiles 4.81 / 9.15, mean 7.62. `attacker_policy.onnx` is allround4.

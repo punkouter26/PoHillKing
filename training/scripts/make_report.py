@@ -75,12 +75,19 @@ GRID = [
         C("80%", 80, "strong", "of decided rounds won against generations 2 to 6; against itself only 15 to 50% of rounds are decided"),
         C("Yes", 95, "strong", "15% decided in Unity and in training", "Verified"),
     ]),
-    dict(name="All-rounder", note="Current champion. Started from the Attacker and trained against standing and attacking opponents.", cells=[
+    dict(name="All-rounder (first)", retired=True, note="Superseded. Started from the Attacker, trained against standing and attacking opponents.", cells=[
         C("inherited", 0, "na"), C("inherited", 0, "na"), C("inherited", 0, "na"), NA(), NA("shelved"),
         C("Yes", 100, "strong", "reaches the opponent in about 1 s"),
         C("93%", 93, "strong", "in about 2 s; goes out by itself in 6.6% of those rounds, bar is 5%"),
-        C("87%", 87, "strong", "of decided rounds won against Duelists 3 to 7, 4% ties; against itself 86% of rounds are decided"),
-        C("Yes", 95, "strong", "96% of rounds decided in Unity and in training; typical win 8.4 s against 7.3 s", "Verified"),
+        C("87%", 87, "strong", "of decided rounds won against Duelists 3 to 7, 4% ties; against itself 86% decided"),
+        C("Yes", 95, "strong", "96% of rounds decided in Unity and in training", "Verified"),
+    ]),
+    dict(name="All-rounder (champion)", note="Current champion after a three-hour league: two promotions in five generations.", cells=[
+        C("inherited", 0, "na"), C("inherited", 0, "na"), C("inherited", 0, "na"), NA(), NA("shelved"),
+        C("Yes", 100, "strong", "reaches the opponent in about 1 s"),
+        C("93%", 93, "strong", "in about 2 s; goes out by itself in 7.3% of those rounds, bar is 5%"),
+        C("78% / 82%", 80, "strong", "of decided rounds won against Duelists 3 to 7, and against the first All-rounder; against itself 89% decided"),
+        C("Yes", 97, "strong", "96% decided and 6.75 s typical win in Unity; 99.5% and 6.84 s in training", "Verified"),
     ]),
     dict(name="Stand-only v1", retired=True, note="Retired. First attempt, taught standing with no walking.", cells=[
         C("47%", 47, "weak", "could not step to recover"), C("0%", 2, "fail", "never taught"), C("0%", 2, "fail", "never taught"),
