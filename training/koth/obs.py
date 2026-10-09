@@ -61,19 +61,24 @@ def build_combat(root_pos, root_quat, root_linvel_w, opp_pos, opp_quat, opp_linv
                       opp_up[:, None]], 1)
 
 
-def goal_command(root_quat, goal_vec_xy, stop_dist: float, vmax: float = 0.8):
+def goal_command(root_quat, goal_vec_xy, stop_dist: float, vmax: float = 0.8, self_radius=None, rim_brake=None):
     """Velocity command (vx, vy, yaw rate) that walks toward a goal. Fixed law, mirrored by Unity's GoalCommand.cs.
     root_quat (M,4) wxyz, goal_vec_xy (M,2) world vector from the robot to the goal.
       speed  = clip(dist - stop_dist, 0, vmax)
       ang    = bearing of the goal in the robot's heading frame
       vx, vy = speed * cos(ang), speed * sin(ang)   (clipped to the trained ranges +-1, +-0.5)
-      yaw    = clip(2 * ang, -1, 1) while moving, else 0"""
+      yaw    = clip(2 * ang, -1, 1) while moving, else 0
+    Rim brake (optional, rim_brake = (rim, gain, vmin) with self_radius (M,) = my distance from the centre):
+      speed  = min(speed, clip(gain * (rim - self_radius), vmin, inf))   so a robot near the edge does not charge off it."""
     w, x, y, z = root_quat.unbind(1)
     yaw = torch.atan2(2 * (w * z + x * y), 1 - 2 * (y * y + z * z))
     dist = goal_vec_xy.norm(dim=1)
     ang = torch.atan2(goal_vec_xy[:, 1], goal_vec_xy[:, 0]) - yaw
     ang = torch.atan2(torch.sin(ang), torch.cos(ang))
     speed = torch.minimum((dist - stop_dist).clamp(min=0.0), torch.as_tensor(vmax, dtype=dist.dtype, device=dist.device))
+    if rim_brake is not None and self_radius is not None:
+        rim, gain, vmin = rim_brake
+        speed = torch.minimum(speed, (gain * (rim - self_radius)).clamp(min=vmin))
     moving = (speed > 0.05).to(speed.dtype)
     return torch.stack([(speed * torch.cos(ang)).clamp(-1.0, 1.0), (speed * torch.sin(ang)).clamp(-0.5, 0.5),
                         (2.0 * ang).clamp(-1.0, 1.0) * moving], dim=1)

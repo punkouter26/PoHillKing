@@ -106,6 +106,7 @@ def main():
     ap.add_argument("--rung", default="r0"); ap.add_argument("--ckpt", required=True)
     ap.add_argument("--seeds", type=int, default=10); ap.add_argument("--num-envs", type=int, default=256)
     ap.add_argument("--seconds", type=float, default=20.0)
+    ap.add_argument("--rim-brake", type=float, nargs=3, default=None, help="rim gain vmin for the goal command")
     ap.add_argument("--slope", action="store_true", help="r2 only: also spawn robots on the slope (retired objective)")
     ap.add_argument("--opponent", default=None, nargs="+", help="frozen checkpoint(s) driving robot b_ (duel rungs)")
     a = ap.parse_args()
@@ -113,6 +114,7 @@ def main():
     duel = a.rung in ("r4probe", "r4att", "r4league")
     if duel: cfg["max_radius"] = 1.7
     if a.rung in ("r4probe", "r4att"): cfg["spawn"].update(r=[[0.0, 0.5], [1.25, 1.35]])
+    if a.rim_brake: cfg["goal_cmd"]["rim_brake"] = tuple(a.rim_brake)
     if a.rung == "r2" and a.slope: cfg["spawn"].update(r=[0.0, 2.6])
     if a.opponent: cfg["frozen_opponent"] = [(os.path.abspath(o[:-6]) + ":stand") if o.endswith(":stand") else os.path.abspath(o) for o in a.opponent]
     if a.rung in ("r0", "r1"):

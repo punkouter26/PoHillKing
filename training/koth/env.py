@@ -289,7 +289,7 @@ class KothEnv:
     def _update_goal_commands(self):
         if self.cfg["goal"] is None: return
         pos, quat, _, _ = self._root()
-        cmd = goal_command(quat, self._goal_vec(pos), self.goal_stop, self.goal_vmax)
+        cmd = goal_command(quat, self._goal_vec(pos), self.goal_stop, self.goal_vmax, pos[:, :2].norm(dim=1), self.cfg["goal_cmd"].get("rim_brake"))
         if self.frozen is not None and self.frozen.stands.any():
             self.goal_is_none[1::2] = self.frozen.stands[self.frozen.choice]     # per-world: is this world's opponent a stander?
         cmd[self.goal_is_none] = 0.0                       # "stand": zero command, the robot just holds its ground
@@ -423,7 +423,8 @@ class KothEnv:
         gz = quat_rotate_inverse(quat, torch.tensor([0.0, 0.0, -1.0], device=self.device).expand(M, 3))[:, 2]
         nan = (torch.isnan(self.qpos).any(1) | torch.isnan(self.qvel).any(1)).repeat_interleave(A)
         radius = pos[:, :2].norm(dim=1)
-        fallen = (gz > 0) | (pos[:, 2] - terrain_height(pos[:, :2], self.arena) < 0.3) | nan
+        tipped = gz > 0; low = pos[:, 2] - terrain_height(pos[:, :2], self.arena) < 0.3
+        fallen = tipped | low | nan
         if self.arena: fallen |= radius > self.cfg["max_radius"]
         if self.cfg["terminate_on_leg_contact"]: fallen |= leg
         timeout = self.episode_length_buf >= self.max_episode_length
@@ -442,6 +443,8 @@ class KothEnv:
         self.extras = {"time_outs": (done & ~fallen) if not draw_on else (done & ~fallen & ~drew), "log": {f"rew/{k}": v[lr].mean() for k, v in self.reward_terms.items()},
                        "fallen": fallen, "nan": nan, "radius": radius}
         self.extras["log"]["ep/leg_contact_term"] = leg.float().mean(); self.extras["log"]["ep/fallen"] = fallen.float().mean()
+        self.extras["cause"] = torch.stack([tipped, low, leg], 1)          # why a row counted as fallen (besides ring-out)
+        if A == 2: self.extras["sep"] = (pos[:, :2] - self._opp(pos)[:, :2]).norm(dim=1)
         if self.arena: self.extras["log"]["ep/on_plateau"] = (radius < PLATEAU_R).float().mean()
         if self.A == 2:
             self.extras["log"]["ep/decided"] = (fallen.view(N, A).any(1).float().sum() / world_done.float().sum().clamp(min=1))

@@ -45,11 +45,13 @@ def main():
     ap.add_argument("--iters", type=int, default=1500); ap.add_argument("--resume", default=None)
     ap.add_argument("--seed", type=int, default=0); ap.add_argument("--name", default=None)
     ap.add_argument("--opponent", default=None, nargs="+", help="checkpoint(s) of frozen policies that drive robot b_ (one drawn per world)")
+    ap.add_argument("--rim-brake", type=float, nargs=3, default=None, help="rim gain vmin for the goal command")
     ap.add_argument("--reward", nargs="*", default=[], help="reward weight overrides, e.g. self_edge=-5.0")
     ap.add_argument("--warm", default=None, help="checkpoint to warm-start from (weights only, pads new inputs)")
     a = ap.parse_args()
     cfg = default_cfg(a.rung)
     if a.opponent: cfg["frozen_opponent"] = [(os.path.abspath(o[:-6]) + ":stand") if o.endswith(":stand") else os.path.abspath(o) for o in a.opponent]; cfg["frozen_stochastic"] = True
+    if a.rim_brake: cfg["goal_cmd"]["rim_brake"] = tuple(a.rim_brake)
     for kv in a.reward:
         k, v = kv.split("="); assert k in cfg["reward"], k; cfg["reward"][k] = float(v)
     env = KothEnv(cfg, a.num_envs, seed=a.seed)

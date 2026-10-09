@@ -155,3 +155,19 @@ Decision: always step through a captured CUDA graph (`wp.ScopedCapture`), eager 
 - **Self-ejection did not improve.** 7.3 % against the standing walker (allround1: 6.6 %, bar 5 %). The stronger rim penalty made no measurable difference; three later generations were worse (11-18 %).
 - **Strength against the older Duelists (gens 3-7) is lower than allround1's** (78 % vs 87 % of decided) while head-to-head strength rose. The league is non-transitive: beating the current champion is not the same as beating everything before it.
 - **Unity statistical parity, allround4 vs itself:** Unity 100 rounds: 96 % decided, winning time median 6.75 s, quartiles 4.84 / 9.70, mean 7.34. CPU MuJoCo 200 rounds: 99.5 % decided, median 6.84 s, quartiles 4.81 / 9.15, mean 7.62. `attacker_policy.onnx` is allround4.
+
+## 2026-10-08 (after the league) — what the "self-ejection" figure really was
+
+The 7.3 % reported for the champion against the standing walker was every round the attacker lost, not self-ejection. Broken down over 1024 duels (allround4, first round each):
+
+| how the attacker went out first | rounds | share |
+|---|---|---|
+| left the ring (radius > 1.7 m) | 13 | 1.3 % |
+| pelvis below 0.3 m: tripped or a failed lunge, typically 1.4 s in and 0.8 m from the opponent | 39 | 3.8 % |
+| tipped over | 2 | 0.2 % |
+| own foot touched own shin (a training termination rule, not a game rule in Unity) | 17 | 1.7 % |
+
+- **R4 clause as written** ("against itself, at least 50 % of rounds end by ejection, under 5 % self-ejection"), measured directly on allround4 vs itself, 1024 duels, 25 s: 65.9 % of rounds end by a ring-out; self-ejection (ring-out with the opponent more than 0.9 m away) 0.2 %; 14.1 % end by a fall; 8.3 % by the own-leg-contact rule; 11.7 % undecided.
+- So the clause passes: 65.9 % ejection endings, 0.2 % self-ejection in the mirror, 1.3 % against the standing walker. The earlier "narrow miss" was a conservative proxy of mine.
+- **Rules mismatch to keep in mind:** training and `eval.py` end a round on own foot-shin contact; Unity's `DemoDirector` and `duel_stats.py` do not. That is why the mirror "decided" share differs between `eval.py` (88-89 %) and the Unity-rule statistics (96-99.5 %).
+- **Rim brake tried and not adopted:** an optional term in `obs.goal_command` that slows the commanded speed near the rim (`--rim-brake rim gain vmin`). Two settings on allround4 left the loss rate at 7 %, consistent with the breakdown above (most losses are falls, not overshoot). It stays off by default and is not mirrored in Unity.
