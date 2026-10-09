@@ -171,3 +171,21 @@ The 7.3 % reported for the champion against the standing walker was every round 
 - So the clause passes: 65.9 % ejection endings, 0.2 % self-ejection in the mirror, 1.3 % against the standing walker. The earlier "narrow miss" was a conservative proxy of mine.
 - **Rules mismatch to keep in mind:** training and `eval.py` end a round on own foot-shin contact; Unity's `DemoDirector` and `duel_stats.py` do not. That is why the mirror "decided" share differs between `eval.py` (88-89 %) and the Unity-rule statistics (96-99.5 %).
 - **Rim brake tried and not adopted:** an optional term in `obs.goal_command` that slows the commanded speed near the rim (`--rim-brake rim gain vmin`). Two settings on allround4 left the loss rate at 7 %, consistent with the breakdown above (most losses are falls, not overshoot). It stays off by default and is not mirrored in Unity.
+
+## 2026-10-08/09 — careful1 becomes champion; Unity menu and visual verification
+
+- **careful1** (400 iterations from allround4; pool = standing walker x6, allround4, allround1, gen7, gen6; `termination = -25`, `self_edge = -5`). Making a loss cost 2.5 times a draw, with standing opponents in 60 % of rounds, cut the falls without making it passive:
+  | bar | result |
+  |---|---|
+  | standing walker at the rim, 5 seeds x 256 | 97.0 % ejected (95.7-98.4), median 1.9 s |
+  | all losses against that opponent (strict reading of "self-ejection < 5 %") | 3.0 % (1.6-4.3), every seed under 5 % |
+  | vs gens 3-7 | wins 90.1 %, loses 9.0 %, ties 0.9 % (91 % of decided), median 2.4 s |
+  | vs allround4 (previous champion) | 39.7 % / 43.1 % / 17.2 % ties: an even match |
+  | vs itself | 92 % of rounds decided, median 5.6 s |
+  `runs/league/champion.txt` = careful1; `attacker_policy.onnx` = careful1.
+- **Unity statistical parity, careful1 vs itself:** Unity 100 rounds: 99 % decided, winning time median 7.28 s (quartiles 5.58 / 11.48, mean 8.43). CPU MuJoCo 200 rounds: 98.5 % decided, median 8.40 s (5.64 / 12.16, mean 9.16).
+- **Unity presentation, now looked at** (`docs/screenshots/menu.png`, `combat.png`, `ejection.png`, captured by `ParityBatch.PlayDuelDemo -kothShots <dir> -kothExit`):
+  - Pre-match menu: fighter A, fighter B (All-rounder champion, Duelist gen7, Rammer gen1, standing Walker), random matchup, map, Launch. `PolicyRunner.SetBrain` swaps ONNX brains at runtime; one round per launch, then back to the menu.
+  - First screenshots showed the robots standing on open water: the plugin's renderer for the arena mesh geom draws nothing (0 vertices in its MeshFilter) even though the imported mesh asset is right. An OBJ arena additionally came in lying on its side, so the arena is now written as binary STL. Fix: a render-only `ArenaVisual` object showing the same mesh asset with a two-sided material.
+  - HUD labels drawn with a shadow (white text was unreadable on the sky).
+  - Audio triggers never fired with single-step thresholds. Now windowed: pelvis velocity change over 20 ms for impacts, descent-then-stop for footfalls. One 20 s run: 59 impacts, 481 footfalls. The editor does not run the audio thread while unfocused, so the output waveform itself is still unheard.

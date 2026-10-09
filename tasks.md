@@ -111,13 +111,15 @@ Per-rung procedure: train → TensorBoard → viewer spot-check → `record_refe
 
 ## Phase D — Engine polish & game loop (in-editor authoring)
 
-- [ ] D.1 Menu scene: Fighter A/B selectors (G1 populated; H1/custom = stub rows), Random toggle, Map registry (baseline arena; external mesh = stub), Launch.
-- [ ] D.2 `MatchDirector.cs`: spawn → countdown → fight → ejection/submersion detect (head geom z < h(t), or r > rim+1 m with downward velocity) → victor pose-hold (dance deferred) → menu. All via mjData resets, no scene reloads.
-- [ ] D.3 Camera: combat framing (both pelvises + rim + waterline), ejection follow, pan back to victor. 9:16 letterbox at any window size.
-- [ ] D.4 `ImpactSynth.cs`: reads `mjData.contact` + `efc_force` each step; synth impacts (force-scaled transient), footfalls, slide noise (tangential velocity), splash (geom crosses h(t)), submerged hum. `OnAudioFilterRead`, zero clips.
-- [ ] D.5 HUD final: TL title · TC FPS/step-ms/water height · TR menu/behaviour selector · BL reset/shove/fire · BR version from build.
+- [x] D.1 Menu scene: Fighter A/B selectors (G1 populated; H1/custom = stub rows), Random toggle, Map registry (baseline arena; external mesh = stub), Launch.
+- [x] D.2 `MatchDirector.cs`: spawn → countdown → fight → ejection/submersion detect (head geom z < h(t), or r > rim+1 m with downward velocity) → victor pose-hold (dance deferred) → menu. All via mjData resets, no scene reloads.
+- [x] D.3 Camera: combat framing (both pelvises + rim + waterline), ejection follow, pan back to victor. 9:16 letterbox at any window size.
+- [x] D.4 `ImpactSynth.cs`: reads `mjData.contact` + `efc_force` each step; synth impacts (force-scaled transient), footfalls, slide noise (tangential velocity), splash (geom crosses h(t)), submerged hum. `OnAudioFilterRead`, zero clips.
+- [x] D.5 HUD final: TL title · TC FPS/step-ms/water height · TR menu/behaviour selector · BL reset/shove/fire · BR version from build.
 - [ ] D.6 Performance pass: profile mj_step + 2× inference at 500 Hz physics / 60 FPS render; GC-free hot path; log numbers. Android build config present, 60 FPS not required there.
 - [ ] D.7 Final full-suite re-validation in a release build (R0–R5 gates). Tag `v1.0`. Mark complete.
+
+> **Phase D status (2026-10-09):** D.1-D.5 exist in `Demo_duel.unity` (IMGUI menu and HUD, `DemoDirector`, `MatchCamera`, `ImpactSynth`, `Sea`) and were checked from captured frames in `docs/screenshots`. The audio waveform is unheard. D.6 (profiling beyond the HUD numbers) and D.7 (release-build re-validation, tag) are open. The scene is built by an editor menu command from the imported MJCF, not hand-authored.
 
 ## Deferred (out of scope this build)
 Unitree H1; custom skinned rigs; external map meshes; R6 victory dance (DeepMimic tracking); AMP motion prior; Android performance target.

@@ -97,8 +97,8 @@ text { font-family: inherit; }
 <div class="kpis">
   <div class="kpi"><b>6 of 6</b><span>behaviour rungs meet their pass bar: the Walker for movement, the All-rounder for fighting</span></div>
   <div class="kpi"><b>99.4%</b><span>of shoves and thrown boxes the walker survives</span></div>
-  <div class="kpi"><b>98.7%</b><span>of rounds the attacker pushes a standing opponent off the summit</span></div>
-  <div class="kpi"><b>2.0 s</b><span>typical time for the attacker to finish a round</span></div>
+  <div class="kpi"><b>97%</b><span>of rounds the champion pushes a standing opponent off the summit</span></div>
+  <div class="kpi"><b>91%</b><span>of decided rounds the champion wins against five earlier fighters</span></div>
 </div>
 
 <h2>Where the ladder stands</h2>
@@ -108,8 +108,8 @@ text { font-family: inherit; }
   <div class="step pass"><div class="n">RUNG 1</div><div class="t">Walk and turn</div><div class="s">Passed. Also verified in Unity.</div></div>
   <div class="step pass"><div class="n">RUNG 2</div><div class="t">Hold the summit</div><div class="s">Passed. Also verified in Unity. Climbing back was learned too, then shelved on request.</div></div>
   <div class="step pass"><div class="n">RUNG 3</div><div class="t">Walk up to the opponent</div><div class="s">Passed. Also verified in Unity.</div></div>
-  <div class="step pass"><div class="n">RUNG 4</div><div class="t">Push the opponent off</div><div class="s">Passed by the All-rounder: 93% against a standing opponent. Against itself 66% of rounds end with a robot pushed out of the ring and only 0.2% with a robot walking out on its own.</div></div>
-  <div class="step pass"><div class="n">RUNG 5</div><div class="t">Full match</div><div class="s">Passed by the All-rounder: wins 78% of decided rounds against five earlier Duelists, 1% ties, a few seconds per win.</div></div>
+  <div class="step pass"><div class="n">RUNG 4</div><div class="t">Push the opponent off</div><div class="s">Passed by the champion: 97% against a standing opponent, losing only 3% of those rounds. Against itself 92% of rounds are decided.</div></div>
+  <div class="step pass"><div class="n">RUNG 5</div><div class="t">Full match</div><div class="s">Passed by the champion: wins 91% of decided rounds against five earlier Duelists, 1% ties, about 2.4 s per win.</div></div>
 </div>
 
 <h2>Agents and what each can do</h2>
@@ -171,7 +171,8 @@ text { font-family: inherit; }
   <li><b>Everyone now starts on the summit.</b> A version called the Climber did learn to walk back up the slope, in training and in Unity, but climbing has been set aside for now.</li>
   <li><b>Fighting works, improving it is the current job.</b> The Attacker shoves a standing robot off the summit in about two seconds. When two Attackers meet, 82% of rounds end with one of them knocked out, typically in about 5 seconds. Seven generations were trained, each against the earlier ones. The latest wins 80% of its decided rounds against the previous five.</li>
   <li><b>One fighting brain now covers every combat test.</b> The All-rounder began as the early Attacker and then learned to duel while still practising against standing robots, so it kept both skills. Movement tests still use the Walker, which has no opponent inputs.</li>
-  <li><b>Not started:</b> the rising sea visuals, and the Unity menu, camera and sound. A basic Unity duel scene with a score overlay exists.</li>
+  <li><b>Unity now has the game shell.</b> A fighter-select menu, a match camera that follows the loser, the rising sea, a score overlay and synthesized impact sounds. The picture was checked from captured frames; the sound has not been listened to.</li>
+  <li><b>Not done:</b> the victory dance, which was set aside at the start.</li>
 </ul>
 <div class="callout"><b>Worth knowing.</b> In a control test, the standing opponent wandered off the edge by itself in about 10% of 15-second rounds with nobody touching it. The attacker's wins come in about 2 seconds, far faster than that drift, but the true figure for "wins caused by the attacker" is a little below the 98.7% shown. In Unity the attacker's inputs and brain match training exactly. Fights cannot be compared move for move because each robot reacts to the other, so 60 Unity rounds were compared with 200 training rounds instead: 53% decided in both, typical win at 3.3 s in both.</div>
 

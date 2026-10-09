@@ -82,12 +82,19 @@ GRID = [
         C("87%", 87, "strong", "of decided rounds won against Duelists 3 to 7, 4% ties; against itself 86% decided"),
         C("Yes", 95, "strong", "96% of rounds decided in Unity and in training", "Verified"),
     ]),
-    dict(name="All-rounder (champion)", note="Current champion after a three-hour league: two promotions in five generations.", cells=[
+    dict(name="All-rounder (second)", retired=True, note="Superseded. Champion of the three-hour league.", cells=[
         C("inherited", 0, "na"), C("inherited", 0, "na"), C("inherited", 0, "na"), NA(), NA("shelved"),
         C("Yes", 100, "strong", "reaches the opponent in about 1 s"),
-        C("93%", 93, "strong", "in about 2 s; loses 7%: 1.3% walks out of the ring, 4% trips or mistimes a lunge, 1.7% a training-only rule"),
-        C("78% / 82%", 80, "strong", "of decided rounds won against Duelists 3 to 7, and against the first All-rounder; against itself 89% decided"),
-        C("Yes", 97, "strong", "96% decided and 6.75 s typical win in Unity; 99.5% and 6.84 s in training", "Verified"),
+        C("93%", 93, "strong", "loses 7%, mostly trips and mistimed lunges"),
+        C("78%", 78, "strong", "of decided rounds won against Duelists 3 to 7; against itself 89% decided"),
+        C("Yes", 97, "strong", "96% decided in Unity, 99.5% in training", "Verified"),
+    ]),
+    dict(name="All-rounder (champion)", note="Current champion. Trained with a heavier cost for losing, half its rounds against a standing opponent.", cells=[
+        C("inherited", 0, "na"), C("inherited", 0, "na"), C("inherited", 0, "na"), NA(), NA("shelved"),
+        C("Yes", 100, "strong", "reaches the opponent in about 1 s"),
+        C("97%", 97, "strong", "in about 1.9 s; loses only 3%, under the 5% bar on all five test runs"),
+        C("91%", 91, "strong", "of decided rounds won against Duelists 3 to 7, 1% ties; even with the previous champion; against itself 92% decided"),
+        C("Yes", 97, "strong", "99% decided and 7.3 s typical win in Unity; 98.5% and 8.4 s in training", "Verified"),
     ]),
     dict(name="Stand-only v1", retired=True, note="Retired. First attempt, taught standing with no walking.", cells=[
         C("47%", 47, "weak", "could not step to recover"), C("0%", 2, "fail", "never taught"), C("0%", 2, "fail", "never taught"),
