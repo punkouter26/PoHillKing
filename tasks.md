@@ -117,9 +117,9 @@ Per-rung procedure: train → TensorBoard → viewer spot-check → `record_refe
 - [x] D.4 `ImpactSynth.cs`: reads `mjData.contact` + `efc_force` each step; synth impacts (force-scaled transient), footfalls, slide noise (tangential velocity), splash (geom crosses h(t)), submerged hum. `OnAudioFilterRead`, zero clips.
 - [x] D.5 HUD final: TL title · TC FPS/step-ms/water height · TR menu/behaviour selector · BL reset/shove/fire · BR version from build.
 - [x] D.6 Performance pass: profile mj_step + 2× inference at 500 Hz physics / 60 FPS render; GC-free hot path; log numbers. Android build config present, 60 FPS not required there.
-- [ ] D.7 Final full-suite re-validation in a release build (R0–R5 gates). Tag `v1.0`. Mark complete.
+- [x] D.7 Final full-suite re-validation in a release build (R0–R5 gates). Tag `v1.0`. Mark complete.
 
-> **Phase D status (2026-10-09):** D.1-D.5 exist in `Demo_duel.unity` (IMGUI menu and HUD, `DemoDirector`, `MatchCamera`, `ImpactSynth`, `Sea`) and were checked from captured frames in `docs/screenshots`. The audio waveform is unheard. D.6 is done (Windows player: 60 FPS, 500 steps/s, 0.23 ms physics tick, no managed allocation in the tick; numbers in rl_optimization_log.md). D.7 (release-build re-validation, tag) is open. The scene is built by an editor menu command from the imported MJCF, not hand-authored.
+> **Phase D status (2026-10-09):** D.1-D.5 exist in `Demo_duel.unity` (IMGUI menu and HUD, `DemoDirector`, `MatchCamera`, `ImpactSynth`, `Sea`) and were checked from captured frames in `docs/screenshots`. The audio waveform is unheard. D.6 is done (Windows player: 60 FPS, 500 steps/s, 0.23 ms physics tick, no managed allocation in the tick; numbers in rl_optimization_log.md). D.7 is done: R0-R5 training bars and R0-R3 editor gates re-run, release player built and checked for combat parity and performance, tagged `v1.0` (details in rl_optimization_log.md). The scene is built by an editor menu command from the imported MJCF, not hand-authored.
 
 ## Deferred (out of scope this build)
 Unitree H1; custom skinned rigs; external map meshes; R6 victory dance (DeepMimic tracking); AMP motion prior; Android performance target.

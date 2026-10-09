@@ -211,3 +211,37 @@ Measured by `PerfProbe` (`-kothPerf 30`: 2 s warm-up, then 30 s of continuous ch
 - **R1 Unity gate re-run after the readback change:** replay max action error 1.2e-6 (bar 1e-4), closed loop passes (pelvis within 3.7 cm). The other rungs' gates were not re-run; that is D.7.
 - **Android:** build settings exist in ProjectSettings; no Android build was made or measured.
 - **Report:** `training_report.html` now embeds three annotated TensorBoard screenshots (`docs/screenshots/tb_*.png`, taken with headless Chrome from the legacy Scalars tab; the Time Series tab renders blank headless). `Builds/Win` currently holds the development build.
+
+## 2026-10-09 — D.7 final re-validation, v1.0
+
+**Training side (CPU/Warp eval, 3 seeds x 256):**
+
+| rung | checkpoint | result |
+|---|---|---|
+| R0 stand | `r1_b/model_final` | pass 3/3, 98.9-99.5 % of impacts survived |
+| R1 walk | `r1_b/model_final` | pass 3/3, tracking error 0.14 m/s and 0.09-0.10 rad/s, 97.4-98.0 % survival |
+| R2 plateau hold | `r2_a/model_2900` | pass 3/3, 99.6-100 % hold |
+| R3 approach | `r1_b/model_final` | pass 3/3, 100 % meet within 6 s, 0 self-ejections |
+| R4/R5 combat (`judge.sh careful1`) | `careful1` | standing walker 98.0 % wins / 1.9 % losses, median 1.9 s; gens 3-7 89.2 % / 9.9 % / 0.9 % ties, median 2.3 s |
+
+- R2's slope-return half was not exercised: the eval spawned no robot on the slope (`n_slope: 0`), consistent with all agents starting on the summit.
+- R3 on `r2_a/model_2900` fails 2/3 (seed 0: 2.7 % of pairs with a self-ejection, bar 2 %). R3 is judged on the walker, which passes; which checkpoint `r3_policy.onnx` was exported from was not checked.
+- The mirror-match "share of rounds decided" bar was not re-measured here (`judge.sh` reports win / loss / tie).
+
+**Unity editor gates (6000.6.0f1, `ParityBatch.RunPolicy`), all exit 0:**
+
+| rung | replay max action error (bar 1e-4) | closed loop: pelvis error / ctrl difference (bars 10 cm / 10 %) |
+|---|---|---|
+| R0 | 1.1e-6 | 1.2 mm / 0.1 % |
+| R1 | 1.2e-6 | 3.7 cm / 2.6 % |
+| R2 | 1.3e-6 | 3.4 cm / 6.9 % |
+| R3 (a, b) | 5e-7 | 1.2 cm / 3.3 %, 1.4 cm / 6.3 % |
+
+**Release player (`Builds/Win`, built by `ParityBatch.BuildPlayer`, 0 errors, 354 MB):**
+- Combat statistical gate inside the player (new `-kothRounds N` switch on `DemoDirector`, same rules as `RunDuelStats`; result written next to the executable): careful1 vs itself, 100 rounds, 100 % decided (54 / 46), winning time median 7.67 s (quartiles 5.42 / 10.92, mean 8.64). CPU MuJoCo reference, 200 rounds: 98.5 % decided, median 8.40 s (5.64 / 12.16, mean 9.16). Parity holds.
+- Performance (`-kothPerf 30`, 540x960), now measured on the final code: 59.99 FPS, frame p99 16.7 ms, max 17.0 ms; 500.3 physics steps/s; physics tick mean 0.23 ms, p99 0.86, max 2.3; mj_step mean 0.18 ms; one brain inference mean 0.21 ms, p99 0.35.
+- The trajectory gates above ran in the editor, not the player: the parity probes live in the testbed scenes, which are not in the build.
+
+**Still open at v1.0:** the audio output has not been listened to; no Android build was made; the allocation counters do not work in a release player, so the zero-allocation figure remains the development-build one.
+
+**Tooling note:** there is no Unity Hub on this machine. The editor gets its licence from the Unity CLI sign-in (`unity auth login`, then `unity license activate`); without it every `Unity.exe` launch exits with code 198 and a licence dialog.

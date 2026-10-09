@@ -62,6 +62,14 @@ namespace PoKingHill
             Application.targetFrameRate = 60;            // the editor otherwise renders uncapped and starves GPU training
             Application.runInBackground = true;
             _shotDir = Arg("-kothShots");
+            // Player-side statistical gate (-kothRounds N): same rules as ParityBatch.RunDuelStats, no sea and a 25 s bell.
+            if (!Application.isEditor && int.TryParse(Arg("-kothRounds"), out int rounds) && rounds > 0)
+            {
+                statsRounds = rounds; roundSeconds = 25f;
+                if (int.TryParse(Arg("-kothA"), out int fa)) selectedA = fa;
+                if (int.TryParse(Arg("-kothB"), out int fb)) selectedB = fb;
+                if (sea != null) { sea.enabled = false; sea = null; }
+            }
             if (statsRounds > 0 || Flag("-kothAutoLaunch")) autoLaunch = true;
             // The unfocused editor renders about one frame per second, so in stats mode let each frame carry up to 2 s of physics.
             if (statsRounds > 0) { Time.timeScale = 50f; Time.maximumDeltaTime = 2f; pauseBetweenRounds = 0f; roundsPerMatch = 0; }
@@ -195,11 +203,15 @@ namespace PoKingHill
             string F(double v) => v.ToString("0.##", System.Globalization.CultureInfo.InvariantCulture);
             string json = $"{{\n \"rounds\": {n}, \"wins_a\": {_winsA}, \"wins_b\": {_winsB}, \"ties\": {_draws}, \"decided\": {F((double)(_winsA + _winsB) / n)},\n" +
                           $" \"median_time_s\": {F(Q(0.5))}, \"mean_time_s\": {F(mean)}, \"p25_time_s\": {F(Q(0.25))}, \"p75_time_s\": {F(Q(0.75))}\n}}\n";
-            string path = System.IO.Path.GetFullPath(System.IO.Path.Combine(Application.dataPath, "..", "training", "assets", "g1", "duel_stats_unity.json"));
+            // The player has no training folder beside it: it writes next to the executable, like perf_unity.json.
+            string path = System.IO.Path.GetFullPath(Application.isEditor ? System.IO.Path.Combine(Application.dataPath, "..", "training", "assets", "g1", "duel_stats_unity.json")
+                                                                          : System.IO.Path.Combine(Application.dataPath, "..", "duel_stats_unity.json"));
             System.IO.File.WriteAllText(path, json); Debug.Log("[DemoDirector] wrote " + path + "\n" + json);
             statsRounds = 0; attacker.paused = defender.paused = true;
 #if UNITY_EDITOR
             if (Flag("-kothExit")) UnityEditor.EditorApplication.Exit(0);
+#else
+            Application.Quit();
 #endif
         }
 
