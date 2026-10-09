@@ -46,7 +46,8 @@ namespace PoKingHill
         public GameObject[] mapVisuals = Array.Empty<GameObject>();
         public int selectedMap;
         public Vector2 spawnRadiusA = new(0.5f, 1.2f), spawnRadiusB = new(0.5f, 1.2f);
-        public float roundSeconds = 25f, outRadius = 1.7f, pauseBetweenRounds = 3.5f;
+        public float roundSeconds = 25f, outRadius = 1.7f;
+        [Tooltip("How long the winner panel stays up before the menu returns")] public float pauseBetweenRounds = 5f;
         [Tooltip("Rounds per launch before returning to the menu. 0 = keep fighting.")] public int roundsPerMatch = 1;
         [Tooltip("Skip the menu and start fighting immediately.")] public bool autoLaunch;
         [Tooltip("Statistical parity gate: play this many rounds fast, write duel_stats_unity.json, then stop. 0 = off.")]
@@ -55,6 +56,8 @@ namespace PoKingHill
         /// <summary>The robot the camera should follow after a decided round (the loser), else null.</summary>
         public PolicyRunner FollowTarget { get; private set; }
         public bool InMenu { get; private set; } = true;
+        /// <summary>The round is decided and the winner panel is up.</summary>
+        public bool RoundOver => _pauseUntil > 0;
         /// <summary>Fighters of the current round that are still in (what the camera frames).</summary>
         public IReadOnlyList<PolicyRunner> Alive => _alive;
         /// <summary>Fighters knocked out of the current round, oldest first (the camera cuts to them at the water).</summary>
@@ -64,6 +67,7 @@ namespace PoKingHill
         bool[] _out = Array.Empty<bool>(); int _playing;
 
         readonly List<double> _times = new();
+        string _winner = "", _how = "";      // what the winner panel says
         int _draws, _roundsThisMatch; double _roundStart; float _pauseUntil; string _last = ""; bool _pending;
         float _fps; readonly System.Diagnostics.Stopwatch _sw = new(); double _stepMs;
         string _shotDir; readonly HashSet<string> _shots = new(); float _menuShotAt = -1;
@@ -253,6 +257,7 @@ namespace PoKingHill
             if (_pauseUntil > 0)
             {
                 if (FollowTarget != null && Time.unscaledTime >= _pauseUntil - pauseBetweenRounds + 1.0f) Shot("ejection");
+                if (Time.unscaledTime >= _pauseUntil - pauseBetweenRounds + 1.0f) Shot("winner");
                 if (Time.unscaledTime < _pauseUntil) return;
                 _pauseUntil = 0;
                 if (ShotsDone()) return;
@@ -277,8 +282,28 @@ namespace PoKingHill
             {
                 _wins[last]++; if (_seat[last] >= 0 && _seat[last] < _score.Length) _score[_seat[last]]++;
                 _times.Add(t); _last = $"{(char)('A' + last)} ({NameOf(_seat[last], "Robot")}) wins in {t:0.0} s"; FollowTarget = justOut;
+                _winner = NameOf(_seat[last], "Robot"); _how = $"last one on the summit after {t:0.0} s";
             }
-            else { _draws++; _last = alive > 1 ? "Tie: the sea took the summit" : "Tie: nobody left on the summit"; }
+            else if (alive > 1 && sea != null)
+            {
+                // The sea has reached the top with several still standing: the hill belongs to whoever is nearest its
+                // centre. (Without a sea, in the statistics gate, a full-time round stays a tie as in training.)
+                int king = -1; double best = double.MaxValue;
+                for (int i = 0; i < _playing; i++)
+                {
+                    if (_out[i]) continue;
+                    double* q = d->qpos + fighters[i].Map.RootQposAdr; double r2 = q[0] * q[0] + q[1] * q[1];
+                    if (r2 < best) { best = r2; king = i; }
+                }
+                _wins[king]++; if (_seat[king] >= 0 && _seat[king] < _score.Length) _score[_seat[king]]++;
+                _winner = NameOf(_seat[king], "Robot"); _how = $"nearest the centre when the sea arrived ({Math.Sqrt(best):0.0} m, {alive} still standing)";
+                _last = $"{(char)('A' + king)} ({_winner}) holds the summit as the sea arrives";
+            }
+            else
+            {
+                _draws++; _last = alive > 1 ? "Tie: full time" : "Tie: nobody left on the summit";
+                _winner = "No winner"; _how = alive > 1 ? "full time" : "nobody was left on the summit";
+            }
             _roundsThisMatch++;
             _pauseUntil = Time.unscaledTime + pauseBetweenRounds;
             if (statsRounds > 0 && _wins[0] + _wins[1] + _draws >= statsRounds) WriteStats();
@@ -388,6 +413,16 @@ namespace PoKingHill
                 Label(new Rect(0, pad + lh * 2.9f, w, lh), title, mid);
                 if (statsRounds == 0 && GUI.Button(new Rect(w - pad - 80 * k, pad, 80 * k, lh), "Menu", btn)) EnterMenu();              // top right: menu
                 if (statsRounds == 0 && GUI.Button(new Rect(pad, h - pad - lh * 3.3f, 90 * k, lh), "Reset", btn)) NewRound();           // bottom left: reset
+                if (statsRounds == 0 && _pauseUntil > 0)                                                                          // centre: winner panel
+                {
+                    float pw = Mathf.Min(w - 2 * pad, 420 * k), ph = lh * 6.2f, px = (w - pw) / 2, py = h * 0.36f;
+                    GUI.Box(new Rect(px, py, pw, ph), GUIContent.none); GUI.Box(new Rect(px, py, pw, ph), GUIContent.none);     // twice: the stock box is very transparent
+                    var headline = new GUIStyle(big) { alignment = TextAnchor.UpperCenter }; var line = new GUIStyle(mid) { wordWrap = true };
+                    Label(new Rect(px, py + pad, pw, lh * 1.3f), _winner == "No winner" ? _winner : "Winner: " + _winner, headline);
+                    Label(new Rect(px + pad, py + pad + lh * 1.4f, pw - 2 * pad, lh * 2.2f), _how, line);
+                    string wait = roundsPerMatch > 0 && _roundsThisMatch >= roundsPerMatch ? "Main menu" : "Next round";
+                    if (GUI.Button(new Rect(px + pw * 0.2f, py + ph - lh * 1.5f - pad, pw * 0.6f, lh * 1.5f), $"{wait} ({Mathf.Max(0f, _pauseUntil - Time.unscaledTime):0})", _launch)) _pauseUntil = Time.unscaledTime;
+                }
                 return;
             }
             // ---- pre-match menu

@@ -39,7 +39,8 @@ namespace PoKingHill
 
             // Cut-away: the newest fallen fighter to reach the water, shown once.
             if (fallen.Count == 0) { _shown.Clear(); if (_cut != null) { _cut = null; _snap = true; } }
-            if (director.sea != null)
+            if (director.RoundOver && _cut != null) { _cut = null; _snap = true; }      // the winner panel is up: stay on the summit
+            if (director.sea != null && !director.RoundOver)
                 foreach (var r in fallen)
                     if (!_shown.Contains(r) && Pelvis(r).y < director.sea.Level + cutAbove)
                     {
