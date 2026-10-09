@@ -56,7 +56,9 @@ namespace PoKingHill
         public bool InMenu { get; private set; } = true;
         /// <summary>Fighters of the current round that are still in (what the camera frames).</summary>
         public IReadOnlyList<PolicyRunner> Alive => _alive;
-        readonly List<PolicyRunner> _alive = new();
+        /// <summary>Fighters knocked out of the current round, oldest first (the camera cuts to them at the water).</summary>
+        public IReadOnlyList<PolicyRunner> Fallen => _fallen;
+        readonly List<PolicyRunner> _alive = new(), _fallen = new();
         int[] _seat = Array.Empty<int>(), _wins = Array.Empty<int>(), _score = Array.Empty<int>();   // roster index per body (-1 = parked); wins per seat; wins per agent
         bool[] _out = Array.Empty<bool>(); int _playing;
 
@@ -212,7 +214,7 @@ namespace PoKingHill
 
         void ClearOut()
         {
-            _alive.Clear();
+            _alive.Clear(); _fallen.Clear();
             for (int i = 0; i < _playing; i++) { _out[i] = false; fighters[i].paused = false; _alive.Add(fighters[i]); }
         }
 
@@ -253,7 +255,7 @@ namespace PoKingHill
             {
                 if (!_out[i] && Out(d, fighters[i], outRadius))
                 {
-                    _out[i] = true; justOut = fighters[i]; _alive.Remove(fighters[i]);
+                    _out[i] = true; justOut = fighters[i]; _alive.Remove(fighters[i]); _fallen.Add(fighters[i]);
                     if (_playing > 2) fighters[i].paused = true;        // in a free-for-all an eliminated fighter goes limp
                 }
                 if (!_out[i]) { alive++; last = i; }
@@ -281,7 +283,7 @@ namespace PoKingHill
         }
 
         // ------------------------------------------------------------------ verification helpers
-        void Shot(string name)
+        public void Shot(string name)
         {
             if (_shotDir == null || !_shots.Add(name)) return;
             System.IO.Directory.CreateDirectory(_shotDir);
@@ -293,6 +295,7 @@ namespace PoKingHill
         {
             if (_shotDir == null || !Flag("-kothExit")) return false;
             if (!_shots.Contains("menu") || !_shots.Contains("combat") || !_shots.Contains("ejection")) return false;
+            if (Flag("-kothWaitSplash") && !_shots.Contains("splash")) return false;      // keep playing until the camera has cut to a faller at the water
             if (synth != null)
                 System.IO.File.WriteAllText(System.IO.Path.Combine(_shotDir, "audio.json"),
                     $"{{\"thuds\": {synth.Thuds}, \"footfalls\": {synth.Clicks}, \"splashes\": {synth.Splashes}, \"peak_sample\": {synth.Peak.ToString("0.###", System.Globalization.CultureInfo.InvariantCulture)}, \"audio_blocks\": {synth.Blocks}}}\n");

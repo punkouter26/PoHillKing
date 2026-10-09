@@ -209,7 +209,7 @@ namespace PoKingHill.EditorTools
             RenderSettings.fogColor = new Color(0.72f, 0.80f, 0.90f, 1f);
             var cam = Camera.main;                      // 9:16 portrait framing of the summit
             cam.transform.position = new Vector3(0f, 2.6f, -6.2f); cam.transform.LookAt(new Vector3(0f, 0.5f, 0f)); cam.fieldOfView = 38f;
-            var mc = cam.gameObject.AddComponent<MatchCamera>(); mc.robotA = a; mc.robotB = b; mc.director = director;
+            var mc = cam.gameObject.AddComponent<MatchCamera>(); mc.director = director;
             if (cam.GetComponent<AudioListener>() == null) cam.gameObject.AddComponent<AudioListener>();
             var synth = rig.AddComponent<ImpactSynth>(); synth.robots = runners; synth.sea = sea;   // adds the AudioSource it requires
             director.synth = synth;
