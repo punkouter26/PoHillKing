@@ -15,6 +15,7 @@ namespace PoKingHill
     {
         public TextAsset jointMapJson;
         [Tooltip("a_ or b_")] public string robotPrefix = "a_";
+        [Tooltip("Which kind of body this is (g1, kim): a brain only fits the body it was trained on")] public string body = "g1";
         [Tooltip("ONNX policy. Leave empty for passive hold.")] public ModelAsset policy;
         public Vector3 command;   // vx, vy, yaw rate
         [Tooltip("None: use the command field. Center/Opponent: command is computed every tick by GoalCommand (same law as training).")]

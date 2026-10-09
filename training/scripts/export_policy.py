@@ -5,7 +5,7 @@ import argparse, os, sys
 import numpy as np, torch, onnx, onnxruntime as ort
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-OUT = os.path.normpath(os.path.join(ROOT, "..", "Assets", "PoKingHill", "Models"))
+OUT = os.path.normpath(os.path.join(ROOT, "..", "Assets", "PoKingHill", "Models", *([] if os.environ.get("KOTH_ROBOT", "g1") == "g1" else [os.environ["KOTH_ROBOT"]])))
 
 
 class Actor(torch.nn.Module):

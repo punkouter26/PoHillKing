@@ -5,6 +5,7 @@ Outputs (all under training/assets/):
   g1/scene_flat_1p.xml         one G1 on a plane + projectile pool          (R0/R1 training)
   g1/scene_koth_2p.xml         two G1 on the hfield arena + projectile pool (R2+ training)
   g1/scene_koth_4p.xml         four G1 on the arena (Unity free-for-all only; `python -m koth.build_mjcf 4p`)
+  g1/scene_koth_5p.xml         four G1 (a_..d_) and Kim (e_) on the arena: the game scene (`python -m koth.build_mjcf 5p`)
   g1/scene_*_train.xml         MuJoCo-resolved canonical model + keyframe (what training loads)
   g1/scene_*_unity.xml         same text minus keyframe/sensor (what the Unity importer loads)
   g1/model_dump.json           parity reference (nq/nv/nu, masses, ranges, gains, options, hfield meta)
@@ -12,7 +13,7 @@ Outputs (all under training/assets/):
 
 Design constraints (from the org.mujoco 3.15 plugin audit): no <contact><pair>, no keyframes, no sensors,
 timestep/gravity come from Unity settings, no ls_iterations/eulerdamp knobs -> implicitfast + MuJoCo defaults.
-Collision bitmasks:  1=robot A  2=robot B  4=arena  8=box  16=foot/shin extra  32=robot C  64=robot D
+Collision bitmasks:  1=robot A  2=robot B  4=arena  8=box  16=foot/shin extra  32=robot C  64=robot D  128=Kim (e_)
 """
 from __future__ import annotations
 import copy, json, os, struct, xml.etree.ElementTree as ET
@@ -248,13 +249,15 @@ def build_scene(src_root: ET.Element, two_player: bool, arena: bool | None = Non
     return root
 
 
-def default_qpos(m: mujoco.MjModel, prefixes: list[str]) -> np.ndarray:
-    """Default pose with the pelvis lowered so the lowest foot geom just touches z=0."""
+def default_qpos(m: mujoco.MjModel, prefixes: list[str], poses: dict | None = None) -> np.ndarray:
+    """Default pose with the pelvis lowered so the lowest foot geom just touches z=0. poses: prefix -> default pose
+    for a robot whose pose is not this module's (Kim in the mixed scene)."""
     d = mujoco.MjData(m)
     for p in prefixes:
+        pose = (poses or {}).get(p, DEFAULT_POSE)
         for j in JOINTS:
             jid = mujoco.mj_name2id(m, mujoco.mjtObj.mjOBJ_JOINT, p + j)
-            d.qpos[m.jnt_qposadr[jid]] = DEFAULT_POSE.get(j, 0.0)
+            d.qpos[m.jnt_qposadr[jid]] = pose.get(j, 0.0)
     mujoco.mj_forward(m, d)
     for p in prefixes:
         feet = [mujoco.mj_name2id(m, mujoco.mjtObj.mjOBJ_GEOM, p + n) for n in
@@ -324,14 +327,34 @@ def build(two_player: bool, arena: bool | None = None, players: int | None = Non
     n = players or (2 if two_player else 1)
     tag = ("koth_" if arena else "flat_") + f"{n}p"
     scene = build_scene(src_root, two_player, arena, players)
+    return finish(scene, tag, PREFIXES[:n])
+
+
+def build_mixed():
+    """The game scene: four G1 and Kim on the arena. Kim's body comes from assets/kim/kim_mjx.xml with her own
+    default classes and gains; nothing here is used for training."""
+    global PD_GAINS
+    from koth import build_kim
+    scene = build_scene(ET.parse(SRC).getroot(), True, True, players=4)
+    kim = ET.parse(os.path.join(build_kim.ASSETS, "kim_mjx.xml")).getroot()
+    g1_gains, PD_GAINS = PD_GAINS, build_kim.PD_GAINS
+    for cls in apply_pd_gains(copy.deepcopy(kim.find("default"))): scene.find("default").append(cls)
+    PD_GAINS = g1_gains
+    # A fifth place on the ring. Her geoms accept every G1 bit, which is enough for the pair to collide.
+    pelvis, acts, excl = make_robot(kim, "e_", 128, (0.0, 0.0, build_kim.SPAWN_Z), (1, 0, 0, 0), others=sum(ROBOT_BITS))
+    wb = scene.find("worldbody"); wb.insert(list(wb).index(wb.find("body[@name='box0']")), pelvis)
+    scene.find("actuator").extend(acts); scene.find("contact").extend(excl)
+    return finish(scene, "koth_5p", PREFIXES + ["e_"], {"e_": build_kim.DEFAULT_POSE})
+
+
+def finish(scene: ET.Element, tag: str, prefixes: list[str], poses: dict | None = None):
     ET.indent(scene)
     authoring = os.path.join(ASSETS, f"scene_{tag}.xml")
     ET.ElementTree(scene).write(authoring, encoding="unicode")
     resolved = os.path.join(ASSETS, f"scene_{tag}_train.xml")
     mujoco.mj_saveLastXML(resolved, mujoco.MjModel.from_xml_path(authoring))
     m = mujoco.MjModel.from_xml_path(resolved)
-    prefixes = PREFIXES[:n]
-    q0 = default_qpos(m, prefixes)
+    q0 = default_qpos(m, prefixes, poses)
     ctrl = hold_ctrl(m, q0)
     tree = ET.parse(resolved); root = tree.getroot()
     # MuJoCo's writer emits partial arrays in nested defaults (knee: biasprm="0 -300", kv inherited). The Unity
@@ -362,11 +385,13 @@ def build(two_player: bool, arena: bool | None = None, players: int | None = Non
 
 if __name__ == "__main__":
     import sys
-    if sys.argv[1:] == ["4p"]:      # the free-for-all scene only; leaves every training asset untouched
+    if sys.argv[1:] in (["4p"], ["5p"]):      # a Unity-only scene; leaves every training asset untouched
         import shutil
-        build(two_player=True, players=4)
+        tag = "koth_" + sys.argv[1]
+        if tag == "koth_5p": build_mixed()
+        else: build(two_player=True, players=4)
         dst = os.path.normpath(os.path.join(HERE, "..", "..", "Assets", "PoKingHill", "Models", *([] if ROBOT == "g1" else [ROBOT])))
-        shutil.copyfile(os.path.join(ASSETS, "model_dump_koth_4p.json"), os.path.join(dst, "model_dump_koth_4p.json"))
+        shutil.copyfile(os.path.join(ASSETS, f"model_dump_{tag}.json"), os.path.join(dst, f"model_dump_{tag}.json"))
         sys.exit(0)
     if ROBOT == "kim":
         from koth.build_kim import build as build_kim_body

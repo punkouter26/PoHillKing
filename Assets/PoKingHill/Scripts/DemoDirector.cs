@@ -10,6 +10,7 @@ namespace PoKingHill
     public class Fighter
     {
         public string name = "Fighter";
+        [Tooltip("The kind of body this brain drives (g1, kim)")] public string body = "g1";
         public ModelAsset policy;
         [Tooltip("103 = locomotion inputs, 112 = with opponent/ring inputs")] public int obsDim = 112;
         public GoalMode goal = GoalMode.Opponent;
@@ -171,15 +172,25 @@ namespace PoKingHill
             {
                 // Menu launch: every ticked agent takes a seat, in random order (one ticked = it fights itself; more
                 // ticked than bodies = that many are drawn). The statistics gate keeps the pair it was started with.
-                var seats = new List<int>();
-                if (statsRounds > 0) { seats.Add(Mathf.Clamp(selectedA, 0, roster.Length - 1)); seats.Add(Mathf.Clamp(selectedB, 0, roster.Length - 1)); }
+                var agents = new List<int>();
+                if (statsRounds > 0) { agents.Add(Mathf.Clamp(selectedA, 0, roster.Length - 1)); agents.Add(Mathf.Clamp(selectedB, 0, roster.Length - 1)); }
                 else
                 {
                     var pool = InGame(); if (pool.Count == 0) return;
                     if (pool.Count == 1) pool.Add(pool[0]);
-                    while (pool.Count > 0 && seats.Count < fighters.Length) { int k = UnityEngine.Random.Range(0, pool.Count); seats.Add(pool[k]); pool.RemoveAt(k); }
-                    selectedA = seats[0]; selectedB = seats[1];
+                    while (pool.Count > 0) { int k = UnityEngine.Random.Range(0, pool.Count); agents.Add(pool[k]); pool.RemoveAt(k); }
                 }
+                // Each agent takes a free body of its own kind; the bodies in use move to the front of fighters[].
+                var seats = new List<int>();
+                foreach (int agent in agents)
+                {
+                    int k = -1;
+                    for (int i = seats.Count; i < fighters.Length && k < 0; i++) if (fighters[i].body == roster[agent].body) k = i;
+                    if (k < 0) continue;
+                    (fighters[seats.Count], fighters[k]) = (fighters[k], fighters[seats.Count]); seats.Add(agent);
+                }
+                if (seats.Count < 2) { _last = "That selection has only one body to fight with: tick another agent"; return; }
+                selectedA = seats[0]; selectedB = seats[1];
                 Seat(seats.Count);
                 for (int i = 0; i < fighters.Length; i++)
                 {

@@ -72,10 +72,14 @@ namespace PoKingHill.EditorTools
             if (jointMap == null || dump == null) throw new Exception("joint_map.json / model_dump json missing under " + models + " (run koth.build_mjcf)");
 
             var rig = new GameObject("KothRig");
-            foreach (string prefix in tag.EndsWith("4p") ? new[] { "a_", "b_", "c_", "d_" } : tag.EndsWith("2p") ? new[] { "a_", "b_" } : new[] { "a_" })
+            // koth_5p is the game scene: four G1 and Kim (e_), who has her own joint map and wears her scanned mesh.
+            var kimMap = AssetDatabase.LoadAssetAtPath<TextAsset>($"{ModelsOf("kim")}/joint_map.json");
+            foreach (string prefix in tag.EndsWith("5p") ? new[] { "a_", "b_", "c_", "d_", "e_" } : tag.EndsWith("4p") ? new[] { "a_", "b_", "c_", "d_" } : tag.EndsWith("2p") ? new[] { "a_", "b_" } : new[] { "a_" })
             {
+                bool kim = robot == "kim" || prefix == "e_";
                 var go = new GameObject("Policy_" + prefix); go.transform.SetParent(rig.transform);
-                var pr = go.AddComponent<PolicyRunner>(); pr.jointMapJson = jointMap; pr.robotPrefix = prefix;
+                var pr = go.AddComponent<PolicyRunner>(); pr.jointMapJson = kim && robot != "kim" ? kimMap : jointMap; pr.robotPrefix = prefix; pr.body = kim ? "kim" : "g1";
+                if (prefix == "e_") AddKimSkin(prefix, rig);
             }
             rig.AddComponent<ProjectilePool>().jointMapJson = jointMap;
             rig.AddComponent<ModelDumpCheck>().modelDumpJson = dump;
@@ -170,10 +174,10 @@ namespace PoKingHill.EditorTools
         }
 
         [MenuItem("PoKingHill/Build duel demo scene")]
-        public static void BuildDuelDemo() => BuildDuelDemo("koth_4p");
+        public static void BuildDuelDemo() => BuildDuelDemo("koth_5p");
 
-        /// <summary>Builds and saves Demo_duel.unity from an imported arena scene: the game uses the four-fighter one
-        /// (koth_4p, default), the two-fighter parity gates the scene the brains were trained in (koth_2p). The menu
+        /// <summary>Builds and saves Demo_duel.unity from an imported arena scene: the game uses the one with four G1
+        /// and Kim (koth_5p, default), the two-fighter parity gates the scene the brains were trained in (koth_2p). The menu
         /// seats the ticked agents on the bodies, everyone starts on the summit and the sea rises as the round clock.
         /// No PhysX components are created (the water disc loses its collider).</summary>
         public static void BuildDuelDemo(string tag)
@@ -184,6 +188,10 @@ namespace PoKingHill.EditorTools
             if (attacker == null) throw new Exception("attacker_policy.onnx missing in " + ModelDir);
             var runners = UnityEngine.Object.FindObjectsByType<PolicyRunner>(FindObjectsInactive.Include).OrderBy(r => r.robotPrefix).ToArray();
             var a = runners[0]; var b = runners[1];
+            // Kim fights with her walking brain and the goal law (walk at the nearest opponent); she is locked in the
+            // menu until that brain exists (scripts/export_policy.py --name kim/walker).
+            var kimBrain = AssetDatabase.LoadAssetAtPath<Unity.InferenceEngine.ModelAsset>($"{ModelsOf("kim")}/walker_policy.onnx");
+            bool kimBody = runners.Any(r => r.body == "kim");
             foreach (var r in runners) r.opponent = r == a ? b : a;      // brains and opponents are assigned at launch by DemoDirector
             foreach (var probe in UnityEngine.Object.FindObjectsByType<ParityProbe>(FindObjectsInactive.Include)) UnityEngine.Object.DestroyImmediate(probe);
             var rig = a.transform.parent.gameObject;
@@ -201,7 +209,9 @@ namespace PoKingHill.EditorTools
             director.roster = new[] { F("G1 All-rounder (champion)", "attacker", 112, GoalMode.Opponent), F("G1 Duelist (generation 7)", "duelist", 112, GoalMode.Opponent),
                                       F("G1 Rammer (generation 1)", "rammer", 112, GoalMode.Opponent), F("G1 Walker (stands its ground)", "r1", 103, GoalMode.None),
                                       // Kim has a body (Testbed_kim_* scenes) but no trained brain yet, and this scene holds two G1 bodies.
-                                      new Fighter { name = "Kim", available = false, inGame = false, note = "in training, cannot stand yet" } };
+                                      new Fighter { name = "Kim", body = "kim", policy = kimBrain, obsDim = 103, goal = GoalMode.Opponent, stopDist = 0f, vmax = 0.8f,
+                                                    available = kimBrain != null && kimBody, inGame = kimBrain != null && kimBody,
+                                                    note = !kimBody ? "no Kim body in this scene" : kimBrain == null ? "no brain yet" : "walks at you, never trained to fight" } };
             if (director.roster.Any(f => f.available && f.policy == null)) throw new Exception("a roster policy is missing in " + ModelDir);
             director.maps = new[] { "Mountain top", "Summit (baseline)" };
             director.mapVisuals = new[] { BuildMountainVisual(), GameObject.Find("ArenaVisual (render only)") };
