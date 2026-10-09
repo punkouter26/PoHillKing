@@ -1,4 +1,4 @@
-"""Prepare the fighter "Kim" from Kim.glb. Run inside Blender:
+"""Prepare the fighter "Kim" from art/kim/Kim.glb. Run inside Blender:
 
     exec(open(r"<repo>/tools/make_kim.py").read())
 
@@ -16,7 +16,7 @@ import numpy as np
 from mathutils import Matrix, Vector
 
 REPO = os.path.dirname(os.path.dirname(os.path.abspath(globals().get("__file__", "."))))
-GLB = os.path.join(REPO, "Kim.glb")
+GLB = os.path.join(REPO, "art", "kim", "Kim.glb")       # the editable original; re-run this script after changing it
 OUT_UNITY = os.path.join(REPO, "Assets", "PoKingHill", "Fighters", "Kim")
 OUT_RIG = os.path.join(REPO, "training", "assets", "kim", "kim_rig.json")
 HEIGHT_M = 1.60
