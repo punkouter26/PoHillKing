@@ -2,7 +2,7 @@
   uv run python scripts/make_report.py
 The chart series are re-read from training/runs each time. The ability grid numbers are entered by hand from
 eval.py / Unity gate outputs; update GRID when new evaluations are run."""
-import glob, json, os, time
+import base64, glob, json, os, time
 from tensorboard.backend.event_processing.event_accumulator import EventAccumulator
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -109,6 +109,9 @@ GRID = [
 
 html = open(os.path.join(ROOT, "scripts", "report_template.html"), encoding="utf-8").read()
 html = html.replace("__DATA__", json.dumps(D)).replace("__GRID__", json.dumps(GRID)).replace("__STAMP__", time.strftime("%d %B %Y, %H:%M"))
+for i, name in enumerate(("tb_1_stay_up", "tb_2_follow_orders", "tb_3_wins"), 1):   # annotated TensorBoard screenshots, embedded so the report is one file
+    png = open(os.path.join(ROOT, "..", "docs", "screenshots", name + ".png"), "rb").read()
+    html = html.replace(f"__SHOT{i}__", "data:image/png;base64," + base64.b64encode(png).decode())
 out = os.path.normpath(os.path.join(ROOT, "..", "training_report.html"))
 open(out, "w", encoding="utf-8").write(html)
 print("wrote", out, f"({len(html) // 1024} KB)", {k: len(v) for k, v in D.items()})

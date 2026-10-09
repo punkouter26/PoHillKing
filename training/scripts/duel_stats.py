@@ -7,12 +7,13 @@ Writes training/assets/g1/duel_stats_python.json."""
 import argparse, json, os, sys
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 import numpy as np, torch, mujoco, onnxruntime as ort
-from koth.obs import build_obs, build_combat, goal_command, GAIT_FREQ_HZ
+from koth.obs import build_obs, build_combat, goal_command, GAIT_FREQ_HZ, SHOVE_POSE, SHOVE_FAR, SHOVE_NEAR, SHOVE_SMOOTH
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__))); ASSETS = os.path.join(ROOT, "assets", "g1")
 MODELS = os.path.normpath(os.path.join(ROOT, "..", "Assets", "PoKingHill", "Models"))
 ap = argparse.ArgumentParser(); ap.add_argument("--policy", default="attacker"); ap.add_argument("--rounds", type=int, default=200)
-ap.add_argument("--seconds", type=float, default=25.0); ap.add_argument("--seed", type=int, default=0); a = ap.parse_args()
+ap.add_argument("--seconds", type=float, default=25.0); ap.add_argument("--seed", type=int, default=0)
+ap.add_argument("--shove", action="store_true", help="both robots use the shove style (arm pose + action smoothing), as in koth/env.py"); a = ap.parse_args()
 spec = json.load(open(os.path.join(ASSETS, "joint_map.json")))
 sess = ort.InferenceSession(os.path.join(MODELS, f"{a.policy}_policy.onnx"), providers=["CPUExecutionProvider"])
 m = mujoco.MjModel.from_xml_path(os.path.join(ASSETS, "scene_koth_2p_train.xml")); d = mujoco.MjData(m)
@@ -24,7 +25,9 @@ for p in ("a_", "b_"):
     R.append(dict(qadr=np.array([m.jnt_qposadr[j] for j in jid]), dadr=np.array([m.jnt_dofadr[j] for j in jid]), aid=aid,
                   rq=m.jnt_qposadr[root], rd=m.jnt_dofadr[root], lo=m.actuator_ctrlrange[aid, 0], hi=m.actuator_ctrlrange[aid, 1]))
 pool = [(m.jnt_qposadr[mujoco.mj_name2id(m, J, b + "_free")], m.jnt_dofadr[mujoco.mj_name2id(m, J, b + "_free")]) for b in spec["pool_bodies"]]
-default = np.array(spec["default_pose"]); rng = np.random.default_rng(a.seed)
+default = np.array(spec["default_pose"])
+shove_offset = np.array([next((v - default[i] for k, v in SHOVE_POSE.items() if k in j), 0.0) for i, j in enumerate(spec["joints"])])
+rng = np.random.default_rng(a.seed)
 T = lambda x: torch.tensor(np.asarray(x, dtype=np.float64))[None]
 wins = [0, 0]; ties = 0; times = []
 for rnd in range(a.rounds):
@@ -33,7 +36,7 @@ for rnd in range(a.rounds):
     for i, s in enumerate(R):
         r = rng.uniform(0.5, 1.2); b = bearing + i * np.pi; yaw = rng.uniform(-np.pi, np.pi)
         d.qpos[s["rq"]:s["rq"] + 2] = [r * np.cos(b), r * np.sin(b)]; d.qpos[s["rq"] + 3:s["rq"] + 7] = [np.cos(yaw / 2), 0, 0, np.sin(yaw / 2)]
-        s["last"] = np.zeros(29, dtype=np.float32); s["phase"] = np.float32(0)
+        s["last"] = np.zeros(29, dtype=np.float32); s["f"] = np.zeros(29); s["phase"] = np.float32(0)
     park = [d.qpos[q:q + 7].copy() for q, _ in pool]
     result = None
     for tick in range(int(a.seconds / spec["ctrl_dt"])):
@@ -45,7 +48,12 @@ for rnd in range(a.rounds):
                              build_combat(T(d.qpos[rq:rq + 3]), T(quat), T(d.qvel[rd:rd + 3]), T(d.qpos[o["rq"]:o["rq"] + 3]),
                                           T(d.qpos[o["rq"] + 3:o["rq"] + 7]), T(d.qvel[o["rd"]:o["rd"] + 3]))], 1)[0].numpy().astype(np.float32)
             act = np.clip(sess.run(None, {"obs": obs[None]})[0][0], -1, 1).astype(np.float32)
-            s["ctrl"] = np.clip(default + spec["action_scale"] * act.astype(np.float64), s["lo"], s["hi"]); s["last"] = act
+            f = act.astype(np.float64); off = 0.0
+            if a.shove:
+                f = s["f"] = SHOVE_SMOOTH * s["f"] + (1 - SHOVE_SMOOTH) * f
+                dist = np.hypot(d.qpos[o["rq"]] - d.qpos[rq], d.qpos[o["rq"] + 1] - d.qpos[rq + 1])
+                off = np.clip((SHOVE_FAR - dist) / (SHOVE_FAR - SHOVE_NEAR), 0, 1) * shove_offset
+            s["ctrl"] = np.clip(default + off + spec["action_scale"] * f, s["lo"], s["hi"]); s["last"] = act
             s["phase"] = np.float32(s["phase"] + np.float32(2 * np.pi * GAIT_FREQ_HZ * spec["ctrl_dt"]))
             if s["phase"] > 2 * np.pi: s["phase"] = np.float32(s["phase"] - np.float32(2 * np.pi))
         for _ in range(spec["decimation"]):

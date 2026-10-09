@@ -94,10 +94,13 @@ public class MjScene : MonoBehaviour {
   }
 
   protected unsafe void FixedUpdate() {
-    preUpdateEvent?.Invoke(this, new MjStepArgs(Model, Data));
+    // PoKingHill: one args object reused across steps (was two allocations per step at 500 Hz).
+    if (_stepArgs == null || _stepArgs.model != Model || _stepArgs.data != Data) _stepArgs = new MjStepArgs(Model, Data);
+    preUpdateEvent?.Invoke(this, _stepArgs);
     StepScene();
-    postUpdateEvent?.Invoke(this, new MjStepArgs(Model, Data));
+    postUpdateEvent?.Invoke(this, _stepArgs);
   }
+  private MjStepArgs _stepArgs;
 
   public bool SceneRecreationAtLateUpdateRequested = false;
 

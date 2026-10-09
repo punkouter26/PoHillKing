@@ -13,7 +13,7 @@ from __future__ import annotations
 import json, math, os
 import numpy as np, torch, mujoco, warp as wp, mujoco_warp as mjw
 from tensordict import TensorDict
-from koth.obs import build_obs, build_combat, quat_rotate_inverse, goal_command, OBS_DIM, COMBAT_DIM, GAIT_FREQ_HZ
+from koth.obs import build_obs, build_combat, quat_rotate_inverse, goal_command, OBS_DIM, COMBAT_DIM, GAIT_FREQ_HZ, SHOVE_POSE, SHOVE_FAR, SHOVE_NEAR, SHOVE_SMOOTH
 
 ASSETS = os.path.normpath(os.path.join(os.path.dirname(__file__), "..", "assets", "g1"))
 PLATEAU_R, SLOPE_K = 1.5, 1.0 / 9.0          # must match build_mjcf.py
@@ -43,8 +43,11 @@ def default_cfg(rung: str = "r0") -> dict:
         reward=dict(tracking_lin_vel=1.0, tracking_ang_vel=0.75, alive=0.5, upright=0.5, orientation=-2.0, ang_vel_xy=-0.05,
                     lin_vel_z=-0.5, feet_air_time=2.0, feet_slip=-0.1, feet_phase=1.0, pose=-0.1, joint_deviation_hip=-0.25,
                     joint_deviation_knee=-0.1, dof_pos_limits=-1.0, action_rate=-0.01, joint_vel=-2e-4, stand_still=-0.1,
-                    tracking_heading=1.0, plateau=0.0, off_rim=0.0, ring_advantage=0.0, opp_radius=0.0, self_edge=0.0, push_out=0.0, win=0.0, draw=0.0, termination=-1.0),
+                    tracking_heading=1.0, plateau=0.0, off_rim=0.0, ring_advantage=0.0, opp_radius=0.0, self_edge=0.0, push_out=0.0, hand_push=0.0, win=0.0, draw=0.0, termination=-1.0),
         tracking_sigma=0.25, swing_height=0.12, terminate_on_leg_contact=True, max_radius=8.0, combat=False,
+        contact_free=False,        # True: within reach of the opponent, arms/waist are exempt from the pose penalty
+        gait_free=False,           # True: within reach of the opponent, the gait-clock rewards are off (feet may plant)
+        shove=False,               # True: the learner fights in the shove style (see SHOVE_*); frozen opponents opt in with ":shove"
         frozen_opponent=None,      # checkpoint path(s): robot b_ is driven by these policies and only robot a_ learns
         frozen_stochastic=False,   # True while training: frozen opponents sample actions like the learner does
     )
@@ -90,12 +93,37 @@ def default_cfg(rung: str = "r0") -> dict:
         cfg["reward"].update(ring_advantage=0.0, opp_radius=3.0, self_edge=-3.0, push_out=3.0, win=30.0, termination=-10.0, draw=-10.0)
     elif rung == "r4league":              # learner a_ attacks; b_ is a frozen earlier attacker drawn from a pool, also attacking
         cfg.update(default_cfg("r4sp"))
+    elif rung == "r4shove":               # r4league, but free to shove: arms up and feet planted while in contact
+        cfg.update(default_cfg("r4league")); cfg["contact_free"] = True
+        # careful1 held its arms at its sides (pose penalty on all 29 joints) and marched on the spot against the
+        # opponent (gait clock), changing its targets by about 0.6 per joint per step (action_rate cost 0.002 a step).
+        # shover1 (also gait_free, action_rate -0.05, hand_push = "a hand within 0.3 m of its torso"): no arm use, no
+        # smoother, lost 13 % to the standing walker (careful1: 3 %). That hand test was already true half the time
+        # with the arms hanging. hand_push is now forward reach toward the opponent; gait and action_rate are back.
+        # shover2 (hand_push 0.5 on forward reach): hands stayed 5 cm behind the pelvis, 12 % losses to the walker.
+        # Rewards could not get the arms forward or the jitter down (29 % of actions sat on the clamp, wrists, shoulder
+        # yaw, elbows and ankles worst), so both are now built into the action path: see SHOVE_* and step().
+        cfg.update(contact_free=False, shove=True)
+        cfg["reward"].update(self_edge=-5.0, termination=-25.0)
     elif rung == "r4probe":               # a_ walks into b_ (no stop distance); b_ holds the plateau, starts at the rim
         cfg.update(scene="scene_koth_2p_train.xml", robots=["a_", "b_"], arena=True, goal=["opponent", "center"])
         cfg["spawn"].update(r=[[0.0, 0.5], [1.25, 1.35]])
         cfg["goal_cmd"].update(stop_dist=[0.0, 0.3], vmax=[1.0, 0.8])
         cfg["projectile"].update(enabled=False)
     return cfg
+
+
+# Shove style, mirrored in Unity's PolicyRunner. Arms: as the opponent comes from SHOVE_FAR to SHOVE_NEAR metres the
+# arm rest pose moves from the standing pose to hands-forward at chest height (the policy's action is still added on
+# top, and the pose penalty follows the moved rest pose). Smoothing: the action is low-passed before it becomes a
+# joint target, target = rest + scale * f, f = SHOVE_SMOOTH * f_prev + (1 - SHOVE_SMOOTH) * action.
+
+
+
+def opp_spec(o: str):
+    """'ckpt.pt[:stand][:shove]' -> (absolute checkpoint path, set of flags)."""
+    path, _, flags = o.partition(".pt")
+    return os.path.abspath(path + ".pt"), set(f for f in flags.split(":") if f)
 
 
 class FrozenPolicy(torch.nn.Module):
@@ -126,8 +154,10 @@ class FrozenPool:
     """Several frozen opponents; each world is assigned one of them, re-drawn whenever that world resets."""
     def __init__(self, ckpts, device, num_worlds, stochastic=False):
         # an entry "path.pt:stand" is an opponent that gets a zero command (holds its ground) instead of attacking
-        self.stands = torch.tensor([c.endswith(":stand") for c in ckpts], device=device)
-        self.nets = [FrozenPolicy(c[:-6] if c.endswith(":stand") else c, device, stochastic) for c in ckpts]
+        specs = [opp_spec(c) for c in ckpts]
+        self.stands = torch.tensor(["stand" in f for _, f in specs], device=device)
+        self.shoves = torch.tensor(["shove" in f for _, f in specs], device=device)
+        self.nets = [FrozenPolicy(c, device, stochastic) for c, _ in specs]
         self.choice = torch.randint(0, len(self.nets), (num_worlds,), device=device)
 
     def resample(self, world_ids):
@@ -199,6 +229,10 @@ class KothEnv:
         self.box_life = torch.zeros(N, len(spec["pool_bodies"]), device=device)   # seconds left in flight; <=0 = parked
         self.hip_idx = T([i for i, j in enumerate(self.joints) if "hip_roll" in j or "hip_yaw" in j])
         self.knee_idx = T([i for i, j in enumerate(self.joints) if "knee" in j])
+        self.upper_idx = T([i for i, j in enumerate(self.joints) if any(k in j for k in ("waist", "shoulder", "elbow", "wrist"))])
+        self.hand_body = T([[bid(p + "left_wrist_yaw_link"), bid(p + "right_wrist_yaw_link")] for p in prefixes])
+        assert self.hand_body.min() >= 0, "hand bodies missing"
+        self.shove_offset = T([next((v - spec["default_pose"][i] for k, v in SHOVE_POSE.items() if k in j), 0.0) for i, j in enumerate(self.joints)], torch.float32)
         self.default_pose = T(spec["default_pose"], torch.float32)
         self.key_qpos = T(mjm.key_qpos[0], torch.float32); self.key_ctrl = T(mjm.key_ctrl[0], torch.float32)
         self.key_root_z = float(spec["key_root_z"])
@@ -223,6 +257,8 @@ class KothEnv:
         self.push_timer = z(M); self.proj_timer = z(N); self.next_box = torch.zeros(N, dtype=torch.long, device=device)
         self.dr_params = z(M, 3)   # mass scale, friction, kp scale  (critic obs)
         self.latency = torch.zeros(M, dtype=torch.bool, device=device); self.pending_ctrl = z(M, 29)
+        self.style = torch.zeros(M, dtype=torch.bool, device=device)      # rows fighting in the shove style
+        self.act_f = z(M, 29); self.pose_offset = z(M, 29)
         self.extras: dict = {}
         self.reward_terms: dict[str, torch.Tensor] = {}
         per = lambda v: (v if isinstance(v, (list, tuple)) else [v] * A)          # scalar or one value per robot
@@ -345,7 +381,7 @@ class KothEnv:
             b = int(self.box_q[i]); q[:, b:b + 3] = self.box_park[i]; q[:, b + 3] = 1; q[:, b + 4:b + 7] = 0
         self.qpos[ids] = q; self.qvel[ids] = v; self.box_life[ids] = 0
         self.ctrl[ids] = self.key_ctrl; self.pending_ctrl[rows] = self.key_ctrl[self.aid[0]]
-        self.last_action[rows] = 0; self.phase[rows] = 0; self.yaw_target[rows] = yaw.reshape(-1)
+        self.last_action[rows] = 0; self.act_f[rows] = 0; self.pose_offset[rows] = 0; self.phase[rows] = 0; self.yaw_target[rows] = yaw.reshape(-1)
         self.feet_air_time[rows] = 0; self.feet_contact[rows] = True
         fxy = q[:, self.rq + 0], q[:, self.rq + 1]   # feet start under the pelvis; exact value only matters for one step of slip
         self.prev_feet_xy[rows] = torch.stack(fxy, 2).reshape(-1, 1, 2).expand(-1, 2, -1)
@@ -409,7 +445,15 @@ class KothEnv:
             full = torch.empty(M, 29, device=self.device); full[0::2] = actions.to(self.device)
             full[1::2] = self.frozen(self._obs_full["policy"][1::2]); actions = full
         self.action = torch.clamp(actions.to(self.device), -1, 1)
-        target = torch.clamp(self.default_pose + self.action_scale * self.action, self.ctrl_lo, self.ctrl_hi)
+        act = self.action
+        if self.cfg["shove"] or (self.frozen is not None and self.frozen.shoves.any()):
+            self.style[:] = self.cfg["shove"]
+            if self.frozen is not None: self.style[1::2] = self.frozen.shoves[self.frozen.choice]
+            self.act_f = torch.where(self.style[:, None], SHOVE_SMOOTH * self.act_f + (1 - SHOVE_SMOOTH) * self.action, self.action)
+            act = self.act_f
+            p = self._root()[0]; dist = (self._opp(p)[:, :2] - p[:, :2]).norm(dim=1)
+            self.pose_offset = (((SHOVE_FAR - dist) / (SHOVE_FAR - SHOVE_NEAR)).clamp(0, 1) * self.style.float())[:, None] * self.shove_offset
+        target = torch.clamp(self.default_pose + self.pose_offset + self.action_scale * act, self.ctrl_lo, self.ctrl_hi)
         # one-step actuation latency on a random subset of robots (DR)
         apply = torch.where(self.latency[:, None], self.pending_ctrl, target); self.pending_ctrl = target
         self.ctrl[:, self.aid.reshape(-1)] = apply.reshape(N, A * 29)
@@ -488,16 +532,20 @@ class KothEnv:
         fpos = self._flat(self.xpos[:, self.feet_body]); foot_xy = fpos[:, :, :2]
         foot_z = fpos[:, :, 2] - terrain_height(foot_xy, self.arena) - self.foot_rest_z
         first_contact = feet & ~self.feet_contact
+        near = torch.zeros_like(cmd_on)
+        if self.A == 2: near = ((self._opp(pos)[:, :2] - pos[:, :2]).norm(dim=1) < 0.9).float()
+        free = near if self.cfg["contact_free"] else torch.zeros_like(near)      # 1 = within reach: arms exempt from the pose penalty
+        plant = near if self.cfg["gait_free"] else torch.zeros_like(near)
         self.feet_air_time += dt
-        t["feet_air_time"] = ((self.feet_air_time - 0.1) * first_contact.float()).sum(1) * cmd_on
+        t["feet_air_time"] = ((self.feet_air_time - 0.1) * first_contact.float()).sum(1) * cmd_on * (1 - plant)
         self.feet_air_time[feet] = 0
         slip = ((foot_xy - self.prev_feet_xy) / dt).norm(dim=2)
         t["feet_slip"] = (slip * feet.float()).sum(1)
         des = torch.stack([torch.sin(self.phase), torch.sin(self.phase + math.pi)], 1).clamp(min=0) * self.cfg["swing_height"]
-        t["feet_phase"] = torch.exp(-((foot_z - des) ** 2).sum(1) / 0.01) * cmd_on
+        t["feet_phase"] = torch.exp(-((foot_z - des) ** 2).sum(1) / 0.01) * cmd_on * (1 - plant)
         # posture
-        dev = jpos - self.default_pose
-        t["pose"] = (dev ** 2).sum(1)
+        dev = jpos - self.default_pose - self.pose_offset
+        t["pose"] = (dev ** 2).sum(1) - free * (dev[:, self.upper_idx] ** 2).sum(1)
         t["joint_deviation_hip"] = dev[:, self.hip_idx].abs().sum(1)
         t["joint_deviation_knee"] = dev[:, self.knee_idx].abs().sum(1)
         t["dof_pos_limits"] = ((self.jnt_lo + 0.05 - jpos).clamp(min=0) + (jpos - self.jnt_hi + 0.05).clamp(min=0)).sum(1)
@@ -509,11 +557,17 @@ class KothEnv:
         radius = pos[:, :2].norm(dim=1)
         if self.A == 2:
             opos = self._opp(pos); ovel = self._opp(linv_w); orad = opos[:, :2].norm(dim=1)
-            near = ((opos[:, :2] - pos[:, :2]).norm(dim=1) < 0.9).float()
             t["ring_advantage"] = (orad - radius).clamp(-1.0, 1.0)                     # be more central than the opponent
             t["opp_radius"] = orad.clamp(max=1.7) / 1.7                                # how far out the opponent is
             t["self_edge"] = (radius - 1.2).clamp(min=0.0)                             # my own margin to the rim
             t["push_out"] = ((ovel[:, :2] * opos[:, :2]).sum(1) / orad.clamp(min=0.1)).clamp(-1.0, 2.0) * near   # its outward speed while I am on it
+            # Arms: how far each hand reaches from my pelvis toward the opponent (0 with the arms hanging, about 0.35 m
+            # with shoulders pitched forward), averaged over both hands, once the opponent is within 1.3 m.
+            # ponytail: a pose-shaping term, not a contact force; kept small (0.5/s at most) so that standing in a clinch
+            # with the arms out never beats winning (r4_a stalled that way). Use contact forces if it turns into posing.
+            to_opp = opos[:, :2] - pos[:, :2]; dist = to_opp.norm(dim=1); u = to_opp / dist.clamp(min=0.1)[:, None]
+            hands = self._flat(self.xpos[:, self.hand_body])[:, :, :2] - pos[:, None, :2]
+            t["hand_push"] = ((hands * u[:, None]).sum(2).clamp(0.0, 0.35) / 0.35).mean(1) * (dist < 1.3).float()
         t["plateau"] = (radius < 1.2).float()
         t["off_rim"] = (radius - PLATEAU_R).clamp(min=0)
         self.reward_terms = {k: R[k] * v * dt for k, v in t.items() if R.get(k, 0.0) != 0.0}

@@ -87,6 +87,7 @@ details td, details th { padding: 2px 12px 2px 0; text-align: right; }
 .callout { background: var(--note); border-radius: 10px; padding: 12px 14px; font-size: 14.5px; margin: 12px 0; }
 ul { padding-left: 20px; margin: 8px 0; max-width: 72ch; } li { margin: 4px 0; }
 text { font-family: inherit; }
+.shot { display:block; width:100%; height:auto; border:1px solid var(--axis); border-radius:8px; margin:10px 0 4px; }
 </style>
 </head>
 <body>
@@ -128,11 +129,13 @@ text { font-family: inherit; }
 <p class="small">Where a cell says "inherited", the agent started as a copy of the Walker and has not been re-measured on that skill since.</p>
 
 <h2>The three charts that matter most</h2>
-<p class="sub">These are the three most telling curves from the TensorBoard logs. They are redrawn here from the same logged numbers so the notes could be placed directly on them; they are not literal screenshots. Hover a chart to read exact values. Live versions are at <code>http://localhost:6006</code> while TensorBoard is running.</p>
+<p class="sub">These are the three most telling curves from the TensorBoard logs. Each card starts with a screenshot of the chart as TensorBoard shows it, with numbered notes added in the yellow panel. Under it the same logged numbers are redrawn in everyday units; hover that chart to read exact values. TensorBoard's "step" is one practice round. Live versions are at <code>http://localhost:6006</code> while TensorBoard is running.</p>
 
 <div class="card">
   <h3>1. How long the robot stays on its feet</h3>
   <p class="small">TensorBoard name: <code>Train/mean_episode_length</code>, for the Walker and its predecessors. Each practice round lasts up to 20 seconds, with shoves and thrown boxes throughout.</p>
+  <img class="shot" src="__SHOT1__" alt="TensorBoard screenshot of Train/mean_episode_length for the stand-only brain and the Walker, with three numbered notes">
+  <p class="small">Same data in seconds:</p>
   <div class="chart" id="c1"></div>
   <div class="explain">
     <div><b>What it means</b>The line is the average time a robot lasts before falling. The top of the chart, 20 seconds, means it survived the whole round. Higher is better.</div>
@@ -144,6 +147,8 @@ text { font-family: inherit; }
 <div class="card">
   <h3>2. How well it follows walking and turning instructions</h3>
   <p class="small">TensorBoard names: <code>rew/tracking_lin_vel</code> and <code>rew/tracking_ang_vel</code>, shown as a share of the best possible score.</p>
+  <img class="shot" src="__SHOT2__" alt="TensorBoard screenshot of rew/tracking_ang_vel and rew/tracking_lin_vel for the Walker, with four numbered notes">
+  <p class="small">Same data as a share of a perfect score:</p>
   <div class="clegend"><span><i style="background:var(--s1)"></i>Walking speed and direction</span><span><i style="background:var(--s2)"></i>Turning</span></div>
   <div class="chart" id="c2"></div>
   <div class="explain">
@@ -154,8 +159,14 @@ text { font-family: inherit; }
 </div>
 
 <div class="card">
-  <h3>3. How often the attacker knocks the opponent off</h3>
-  <p class="small">TensorBoard name: <code>rew/win</code>, converted to knock-outs per minute of sparring, for two versions of the attacker.</p>
+  <h3>3. How often the fighter knocks the opponent off</h3>
+  <p class="small">TensorBoard name: <code>rew/win</code>. The screenshot shows the first All-rounder and the current champion learning to win.</p>
+  <img class="shot" src="__SHOT3__" alt="TensorBoard screenshot of rew/win for the first All-rounder and the current champion, with three numbered notes">
+  <div class="explain">
+    <div><b>What it means</b>The line is the score the fighter earns for knocking its opponent off the summit. The higher it is, the more often it wins during practice. Its opponents are a mix of robots that stand still and earlier fighters that fight back.</div>
+    <div><b>Where it is now</b>Both fighters end at about the same height, so this chart alone cannot tell them apart. The difference is in how they lose: in test rounds the champion goes out in only 3% of rounds against a standing opponent, where the first All-rounder went out in 6.6%.</div>
+  </div>
+  <p class="small">Earlier history, in knock-outs per minute of sparring, for two versions of the first Attacker:</p>
   <div class="clegend"><span><i style="background:var(--s1)"></i>Opponent stands its ground at the rim</span><span><i style="background:var(--s2)"></i>Opponent keeps walking back to the centre</span></div>
   <div class="chart" id="c3"></div>
   <div class="explain">

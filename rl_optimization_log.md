@@ -189,3 +189,25 @@ The 7.3 % reported for the champion against the standing walker was every round 
   - First screenshots showed the robots standing on open water: the plugin's renderer for the arena mesh geom draws nothing (0 vertices in its MeshFilter) even though the imported mesh asset is right. An OBJ arena additionally came in lying on its side, so the arena is now written as binary STL. Fix: a render-only `ArenaVisual` object showing the same mesh asset with a two-sided material.
   - HUD labels drawn with a shadow (white text was unreadable on the sky).
   - Audio triggers never fired with single-step thresholds. Now windowed: pelvis velocity change over 20 ms for impacts, descent-then-stop for footfalls. One 20 s run: 59 impacts, 481 footfalls. The editor does not run the audio thread while unfocused, so the output waveform itself is still unheard.
+
+## 2026-10-09 — D.6 performance pass (Windows player), report screenshots
+
+Measured by `PerfProbe` (`-kothPerf 30`: 2 s warm-up, then 30 s of continuous champion-vs-champion rounds, writes `perf_unity.json` next to the player). Player built by `ParityBatch.BuildPlayer` into `Builds/Win` (`-kothDev` for a development build). 540x960 window, Core Ultra 9 275HX, vSync off, target 60 FPS.
+
+| | release player (before the two fixes below) | development player (final code) |
+|---|---|---|
+| frame rate | 59.98 FPS, frame p99 16.8 ms, max 17.7 ms | 59.98 FPS, p99 16.9 ms, max 21.3 ms |
+| physics rate | 500.0 steps/s, at most 9 steps in one frame | 500.0 steps/s, at most 11 |
+| whole physics tick (2 brains + ctrl + sea + mj_step + state sync) | mean 0.23 ms, p50 0.16, p99 0.88, max 2.4 | mean 0.26 ms, p50 0.17, p99 1.06, max 2.7 |
+| mj_step + plugin state sync | mean 0.19 ms, p99 0.47 | mean 0.21 ms, p99 0.56 |
+| one brain inference | mean 0.22 ms, p99 0.40, max 1.6 | mean 0.26 ms, p99 0.61, max 1.9 |
+
+- **Budget:** one 20 ms control tick costs about 10 x 0.19 + 2 x 0.22 = 2.3 ms in the release player (gate from B.12: under 4 ms). Physics uses about 12 % of real time.
+- **Managed allocation inside the physics tick: 0 bytes, 0 of 15,001 steps allocate** (development player, profiler counter `GC Allocated In Frame` read before and after each tick). Two fixes got it there:
+  - `PolicyRunner` read the action with `ReadbackAndClone` + `DownloadToArray` (a tensor and a float array per brain per tick). Now `CompleteAllPendingOperations` + `AsReadOnlySpan` on the worker's own output.
+  - The plugin's `MjScene.FixedUpdate` created two `MjStepArgs` per step (32 bytes each); now one cached object. This is an edit to the embedded `Packages/org.mujoco`.
+- **Not allocation-free: the frame outside the physics tick, about 21 KB per frame** (roughly one gen-0 collection per second, no visible hitch: worst frame 21 ms). `DemoDirector`'s HUD styles are now cached, which moved it only from 23 to 21 KB, so the rest is IMGUI itself and/or the plugin's per-component `Update`. Not pursued: the frame rate holds. A UI Toolkit HUD is the fix if it ever matters.
+- **Measurement limits:** neither allocation counter works in a release player (`GC.GetAllocatedBytesForCurrentThread` reads 0 under Mono, the profiler counter is absent), so the zero-allocation figure is from the development build only. The release build was not re-measured after the two fixes. The editor was not profiled: unfocused it renders about one frame per second.
+- **R1 Unity gate re-run after the readback change:** replay max action error 1.2e-6 (bar 1e-4), closed loop passes (pelvis within 3.7 cm). The other rungs' gates were not re-run; that is D.7.
+- **Android:** build settings exist in ProjectSettings; no Android build was made or measured.
+- **Report:** `training_report.html` now embeds three annotated TensorBoard screenshots (`docs/screenshots/tb_*.png`, taken with headless Chrome from the legacy Scalars tab; the Time Series tab renders blank headless). `Builds/Win` currently holds the development build.

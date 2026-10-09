@@ -24,6 +24,9 @@ namespace PoKingHill
         [Tooltip("Network input size: 103 = locomotion state, 112 = state + 9 opponent/ring values (combat policies).")]
         public int policyObsDim = ObsBuilder.ObsDim;
         public bool paused;
+        [Tooltip("Shove style (mirror of SHOVE_* in training/koth/env.py): the arm rest pose moves to hands-forward as the opponent closes from 1.6 m to 1.0 m, and the action is low-passed before it becomes a joint target.")]
+        public bool shoveStyle;
+        const float ShoveFar = 1.6f, ShoveNear = 1.0f, ShoveSmooth = 0.5f, ShoveShoulderPitch = -1.0f, ShoveElbow = 0.5f;
 
         public JointMap Map { get; private set; }
         public float[] Obs { get; private set; } = new float[ObsBuilder.ObsDim];
@@ -40,6 +43,7 @@ namespace PoKingHill
         int _substep;
         float _phase;
         readonly float[] _cmd = new float[3];
+        float[] _actF, _shoveOffset;
         readonly System.Diagnostics.Stopwatch _sw = new();
 
         void OnEnable()
@@ -47,6 +51,10 @@ namespace PoKingHill
             _spec = JointMap.LoadSpec(jointMapJson);
             LastAction = new float[_spec.joints.Length];
             RawAction = new float[_spec.joints.Length]; Ctrl = new double[_spec.joints.Length];
+            _actF = new float[_spec.joints.Length]; _shoveOffset = new float[_spec.joints.Length];
+            for (int i = 0; i < _spec.joints.Length; i++)
+                _shoveOffset[i] = _spec.joints[i].Contains("shoulder_pitch") ? ShoveShoulderPitch - _spec.default_pose[i]
+                                : _spec.joints[i].Contains("elbow") ? ShoveElbow - _spec.default_pose[i] : 0f;
             if (policy != null)
             {
                 _worker = new Worker(ModelLoader.Load(policy), BackendType.CPU);
@@ -114,15 +122,25 @@ namespace PoKingHill
             _sw.Restart();
             _input.Upload(Obs);
             _worker.Schedule(_input);
-            using var outCpu = (_worker.PeekOutput() as Tensor<float>).ReadbackAndClone();
-            var act = outCpu.DownloadToArray();
+            // CPU backend: wait for the jobs, then read the worker's own output in place (no clone, no managed array).
+            var output = _worker.PeekOutput() as Tensor<float>;
+            output.CompleteAllPendingOperations();
+            var act = output.AsReadOnlySpan();
             LastInferenceMs = _sw.Elapsed.TotalMilliseconds;
+            float blend = 0f;
+            if (shoveStyle && opponent != null && opponent.Map != null)
+            {
+                double* me = d->qpos + Map.RootQposAdr; double* op = d->qpos + opponent.Map.RootQposAdr;
+                double dist = System.Math.Sqrt((op[0] - me[0]) * (op[0] - me[0]) + (op[1] - me[1]) * (op[1] - me[1]));
+                blend = Mathf.Clamp01((ShoveFar - (float)dist) / (ShoveFar - ShoveNear));
+            }
             for (int i = 0; i < Map.N; i++)
             {
                 RawAction[i] = act[i];
                 float a = Mathf.Clamp(act[i], -1f, 1f);
                 LastAction[i] = a;
-                Ctrl[i] = System.Math.Clamp(Map.DefaultPose[i] + _spec.action_scale * a, Map.CtrlMin[i], Map.CtrlMax[i]);
+                float f = shoveStyle ? ShoveSmooth * _actF[i] + (1f - ShoveSmooth) * a : a; _actF[i] = f;
+                Ctrl[i] = System.Math.Clamp(Map.DefaultPose[i] + blend * _shoveOffset[i] + _spec.action_scale * f, Map.CtrlMin[i], Map.CtrlMax[i]);
             }
             _phase += 2f * Mathf.PI * ObsBuilder.GaitFreqHz * _spec.ctrl_dt;
             if (_phase > 2f * Mathf.PI) _phase -= 2f * Mathf.PI;
@@ -144,20 +162,20 @@ namespace PoKingHill
                 Ctrl[i] = _spec.hold_ctrl[i]; d->ctrl[Map.ActId[i]] = Ctrl[i];
             }
             _substep = 0; _phase = 0;
-            System.Array.Clear(LastAction, 0, LastAction.Length);
+            System.Array.Clear(LastAction, 0, LastAction.Length); System.Array.Clear(_actF, 0, _actF.Length);
         }
 
         /// <summary>Swap the brain at runtime (menu fighter selection). policy = null gives the passive stance.</summary>
-        public void SetBrain(ModelAsset newPolicy, int obsDim, GoalMode newGoal, float stopDist, float vmax)
+        public void SetBrain(ModelAsset newPolicy, int obsDim, GoalMode newGoal, float stopDist, float vmax, bool shove = false)
         {
             _worker?.Dispose(); _input?.Dispose(); _worker = null; _input = null;
-            policy = newPolicy; policyObsDim = obsDim; goal = newGoal; goalStopDist = stopDist; goalVmax = vmax; command = Vector3.zero;
+            policy = newPolicy; policyObsDim = obsDim; goal = newGoal; goalStopDist = stopDist; goalVmax = vmax; command = Vector3.zero; shoveStyle = shove;
             if (policy != null)
             {
                 _worker = new Worker(ModelLoader.Load(policy), BackendType.CPU);
                 Obs = new float[policyObsDim]; _input = new Tensor<float>(new TensorShape(1, policyObsDim));
             }
-            _substep = 0; _phase = 0; System.Array.Clear(LastAction, 0, LastAction.Length);
+            _substep = 0; _phase = 0; System.Array.Clear(LastAction, 0, LastAction.Length); System.Array.Clear(_actF, 0, _actF.Length);
         }
 
         /// <summary>Keyframe pose at a chosen spot on the summit (MuJoCo frame x, y in metres, yaw in radians).</summary>

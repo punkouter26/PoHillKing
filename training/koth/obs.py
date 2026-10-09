@@ -16,6 +16,9 @@ import torch
 NUM_JOINTS = 29
 OBS_DIM = 103
 GAIT_FREQ_HZ = 1.5
+# Shove style constants (used by env.py, duel_stats.py and mirrored in Unity's PolicyRunner).
+SHOVE_POSE = {"shoulder_pitch": -1.0, "elbow": 0.5}      # hand 0.34 m ahead of the torso, 0.24 m above its origin
+SHOVE_FAR, SHOVE_NEAR, SHOVE_SMOOTH = 1.6, 1.0, 0.5
 
 
 def quat_rotate_inverse(q: torch.Tensor, v: torch.Tensor) -> torch.Tensor:

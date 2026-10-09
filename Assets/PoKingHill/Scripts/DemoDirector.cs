@@ -14,6 +14,7 @@ namespace PoKingHill
         [Tooltip("103 = locomotion inputs, 112 = with opponent/ring inputs")] public int obsDim = 112;
         public GoalMode goal = GoalMode.Opponent;
         public float stopDist = 0f, vmax = 1f;
+        [Tooltip("Trained in the shove style (arm pose + action smoothing)")] public bool shove;
     }
 
     /// <summary>
@@ -101,8 +102,8 @@ namespace PoKingHill
             {
                 if (randomMatchup) { selectedA = UnityEngine.Random.Range(0, roster.Length); selectedB = UnityEngine.Random.Range(0, roster.Length); }
                 var fa = roster[Mathf.Clamp(selectedA, 0, roster.Length - 1)]; var fb = roster[Mathf.Clamp(selectedB, 0, roster.Length - 1)];
-                attacker.SetBrain(fa.policy, fa.obsDim, fa.goal, fa.stopDist, fa.vmax);
-                defender.SetBrain(fb.policy, fb.obsDim, fb.goal, fb.stopDist, fb.vmax);
+                attacker.SetBrain(fa.policy, fa.obsDim, fa.goal, fa.stopDist, fa.vmax, fa.shove);
+                defender.SetBrain(fb.policy, fb.obsDim, fb.goal, fb.stopDist, fb.vmax, fb.shove);
             }
             InMenu = false; _roundsThisMatch = 0;
             NewRound();
@@ -221,13 +222,21 @@ namespace PoKingHill
             GUI.Label(new Rect(r.x + 2, r.y + 2, r.width, r.height), text, st); st.normal.textColor = c; GUI.Label(r, text, st);
         }
 
+        GUIStyle _st, _big, _right, _mid, _btn, _toggle, _launch; float _styleK;
         void OnGUI()
         {
             int w = Screen.width, h = Screen.height; float k = Mathf.Max(1f, h / 900f);
-            var st = new GUIStyle(GUI.skin.label) { fontSize = Mathf.RoundToInt(15 * k), normal = { textColor = Color.white } };
-            var big = new GUIStyle(st) { fontSize = Mathf.RoundToInt(20 * k), fontStyle = FontStyle.Bold };
-            var right = new GUIStyle(st) { alignment = TextAnchor.UpperRight }; var mid = new GUIStyle(st) { alignment = TextAnchor.UpperCenter };
-            var btn = new GUIStyle(GUI.skin.button) { fontSize = Mathf.RoundToInt(14 * k) };
+            if (_st == null || _styleK != k)             // styles are rebuilt only when the window height changes, not every OnGUI call
+            {
+                _styleK = k;
+                _st = new GUIStyle(GUI.skin.label) { fontSize = Mathf.RoundToInt(15 * k), normal = { textColor = Color.white } };
+                _big = new GUIStyle(_st) { fontSize = Mathf.RoundToInt(20 * k), fontStyle = FontStyle.Bold };
+                _right = new GUIStyle(_st) { alignment = TextAnchor.UpperRight }; _mid = new GUIStyle(_st) { alignment = TextAnchor.UpperCenter };
+                _btn = new GUIStyle(GUI.skin.button) { fontSize = Mathf.RoundToInt(14 * k) };
+                _toggle = new GUIStyle(GUI.skin.toggle) { fontSize = _st.fontSize, normal = { textColor = Color.white } };
+                _launch = new GUIStyle(_btn) { fontSize = Mathf.RoundToInt(18 * k), fontStyle = FontStyle.Bold };
+            }
+            GUIStyle st = _st, big = _big, right = _right, mid = _mid, btn = _btn;
             float pad = 12 * k, lh = 26 * k;
             Label(new Rect(pad, pad, w, lh), "PoKingHill", big);                                                          // top left: title
             double t = !InMenu && MjScene.InstanceExists && MjScene.Instance.Data != null ? MjScene.Instance.Data->time - _roundStart : 0;
@@ -253,10 +262,10 @@ namespace PoKingHill
             Label(new Rect(x, y, mw, lh), "Fighter B", big); y += lh * 1.2f;
             selectedB = GUI.SelectionGrid(new Rect(x, y, mw, lh * roster.Length), selectedB, names, 1, btn); y += lh * roster.Length + pad;
             GUI.enabled = true;
-            randomMatchup = GUI.Toggle(new Rect(x, y, mw, lh), randomMatchup, " Random matchup", new GUIStyle(GUI.skin.toggle) { fontSize = st.fontSize, normal = { textColor = Color.white } }); y += lh * 1.2f;
+            randomMatchup = GUI.Toggle(new Rect(x, y, mw, lh), randomMatchup, " Random matchup", _toggle); y += lh * 1.2f;
             Label(new Rect(x, y, mw * 0.3f, lh), "Map", st);
             selectedMap = GUI.SelectionGrid(new Rect(x + mw * 0.3f, y, mw * 0.7f, lh), selectedMap, maps, 1, btn); y += lh * 1.6f;
-            if (GUI.Button(new Rect(x, y, mw, lh * 1.5f), "Launch", new GUIStyle(btn) { fontSize = Mathf.RoundToInt(18 * k), fontStyle = FontStyle.Bold })) Launch();
+            if (GUI.Button(new Rect(x, y, mw, lh * 1.5f), "Launch", _launch)) Launch();
         }
     }
 }

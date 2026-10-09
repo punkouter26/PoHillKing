@@ -161,6 +161,7 @@ namespace PoKingHill.EditorTools
             if (cam.GetComponent<AudioListener>() == null) cam.gameObject.AddComponent<AudioListener>();
             var synth = rig.AddComponent<ImpactSynth>(); synth.robots = new[] { a, b }; synth.sea = sea;   // adds the AudioSource it requires
             director.synth = synth;
+            rig.AddComponent<PerfProbe>();              // inert unless started with -kothPerf <seconds>
             int physx = UnityEngine.Object.FindObjectsByType<Collider>(FindObjectsInactive.Include).Length + UnityEngine.Object.FindObjectsByType<Rigidbody>(FindObjectsInactive.Include).Length;
             if (physx > 0) throw new Exception($"PhysX components present in the demo scene: {physx}");
             string path = $"{SceneDir}/Demo_duel.unity";
@@ -200,6 +201,24 @@ namespace PoKingHill.EditorTools
             var dd = UnityEngine.Object.FindAnyObjectByType<DemoDirector>(); dd.sea = null; dd.roundSeconds = 25f;
             dd.statsRounds = int.Parse(Arg("-kothRounds", "200")); dd.selectedA = int.Parse(Arg("-kothA", "0")); dd.selectedB = int.Parse(Arg("-kothB", "0"));
             EditorApplication.EnterPlaymode();
+        }
+
+        /// <summary>Windows player of the duel demo in Builds/Win (release; add -kothDev for a development build).</summary>
+        [MenuItem("PoKingHill/Build Windows player")]
+        public static void BuildPlayer()
+        {
+            try
+            {
+                BuildDuelDemo();
+                var report = BuildPipeline.BuildPlayer(new BuildPlayerOptions
+                {
+                    scenes = new[] { $"{SceneDir}/Demo_duel.unity" }, locationPathName = "Builds/Win/PoKingHill.exe",
+                    target = BuildTarget.StandaloneWindows64, options = HasFlag("-kothDev") ? BuildOptions.Development : BuildOptions.None,
+                });
+                Debug.Log($"[ParityBatch] build {report.summary.result}: {report.summary.totalErrors} errors, {report.summary.totalSize / (1024 * 1024)} MB -> {report.summary.outputPath}");
+                if (HasFlag("-kothExit")) EditorApplication.Exit(report.summary.result == UnityEditor.Build.Reporting.BuildResult.Succeeded ? 0 : 3);
+            }
+            catch (Exception e) { Debug.LogError("[ParityBatch] BUILD FAILED: " + e); if (HasFlag("-kothExit")) EditorApplication.Exit(3); throw; }
         }
 
         /// <summary>Build the duel demo, open it and press Play (used with a normal, visible editor launch).</summary>
