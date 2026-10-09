@@ -1,0 +1,241 @@
+<mujoco model="kim 29dof">
+  <compiler angle="radian" meshdir="assets" />
+  <default>
+    <default class="kim">
+      <geom condim="1" contype="0" conaffinity="0" />
+      <joint frictionloss="0.2" damping="0.5" solimplimit="0 0.99 0.01" solreflimit=".008 1" />
+      <position inheritrange="1" kp="75" kv="2" />
+      <default class="kim_collision">
+        <geom group="3" rgba=".8 .6 .5 1" type="capsule" />
+        <default class="kim_foot_box">
+          <geom type="box" group="4" />
+        </default>
+        <default class="kim_foot_capsule">
+          <geom type="capsule" group="3" />
+        </default>
+      </default>
+      <default class="kim_hip">
+        <default class="kim_hip_pitch">
+          <joint axis="0 1 0" actuatorfrcrange="-150 150" armature="0.02" range="-2.1 0.5" />
+        </default>
+        <default class="kim_hip_roll">
+          <joint axis="1 0 0" actuatorfrcrange="-100 100" armature="0.02" />
+        </default>
+        <default class="kim_hip_yaw">
+          <joint axis="0 0 1" actuatorfrcrange="-50 50" armature="0.01" range="-0.7 0.7" />
+        </default>
+      </default>
+      <default class="kim_knee">
+        <joint axis="0 1 0" actuatorfrcrange="-150 150" armature="0.02" range="-0.05 2.4" />
+      </default>
+      <default class="kim_ankle">
+        <default class="kim_ankle_pitch">
+          <joint axis="0 1 0" actuatorfrcrange="-110 110" armature="0.01" range="-0.5 0.8" />
+        </default>
+        <default class="kim_ankle_roll">
+          <joint axis="1 0 0" actuatorfrcrange="-30 30" armature="0.005" range="-0.4 0.4" />
+        </default>
+      </default>
+      <default class="kim_waist_yaw">
+        <joint axis="0 0 1" actuatorfrcrange="-60 60" armature="0.02" range="-0.8 0.8" />
+      </default>
+      <default class="kim_waist_roll">
+        <joint axis="1 0 0" actuatorfrcrange="-100 100" armature="0.02" range="-0.45 0.45" />
+      </default>
+      <default class="kim_waist_pitch">
+        <joint axis="0 1 0" actuatorfrcrange="-150 150" armature="0.02" range="-0.4 1" />
+      </default>
+      <default class="kim_shoulder">
+        <default class="kim_shoulder_pitch">
+          <joint axis="0 1 0" actuatorfrcrange="-55 55" armature="0.005" range="-3 0.9" />
+        </default>
+        <default class="kim_shoulder_roll">
+          <joint axis="1 0 0" actuatorfrcrange="-50 50" armature="0.005" />
+        </default>
+        <default class="kim_shoulder_yaw">
+          <joint axis="0 0 1" actuatorfrcrange="-30 30" armature="0.003" range="-1.4 1.4" />
+        </default>
+      </default>
+      <default class="kim_elbow">
+        <joint axis="0 -1 0" actuatorfrcrange="-45 45" armature="0.004" range="0 2.5" />
+      </default>
+      <default class="kim_wrist">
+        <default class="kim_wrist_roll">
+          <joint axis="0 0 1" actuatorfrcrange="-10 10" armature="0.001" range="-1.4 1.4" />
+        </default>
+        <default class="kim_wrist_pitch">
+          <joint axis="0 1 0" actuatorfrcrange="-8 8" armature="0.001" range="-1 1" />
+        </default>
+        <default class="kim_wrist_yaw">
+          <joint axis="1 0 0" actuatorfrcrange="-8 8" armature="0.001" range="-0.4 0.4" />
+        </default>
+      </default>
+    </default>
+  </default>
+  <asset />
+  <worldbody>
+    <body name="pelvis" pos="0 0 0.78" childclass="kim">
+      <freejoint name="floating_base_joint" />
+      <geom name="pelvis_collision" class="kim_collision" size="0.12" fromto="0 -0.02 -0.0226 0 0.02 -0.0226" mass="6.9832" />
+      <body name="left_hip_pitch_link" pos="0 0.07405 -0.0452">
+        <inertial pos="0 0 0" mass="0.4" diaginertia="0.00036 0.00036 0.00036" />
+        <joint name="left_hip_pitch_joint" class="kim_hip_pitch" />
+        <body name="left_hip_roll_link" pos="0 0 0">
+          <inertial pos="0 0 0" mass="0.4" diaginertia="0.00036 0.00036 0.00036" />
+          <joint name="left_hip_roll_joint" class="kim_hip_roll" range="-0.4 0.8" />
+          <body name="left_hip_yaw_link" pos="0 0 0">
+            <joint name="left_hip_yaw_joint" class="kim_hip_yaw" />
+            <geom name="left_thigh_collision" class="kim_collision" size="0.085" fromto="0.000348 -0.000676 -0.021688 0.004002 -0.007774 -0.24941" mass="7.4768" />
+            <body name="left_knee_link" pos="0.00435 -0.00845 -0.2711">
+              <joint name="left_knee_joint" class="kim_knee" />
+              <geom name="left_shin_collision" class="kim_collision" size="0.05379" fromto="-0.0004125 -0.00087 -0.016945 -0.0045375 -0.00957 -0.18639" mass="1.7508" />
+              <geom name="left_linkage_brace_collision" class="kim_collision" size="0.03912" fromto="-0.00495 -0.01044 -0.20334 -0.0078375 -0.01653 -0.32195" mass="0.94276" />
+              <body name="left_ankle_pitch_link" pos="-0.00825 -0.0174 -0.3389">
+                <inertial pos="0 0 0" mass="0.15" diaginertia="0.000135 0.000135 0.000135" />
+                <joint name="left_ankle_pitch_joint" class="kim_ankle_pitch" />
+                <body name="left_ankle_roll_link" pos="0 0 0">
+                  <joint name="left_ankle_roll_joint" class="kim_ankle_roll" />
+                  <site name="left_foot" pos="0.071 0 -0.0979" />
+                  <geom name="left_foot_box_collision" class="kim_foot_box" pos="0.071 0 -0.0859" size="0.1341 0.04995 0.012" mass="0.5124" />
+                  <geom name="left_foot1_collision" class="kim_foot_capsule" size="0.012" mass="0.02" fromto="0.1351 -0.034965 -0.0839 0.1901 -0.034965 -0.0839" />
+                  <geom name="left_foot3_collision" class="kim_foot_capsule" size="0.012" mass="0.02" fromto="0.1351 0.034965 -0.0839 0.1901 0.034965 -0.0839" />
+                  <geom name="left_foot2_collision" class="kim_foot_capsule" size="0.022" mass="0.02" fromto="-0.0381 0 -0.0739 0.1801 0 -0.0739" />
+                </body>
+              </body>
+            </body>
+          </body>
+        </body>
+      </body>
+      <body name="right_hip_pitch_link" pos="0 -0.07405 -0.0452">
+        <inertial pos="0 0 0" mass="0.4" diaginertia="0.00036 0.00036 0.00036" />
+        <joint name="right_hip_pitch_joint" class="kim_hip_pitch" />
+        <body name="right_hip_roll_link" pos="0 0 0">
+          <inertial pos="0 0 0" mass="0.4" diaginertia="0.00036 0.00036 0.00036" />
+          <joint name="right_hip_roll_joint" class="kim_hip_roll" range="-0.8 0.4" />
+          <body name="right_hip_yaw_link" pos="0 0 0">
+            <joint name="right_hip_yaw_joint" class="kim_hip_yaw" />
+            <geom name="right_thigh_collision" class="kim_collision" size="0.085" fromto="0.000348 0.000676 -0.021688 0.004002 0.007774 -0.24941" mass="7.4768" />
+            <body name="right_knee_link" pos="0.00435 0.00845 -0.2711">
+              <joint name="right_knee_joint" class="kim_knee" />
+              <geom name="right_shin_collision" class="kim_collision" size="0.05379" fromto="-0.0004125 0.00087 -0.016945 -0.0045375 0.00957 -0.18639" mass="1.7508" />
+              <geom name="right_linkage_brace_collision" class="kim_collision" size="0.03912" fromto="-0.00495 0.01044 -0.20334 -0.0078375 0.01653 -0.32195" mass="0.94276" />
+              <body name="right_ankle_pitch_link" pos="-0.00825 0.0174 -0.3389">
+                <inertial pos="0 0 0" mass="0.15" diaginertia="0.000135 0.000135 0.000135" />
+                <joint name="right_ankle_pitch_joint" class="kim_ankle_pitch" />
+                <body name="right_ankle_roll_link" pos="0 0 0">
+                  <joint name="right_ankle_roll_joint" class="kim_ankle_roll" />
+                  <site name="right_foot" pos="0.071 0 -0.0979" />
+                  <geom name="right_foot_box_collision" class="kim_foot_box" pos="0.071 0 -0.0859" size="0.1341 0.04995 0.012" mass="0.5124" />
+                  <geom name="right_foot1_collision" class="kim_foot_capsule" size="0.012" mass="0.02" fromto="0.1351 -0.034965 -0.0839 0.1901 -0.034965 -0.0839" />
+                  <geom name="right_foot3_collision" class="kim_foot_capsule" size="0.012" mass="0.02" fromto="0.1351 0.034965 -0.0839 0.1901 0.034965 -0.0839" />
+                  <geom name="right_foot2_collision" class="kim_foot_capsule" size="0.022" mass="0.02" fromto="-0.0381 0 -0.0739 0.1801 0 -0.0739" />
+                </body>
+              </body>
+            </body>
+          </body>
+        </body>
+      </body>
+      <body name="waist_yaw_link" pos="0.0076 0 0.1204">
+        <inertial pos="0 0 0" mass="0.5" diaginertia="0.00045 0.00045 0.00045" />
+        <joint name="waist_yaw_joint" class="kim_waist_yaw" />
+        <body name="waist_roll_link" pos="0 0 0">
+          <inertial pos="0 0 0" mass="0.5" diaginertia="0.00045 0.00045 0.00045" />
+          <joint name="waist_roll_joint" class="kim_waist_roll" />
+          <body name="torso_link" pos="0 0 0">
+            <joint name="waist_pitch_joint" class="kim_waist_pitch" />
+            <geom name="abdomen_collision" class="kim_collision" size="0.11" fromto="0.00855 -0.0732 0.0904 0.00855 0.0732 0.0904" mass="7.204" />
+            <geom name="chest_collision" class="kim_collision" size="0.11" fromto="0.01265 -0.1159 0.27385 0.01265 0.1159 0.27385" mass="8.652" />
+            <geom name="head_collision" class="kim_collision" type="sphere" size="0.1072" pos="-0.0162 0 0.6193" mass="3.7408" />
+            <body name="left_shoulder_pitch_link" pos="-0.0198 0.2259 0.3669">
+              <inertial pos="0 0 0" mass="0.2" diaginertia="0.00018 0.00018 0.00018" />
+              <joint name="left_shoulder_pitch_joint" class="kim_shoulder_pitch" />
+              <body name="left_shoulder_roll_link" pos="0 0 0">
+                <inertial pos="0 0 0" mass="0.2" diaginertia="0.00018 0.00018 0.00018" />
+                <joint name="left_shoulder_roll_joint" class="kim_shoulder_roll" range="-0.3 2.8" />
+                <body name="left_shoulder_yaw_link" pos="0 0 0">
+                  <joint name="left_shoulder_yaw_joint" class="kim_shoulder_yaw" />
+                  <geom name="left_upper_arm_collision" class="kim_collision" size="0.045" fromto="0 0 -0.02141 0 0 -0.19269" mass="1.028" />
+                  <body name="left_elbow_link" pos="0 0 -0.2141">
+                    <joint name="left_elbow_joint" class="kim_elbow" />
+                    <geom name="left_forearm_collision" class="kim_collision" size="0.0358" fromto="0 0 -0.01988 0 0 -0.18886" mass="0.6728" />
+                    <body name="left_wrist_roll_link" pos="0 0 -0.1988">
+                      <inertial pos="0 0 0" mass="0.05" diaginertia="4.5e-05 4.5e-05 4.5e-05" />
+                      <joint name="left_wrist_roll_joint" class="kim_wrist_roll" />
+                      <body name="left_wrist_pitch_link" pos="0 0 0">
+                        <inertial pos="0 0 0" mass="0.05" diaginertia="4.5e-05 4.5e-05 4.5e-05" />
+                        <joint name="left_wrist_pitch_joint" class="kim_wrist_pitch" />
+                        <body name="left_wrist_yaw_link" pos="0 0 0">
+                          <joint name="left_wrist_yaw_joint" class="kim_wrist_yaw" />
+                          <geom name="left_hand_collision" class="kim_collision" size="0.03" fromto="0 0 -0.02 0 0 -0.16872" mass="0.3136" />
+                        </body>
+                      </body>
+                    </body>
+                  </body>
+                </body>
+              </body>
+            </body>
+            <body name="right_shoulder_pitch_link" pos="-0.0198 -0.2259 0.3669">
+              <inertial pos="0 0 0" mass="0.2" diaginertia="0.00018 0.00018 0.00018" />
+              <joint name="right_shoulder_pitch_joint" class="kim_shoulder_pitch" />
+              <body name="right_shoulder_roll_link" pos="0 0 0">
+                <inertial pos="0 0 0" mass="0.2" diaginertia="0.00018 0.00018 0.00018" />
+                <joint name="right_shoulder_roll_joint" class="kim_shoulder_roll" range="-2.8 0.3" />
+                <body name="right_shoulder_yaw_link" pos="0 0 0">
+                  <joint name="right_shoulder_yaw_joint" class="kim_shoulder_yaw" />
+                  <geom name="right_upper_arm_collision" class="kim_collision" size="0.045" fromto="0 0 -0.02141 0 0 -0.19269" mass="1.028" />
+                  <body name="right_elbow_link" pos="0 0 -0.2141">
+                    <joint name="right_elbow_joint" class="kim_elbow" />
+                    <geom name="right_forearm_collision" class="kim_collision" size="0.0358" fromto="0 0 -0.01988 0 0 -0.18886" mass="0.6728" />
+                    <body name="right_wrist_roll_link" pos="0 0 -0.1988">
+                      <inertial pos="0 0 0" mass="0.05" diaginertia="4.5e-05 4.5e-05 4.5e-05" />
+                      <joint name="right_wrist_roll_joint" class="kim_wrist_roll" />
+                      <body name="right_wrist_pitch_link" pos="0 0 0">
+                        <inertial pos="0 0 0" mass="0.05" diaginertia="4.5e-05 4.5e-05 4.5e-05" />
+                        <joint name="right_wrist_pitch_joint" class="kim_wrist_pitch" />
+                        <body name="right_wrist_yaw_link" pos="0 0 0">
+                          <joint name="right_wrist_yaw_joint" class="kim_wrist_yaw" />
+                          <geom name="right_hand_collision" class="kim_collision" size="0.03" fromto="0 0 -0.02 0 0 -0.16872" mass="0.3136" />
+                        </body>
+                      </body>
+                    </body>
+                  </body>
+                </body>
+              </body>
+            </body>
+          </body>
+        </body>
+      </body>
+    </body>
+  </worldbody>
+  <actuator>
+    <position name="left_hip_pitch_joint" joint="left_hip_pitch_joint" class="kim_hip_pitch" />
+    <position name="left_hip_roll_joint" joint="left_hip_roll_joint" class="kim_hip_roll" />
+    <position name="left_hip_yaw_joint" joint="left_hip_yaw_joint" class="kim_hip_yaw" />
+    <position name="left_knee_joint" joint="left_knee_joint" class="kim_knee" />
+    <position name="left_ankle_pitch_joint" joint="left_ankle_pitch_joint" class="kim_ankle_pitch" />
+    <position name="left_ankle_roll_joint" joint="left_ankle_roll_joint" class="kim_ankle_roll" />
+    <position name="right_hip_pitch_joint" joint="right_hip_pitch_joint" class="kim_hip_pitch" />
+    <position name="right_hip_roll_joint" joint="right_hip_roll_joint" class="kim_hip_roll" />
+    <position name="right_hip_yaw_joint" joint="right_hip_yaw_joint" class="kim_hip_yaw" />
+    <position name="right_knee_joint" joint="right_knee_joint" class="kim_knee" />
+    <position name="right_ankle_pitch_joint" joint="right_ankle_pitch_joint" class="kim_ankle_pitch" />
+    <position name="right_ankle_roll_joint" joint="right_ankle_roll_joint" class="kim_ankle_roll" />
+    <position name="waist_yaw_joint" joint="waist_yaw_joint" class="kim_waist_yaw" />
+    <position name="waist_roll_joint" joint="waist_roll_joint" class="kim_waist_roll" />
+    <position name="waist_pitch_joint" joint="waist_pitch_joint" class="kim_waist_pitch" />
+    <position name="left_shoulder_pitch_joint" joint="left_shoulder_pitch_joint" class="kim_shoulder_pitch" />
+    <position name="left_shoulder_roll_joint" joint="left_shoulder_roll_joint" class="kim_shoulder_roll" />
+    <position name="left_shoulder_yaw_joint" joint="left_shoulder_yaw_joint" class="kim_shoulder_yaw" />
+    <position name="left_elbow_joint" joint="left_elbow_joint" class="kim_elbow" />
+    <position name="left_wrist_roll_joint" joint="left_wrist_roll_joint" class="kim_wrist_roll" />
+    <position name="left_wrist_pitch_joint" joint="left_wrist_pitch_joint" class="kim_wrist_pitch" />
+    <position name="left_wrist_yaw_joint" joint="left_wrist_yaw_joint" class="kim_wrist_yaw" />
+    <position name="right_shoulder_pitch_joint" joint="right_shoulder_pitch_joint" class="kim_shoulder_pitch" />
+    <position name="right_shoulder_roll_joint" joint="right_shoulder_roll_joint" class="kim_shoulder_roll" />
+    <position name="right_shoulder_yaw_joint" joint="right_shoulder_yaw_joint" class="kim_shoulder_yaw" />
+    <position name="right_elbow_joint" joint="right_elbow_joint" class="kim_elbow" />
+    <position name="right_wrist_roll_joint" joint="right_wrist_roll_joint" class="kim_wrist_roll" />
+    <position name="right_wrist_pitch_joint" joint="right_wrist_pitch_joint" class="kim_wrist_pitch" />
+    <position name="right_wrist_yaw_joint" joint="right_wrist_yaw_joint" class="kim_wrist_yaw" />
+  </actuator>
+</mujoco>

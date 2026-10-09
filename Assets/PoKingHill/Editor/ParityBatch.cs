@@ -20,6 +20,11 @@ namespace PoKingHill.EditorTools
         const string SceneDir = "Assets/PoKingHill/Scenes";
         const string ModelDir = "Assets/PoKingHill/Models";
 
+        // Which fighter's body a testbed scene holds: -kothRobot g1 (default) or kim. Kim's files sit in kim subfolders.
+        static string Robot => Arg("-kothRobot", "g1");
+        static string ModelsOf(string robot) => robot == "g1" ? ModelDir : $"{ModelDir}/{robot}";
+        static string SceneOf(string robot, string tag) => $"{SceneDir}/Testbed_{(robot == "g1" ? "" : robot + "_")}{tag}.unity";
+
         static string Arg(string name, string fallback)
         {
             var a = Environment.GetCommandLineArgs();
@@ -30,16 +35,16 @@ namespace PoKingHill.EditorTools
         [MenuItem("PoKingHill/Import testbed scenes (flat_1p + koth_2p)")]
         public static void ImportAll()
         {
-            try { Import("flat_1p"); Import("koth_1p"); Import("koth_2p"); }
+            try { Import("flat_1p", Robot); Import("koth_1p", Robot); Import("koth_2p", Robot); }
             catch (Exception e) { Debug.LogError("[ParityBatch] IMPORT FAILED: " + e); if (HasFlag("-kothExit")) EditorApplication.Exit(3); throw; }
             if (HasFlag("-kothExit")) EditorApplication.Exit(0);
         }
 
         static bool HasFlag(string f) => Array.IndexOf(Environment.GetCommandLineArgs(), f) >= 0;
 
-        public static void Import(string tag)
+        public static void Import(string tag, string robot = "g1")
         {
-            string xml = Path.GetFullPath(Path.Combine(Application.dataPath, "..", "training", "assets", "g1", $"scene_{tag}_unity.xml"));
+            string xml = Path.GetFullPath(Path.Combine(Application.dataPath, "..", "training", "assets", robot, $"scene_{tag}_unity.xml"));
             if (!File.Exists(xml)) throw new FileNotFoundException(xml);
             Directory.CreateDirectory(SceneDir);
             AssetDatabase.Refresh();
@@ -47,16 +52,16 @@ namespace PoKingHill.EditorTools
 
             var root = new MjImporterWithAssets().ImportFile(xml);
             if (root == null) throw new Exception($"MJCF import failed for {xml} (see console)");
-            root.name = $"Mj_{tag}";
+            root.name = $"Mj_{tag}"; string models = ModelsOf(robot), label = robot == "g1" ? tag : $"{robot}_{tag}";
 
             // Names in the compiled model must equal the MJCF names (JointMap resolves by name).
             var settings = UnityEngine.Object.FindAnyObjectByType<MjGlobalSettings>();
             if (settings == null) settings = new GameObject("MjGlobalSettings").AddComponent<MjGlobalSettings>();
             settings.UseRawGameObjectNames = true;
 
-            var jointMap = AssetDatabase.LoadAssetAtPath<TextAsset>($"{ModelDir}/joint_map.json");
-            var dump = AssetDatabase.LoadAssetAtPath<TextAsset>($"{ModelDir}/model_dump_{tag}.json");
-            if (jointMap == null || dump == null) throw new Exception("joint_map.json / model_dump json missing under " + ModelDir + " (run koth.build_mjcf)");
+            var jointMap = AssetDatabase.LoadAssetAtPath<TextAsset>($"{models}/joint_map.json");
+            var dump = AssetDatabase.LoadAssetAtPath<TextAsset>($"{models}/model_dump_{tag}.json");
+            if (jointMap == null || dump == null) throw new Exception("joint_map.json / model_dump json missing under " + models + " (run koth.build_mjcf)");
 
             var rig = new GameObject("KothRig");
             foreach (string prefix in tag.EndsWith("2p") ? new[] { "a_", "b_" } : new[] { "a_" })
@@ -66,7 +71,8 @@ namespace PoKingHill.EditorTools
             }
             rig.AddComponent<ProjectilePool>().jointMapJson = jointMap;
             rig.AddComponent<ModelDumpCheck>().modelDumpJson = dump;
-            rig.AddComponent<ParityProbe>().outputFile = $"unity_hold_trace_{tag}.json";
+            rig.AddComponent<ParityProbe>().outputFile = $"unity_hold_trace_{label}.json";
+            rig.AddComponent<AutoShot>();                 // inert unless started with -kothShot <file>
 
             var cam = new GameObject("Main Camera") { tag = "MainCamera" }.AddComponent<Camera>();   // 9:16 portrait framing
             cam.transform.position = new Vector3(0f, 1.2f, -6.5f); cam.transform.LookAt(new Vector3(0f, 0.7f, 0f)); cam.fieldOfView = 40f;
@@ -85,7 +91,7 @@ namespace PoKingHill.EditorTools
                 visual.AddComponent<MeshFilter>().sharedMesh = geom.Mesh.Mesh;
                 var mat = new Material(MjcfImporter.GetLitShader()) { color = new Color(0.47f, 0.42f, 0.36f, 1f), doubleSidedGI = true };
                 mat.SetFloat("_Cull", 0f);
-                AssetDatabase.CreateAsset(mat, $"{SceneDir}/ArenaMaterial_{tag}.mat");
+                AssetDatabase.CreateAsset(mat, $"{SceneDir}/ArenaMaterial_{label}.mat");
                 visual.AddComponent<MeshRenderer>().sharedMaterial = mat;
                 Debug.Log($"[ParityBatch] arena visual: {geom.Mesh.Mesh.vertexCount} verts, bounds {geom.Mesh.Mesh.bounds.center} / {geom.Mesh.Mesh.bounds.size}");
             }
@@ -93,11 +99,40 @@ namespace PoKingHill.EditorTools
             int bodies = UnityEngine.Object.FindObjectsByType<Rigidbody>(FindObjectsInactive.Include).Length;
             if (colliders + bodies > 0) throw new Exception($"PhysX components present after import: {colliders} colliders, {bodies} rigidbodies");
 
-            string path = $"{SceneDir}/Testbed_{tag}.unity";
+            if (robot == "kim")
+            {
+                foreach (string prefix in tag.EndsWith("2p") ? new[] { "a_", "b_" } : new[] { "a_" }) AddKimSkin(prefix, rig);
+                cam.transform.position = new Vector3(2.6f, 1.25f, -2.4f); cam.transform.LookAt(new Vector3(0f, 0.85f, 0f));   // she faces +X
+            }
+            string path = SceneOf(robot, tag);
             EditorSceneManager.SaveScene(scene, path);
             Debug.Log($"[ParityBatch] imported {tag}: {UnityEngine.Object.FindObjectsByType<MjBody>(FindObjectsInactive.Include).Length} MjBody, " +
                       $"{UnityEngine.Object.FindObjectsByType<MjGeom>(FindObjectsInactive.Include).Length} MjGeom, " +
                       $"{UnityEngine.Object.FindObjectsByType<MjActuator>(FindObjectsInactive.Include).Length} MjActuator -> {path}");
+        }
+
+        const string KimDir = "Assets/PoKingHill/Fighters/Kim";
+
+        /// <summary>Dress one fighter of a Kim scene in her scanned mesh (kim.fbx from tools/make_kim.py): the mesh
+        /// follows the MuJoCo bodies through SkinFollower and the collision shapes stop being drawn.</summary>
+        static void AddKimSkin(string prefix, GameObject rig)
+        {
+            var prefab = AssetDatabase.LoadAssetAtPath<GameObject>($"{KimDir}/kim.fbx");
+            var table = AssetDatabase.LoadAssetAtPath<TextAsset>($"{ModelsOf("kim")}/kim_skin.json");
+            if (prefab == null || table == null) throw new Exception("kim.fbx or kim_skin.json missing (run tools/make_kim.py in Blender, then koth.build_mjcf with KOTH_ROBOT=kim)");
+            var skin = (GameObject)PrefabUtility.InstantiatePrefab(prefab); skin.name = "KimSkin_" + prefix;
+            var mat = AssetDatabase.LoadAssetAtPath<Material>($"{KimDir}/Kim.mat");
+            if (mat == null)
+            {
+                mat = new Material(Shader.Find("Universal Render Pipeline/Lit")); mat.SetFloat("_Smoothness", 0.2f);
+                mat.SetTexture("_BaseMap", MapTexture("kim_albedo", false, true, KimDir));
+                mat.SetTexture("_BumpMap", MapTexture("kim_normal", true, false, KimDir)); mat.EnableKeyword("_NORMALMAP");
+                AssetDatabase.CreateAsset(mat, $"{KimDir}/Kim.mat");
+            }
+            foreach (var r in skin.GetComponentsInChildren<SkinnedMeshRenderer>()) r.sharedMaterial = mat;
+            var follow = rig.AddComponent<SkinFollower>(); follow.skinJson = table; follow.robotPrefix = prefix; follow.skinRoot = skin.transform;
+            var pelvis = GameObject.Find(prefix + "pelvis"); if (pelvis == null) throw new Exception("no body " + prefix + "pelvis in the imported scene");
+            foreach (var r in pelvis.GetComponentsInChildren<MeshRenderer>()) r.enabled = false;
         }
 
         /// <summary>Policy gate: open Testbed_&lt;tag&gt;, attach &lt;rung&gt;_policy.onnx to the runner, add the parity probe
@@ -106,15 +141,15 @@ namespace PoKingHill.EditorTools
         {
             string tag = Arg("-kothScene", "flat_1p"), rung = Arg("-kothRung", "r0");
             AssetDatabase.Refresh();
-            EditorSceneManager.OpenScene($"{SceneDir}/Testbed_{tag}.unity", OpenSceneMode.Single);
-            var policy = AssetDatabase.LoadAssetAtPath<Unity.InferenceEngine.ModelAsset>($"{ModelDir}/{rung}_policy.onnx");
+            EditorSceneManager.OpenScene(SceneOf(Robot, tag), OpenSceneMode.Single); string models = ModelsOf(Robot);
+            var policy = AssetDatabase.LoadAssetAtPath<Unity.InferenceEngine.ModelAsset>($"{models}/{rung}_policy.onnx");
             var runners = UnityEngine.Object.FindObjectsByType<PolicyRunner>(FindObjectsInactive.Include).OrderBy(r => r.robotPrefix).ToArray();
             foreach (var hold in UnityEngine.Object.FindObjectsByType<ParityProbe>(FindObjectsInactive.Include)) hold.enabled = false;
             int probes = 0;
             foreach (var runner in runners)
             {
                 string suffix = runners.Length == 1 ? "" : "_" + runner.robotPrefix.Trim('_');
-                var reference = AssetDatabase.LoadAssetAtPath<TextAsset>($"{ModelDir}/{rung}_reference_trajectory{suffix}.json");
+                var reference = AssetDatabase.LoadAssetAtPath<TextAsset>($"{models}/{rung}_reference_trajectory{suffix}.json");
                 if (policy == null || reference == null) continue;
                 runner.policy = policy;
                 runner.opponent = runners.FirstOrDefault(r => r != runner);
@@ -122,7 +157,7 @@ namespace PoKingHill.EditorTools
                 probe.referenceJson = reference; probe.policy = policy; probe.runner = runner; probe.rung = rung; probe.suffix = suffix;
                 probes++;
             }
-            if (probes != runners.Length) { Debug.LogError($"[ParityBatch] missing {rung}_policy.onnx or reference json in {ModelDir} ({probes}/{runners.Length} robots)"); if (HasFlag("-kothExit")) EditorApplication.Exit(3); return; }
+            if (probes != runners.Length) { Debug.LogError($"[ParityBatch] missing {rung}_policy.onnx or reference json in {models} ({probes}/{runners.Length} robots)"); if (HasFlag("-kothExit")) EditorApplication.Exit(3); return; }
             EditorApplication.EnterPlaymode();
         }
 
@@ -175,9 +210,9 @@ namespace PoKingHill.EditorTools
 
         const string MapDir = "Assets/PoKingHill/Maps/Mountain";
 
-        static Texture2D MapTexture(string name, bool normal, bool srgb)
+        static Texture2D MapTexture(string name, bool normal, bool srgb, string dir = MapDir)
         {
-            string path = $"{MapDir}/{name}.png"; var imp = AssetImporter.GetAtPath(path) as TextureImporter;
+            string path = $"{dir}/{name}.png"; var imp = AssetImporter.GetAtPath(path) as TextureImporter;
             if (imp == null) throw new Exception(path + " missing (run tools/make_mountain_map.py in Blender)");
             var type = normal ? TextureImporterType.NormalMap : TextureImporterType.Default;
             if (imp.textureType != type || imp.sRGBTexture != srgb) { imp.textureType = type; imp.sRGBTexture = srgb; imp.SaveAndReimport(); }
@@ -208,6 +243,24 @@ namespace PoKingHill.EditorTools
             foreach (var c in root.GetComponentsInChildren<Collider>()) UnityEngine.Object.DestroyImmediate(c);
             foreach (var f in root.GetComponentsInChildren<MeshFilter>()) Debug.Log($"[ParityBatch] map mesh {f.name}: {f.sharedMesh.vertexCount} verts, world bounds {f.GetComponent<Renderer>().bounds}");
             return root;
+        }
+
+        /// <summary>Still picture of the whole map from outside (the match camera only ever frames the summit):
+        /// renders Demo_duel in edit mode with the sea at its starting level to -kothOut (default map_overview.png).</summary>
+        public static void MapOverview()
+        {
+            BuildDuelDemo();
+            var water = GameObject.Find("Sea (render only)"); if (water != null) water.transform.position = new Vector3(0f, -6f, 0f);
+            var dd = UnityEngine.Object.FindAnyObjectByType<DemoDirector>();                 // in edit mode nothing has picked a map yet
+            for (int i = 0; i < dd.mapVisuals.Length; i++) if (dd.mapVisuals[i] != null) dd.mapVisuals[i].SetActive(i == dd.selectedMap);
+            var cam = new GameObject("OverviewCamera").AddComponent<Camera>(); cam.fieldOfView = 45f; cam.farClipPlane = 2000f;
+            cam.transform.position = new Vector3(11f, 1.5f, -13f); cam.transform.LookAt(new Vector3(0f, -3f, 0f));
+            var rt = new RenderTexture(1280, 960, 24, RenderTextureFormat.ARGB32, RenderTextureReadWrite.sRGB); cam.targetTexture = rt; cam.Render();
+            RenderTexture.active = rt; var tex = new Texture2D(rt.width, rt.height, TextureFormat.RGB24, false);
+            tex.ReadPixels(new Rect(0, 0, rt.width, rt.height), 0, 0); tex.Apply(); RenderTexture.active = null;
+            string path = Path.GetFullPath(Arg("-kothOut", "map_overview.png")); File.WriteAllBytes(path, tex.EncodeToPNG());
+            Debug.Log("[ParityBatch] wrote " + path);
+            if (HasFlag("-kothExit")) EditorApplication.Exit(0);
         }
 
         /// <summary>Parity gate for the combat policy: Demo_duel with the director replaced by one probe per robot,
@@ -274,7 +327,7 @@ namespace PoKingHill.EditorTools
         public static void RunHold()
         {
             string tag = Arg("-kothScene", "flat_1p");
-            EditorSceneManager.OpenScene($"{SceneDir}/Testbed_{tag}.unity", OpenSceneMode.Single);
+            EditorSceneManager.OpenScene(SceneOf(Robot, tag), OpenSceneMode.Single);
             EditorApplication.EnterPlaymode();
         }
     }

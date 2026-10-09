@@ -1,0 +1,15 @@
+{
+ "model_check_passed": true,
+ "model_check_mismatches": 0,
+ "nq": 100, "nv": 94, "nu": 58, "nbody": 65, "ngeom": 53,
+ "timestep": 0.002, "fixed_dt": 0.002, "integrator": 3, "iterations": 5, "ls_iterations": 10,
+ "mean_step_ms": 0.25477, "steps": 6500, "sim_time": 13,
+ "after_box": {"a_z": 0.74379, "a_up": 0.99984, "b_z": 0.74297, "b_up": 0.9979},
+ "trace": [
+  {"t": 0.5, "a_z": 0.744, "a_up": 1, "b_z": 0.744, "b_up": 1},
+  {"t": 1, "a_z": 0.74399, "a_up": 0.99999, "b_z": 0.74399, "b_up": 0.99999},
+  {"t": 3, "a_z": 0.74393, "a_up": 0.99994, "b_z": 0.74393, "b_up": 0.99994},
+  {"t": 5, "a_z": 0.74389, "a_up": 0.99989, "b_z": 0.74389, "b_up": 0.99989},
+  {"t": 10, "a_z": 0.74386, "a_up": 0.99984, "b_z": 0.74386, "b_up": 0.99984}
+ ]
+}

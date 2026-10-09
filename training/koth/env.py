@@ -15,7 +15,7 @@ import numpy as np, torch, mujoco, warp as wp, mujoco_warp as mjw
 from tensordict import TensorDict
 from koth.obs import build_obs, build_combat, quat_rotate_inverse, goal_command, OBS_DIM, COMBAT_DIM, GAIT_FREQ_HZ, SHOVE_POSE, SHOVE_FAR, SHOVE_NEAR, SHOVE_SMOOTH
 
-ASSETS = os.path.normpath(os.path.join(os.path.dirname(__file__), "..", "assets", "g1"))
+ASSETS = os.path.normpath(os.path.join(os.path.dirname(__file__), "..", "assets", os.environ.get("KOTH_ROBOT", "g1")))
 PLATEAU_R, SLOPE_K = 1.5, 1.0 / 9.0          # must match build_mjcf.py
 
 

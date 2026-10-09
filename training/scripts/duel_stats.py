@@ -9,7 +9,7 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 import numpy as np, torch, mujoco, onnxruntime as ort
 from koth.obs import build_obs, build_combat, goal_command, GAIT_FREQ_HZ, SHOVE_POSE, SHOVE_FAR, SHOVE_NEAR, SHOVE_SMOOTH
 
-ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__))); ASSETS = os.path.join(ROOT, "assets", "g1")
+ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__))); ASSETS = os.path.join(ROOT, "assets", os.environ.get("KOTH_ROBOT", "g1"))
 MODELS = os.path.normpath(os.path.join(ROOT, "..", "Assets", "PoKingHill", "Models"))
 ap = argparse.ArgumentParser(); ap.add_argument("--policy", default="attacker"); ap.add_argument("--rounds", type=int, default=200)
 ap.add_argument("--seconds", type=float, default=25.0); ap.add_argument("--seed", type=int, default=0)

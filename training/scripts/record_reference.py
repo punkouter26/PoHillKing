@@ -15,7 +15,7 @@ import numpy as np, torch, mujoco, onnx, onnxruntime as ort
 from koth.obs import build_obs, build_combat, goal_command, OBS_DIM, GAIT_FREQ_HZ
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-ASSETS = os.path.join(ROOT, "assets", "g1")
+ASSETS = os.path.join(ROOT, "assets", os.environ.get("KOTH_ROBOT", "g1"))
 UNITY_MODELS = os.path.normpath(os.path.join(ROOT, "..", "Assets", "PoKingHill", "Models"))
 SLOPE_K, PLATEAU_R = 1.0 / 9.0, 1.5
 

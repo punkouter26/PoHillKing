@@ -19,8 +19,10 @@ import numpy as np
 import mujoco
 
 HERE = os.path.dirname(os.path.abspath(__file__))
-ASSETS = os.path.normpath(os.path.join(HERE, "..", "assets", "g1"))
-SRC = os.path.join(ASSETS, "g1_mjx.xml")
+ROBOT = os.environ.get("KOTH_ROBOT", "g1")          # which fighter's body to build: g1 (default) or kim
+ASSETS = os.path.normpath(os.path.join(HERE, "..", "assets", ROBOT))
+SRC = os.path.join(ASSETS, f"{ROBOT}_mjx.xml")
+SPAWN_Z = 0.793                                     # pelvis height in the authoring scene (the keyframe refines it)
 
 SIM_DT = 0.002
 CTRL_DT = 0.02
@@ -56,6 +58,10 @@ DEFAULT_POSE = {
 PD_GAINS = {"g1": (0, 0), "hip": (200, 5), "knee": (300, 5), "ankle": (60, 3), "ankle_pitch": (200, 5),
             "waist_yaw": (200, 5), "waist_pitch": (200, 5), "waist_roll": (200, 5),
             "shoulder": (60, 3), "elbow": (60, 3), "wrist": (40, 2)}
+
+
+if ROBOT == "kim":       # same 29 joints, her own pose, gains and height (koth/build_kim.py)
+    from koth.build_kim import DEFAULT_POSE, PD_GAINS, SPAWN_Z
 
 
 def apply_pd_gains(default: ET.Element) -> ET.Element:
@@ -156,7 +162,7 @@ def make_robot(src_root: ET.Element, prefix: str, mask_bit: int, pos, quat) -> t
         cls = g.get("class", "")
         if cls == "visual":
             continue
-        is_foot = cls.startswith("foot")
+        is_foot = "foot" in cls
         is_shin = "shin" in g.get("name", "") or "linkage_brace" in g.get("name", "")
         ct = mask_bit | (16 if is_foot else 0)
         ca = other | 4 | (16 if (is_foot or is_shin) else 0)
@@ -200,7 +206,7 @@ def make_pool(n: int = POOL_N) -> list[ET.Element]:
 
 def build_scene(src_root: ET.Element, two_player: bool, arena: bool | None = None) -> ET.Element:
     arena = two_player if arena is None else arena
-    root = ET.Element("mujoco", model="g1_koth_2p" if two_player else "g1_koth_1p")
+    root = ET.Element("mujoco", model=f"{ROBOT}_koth_2p" if two_player else f"{ROBOT}_koth_1p")
     ET.SubElement(root, "compiler", angle="radian", assetdir="assets", autolimits="true")
     # implicitfast: Unity-settable, and makes the eulerdamp flag irrelevant. iterations=5 like menagerie mjx.
     # ls_iterations: the Unity plugin cannot import it, so PolicyRunner writes model->opt.ls_iterations after init.
@@ -219,9 +225,9 @@ def build_scene(src_root: ET.Element, two_player: bool, arena: bool | None = Non
         ET.SubElement(wb, "geom", name="floor", type="plane", size="0 0 0.05", contype="4", conaffinity="31",
                       condim="3", friction="0.6", rgba="0.4 0.4 0.4 1")
     if two_player:
-        robots = [("a_", 1, (-1.4, 0, 0.793), (1, 0, 0, 0)), ("b_", 2, (1.4, 0, 0.793), (0, 0, 0, 1))]
+        robots = [("a_", 1, (-1.4, 0, SPAWN_Z), (1, 0, 0, 0)), ("b_", 2, (1.4, 0, SPAWN_Z), (0, 0, 0, 1))]
     else:
-        robots = [("a_", 1, (0, 0, 0.793), (1, 0, 0, 0))]
+        robots = [("a_", 1, (0, 0, SPAWN_Z), (1, 0, 0, 0))]
     act = ET.Element("actuator"); contact = ET.Element("contact")
     for prefix, bit, pos, quat in robots:
         pelvis, acts, excl = make_robot(src_root, prefix, bit, pos, quat)
@@ -343,6 +349,10 @@ def build(two_player: bool, arena: bool | None = None):
 
 
 if __name__ == "__main__":
+    if ROBOT == "kim":
+        from koth.build_kim import build as build_kim_body
+        build_kim_body()
+    os.makedirs(os.path.join(ASSETS, "assets"), exist_ok=True)
     print("arena:", write_arena())
     build(two_player=False)
     build(two_player=False, arena=True)
@@ -355,7 +365,7 @@ if __name__ == "__main__":
     print("wrote joint_map.json")
     # Unity reads these as TextAssets
     import shutil
-    unity_models = os.path.normpath(os.path.join(HERE, "..", "..", "Assets", "PoKingHill", "Models"))
+    unity_models = os.path.normpath(os.path.join(HERE, "..", "..", "Assets", "PoKingHill", "Models", *([] if ROBOT == "g1" else [ROBOT])))
     os.makedirs(unity_models, exist_ok=True)
     for f in ("joint_map.json", "model_dump_flat_1p.json", "model_dump_koth_1p.json", "model_dump_koth_2p.json"):
         shutil.copyfile(os.path.join(ASSETS, f), os.path.join(unity_models, f))

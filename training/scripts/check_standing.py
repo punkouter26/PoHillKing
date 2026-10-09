@@ -34,5 +34,5 @@ for p, r in roots.items():
     up = 1 - 2 * (q[:, r + 4] ** 2 + q[:, r + 5] ** 2)   # world z of body z-axis from quaternion (w,x,y,z)
     print(f"{p}: final z min {z.min():.3f}  upright(min z-axis·up) {up.min():.3f}  nan {bool(np.isnan(q).any())}")
     ok &= bool(z.min() > 0.6 and up.min() > 0.9 and not np.isnan(q).any())
-json.dump({"scene": os.path.basename(scene), "trace": trace}, open("assets/g1/hold_trace_" + os.path.basename(scene).replace(".xml", ".json"), "w"), indent=1)
+json.dump({"scene": os.path.basename(scene), "trace": trace}, open(os.path.join(os.path.dirname(scene), "hold_trace_" + os.path.basename(scene).replace(".xml", ".json")), "w"), indent=1)
 print("PASS" if ok else "FAIL"); sys.exit(0 if ok else 1)

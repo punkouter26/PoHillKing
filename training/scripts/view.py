@@ -5,7 +5,7 @@ Viewer keys: space = pause, backspace = reset, double-click + ctrl-drag = push a
 import os, sys, time
 import mujoco, mujoco.viewer, numpy as np
 
-ASSETS = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "assets", "g1")
+ASSETS = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "assets", os.environ.get("KOTH_ROBOT", "g1"))
 args = [a for a in sys.argv[1:] if not a.startswith("--")]
 scene = os.path.join(ASSETS, args[0] if args else "scene_koth_2p_train.xml")
 boxes = "--no-boxes" not in sys.argv

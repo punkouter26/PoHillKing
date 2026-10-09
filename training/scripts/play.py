@@ -11,7 +11,7 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 import numpy as np, torch, mujoco, mujoco.viewer
 from koth.obs import build_obs, build_combat, goal_command, GAIT_FREQ_HZ
 
-ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__))); ASSETS = os.path.join(ROOT, "assets", "g1")
+ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__))); ASSETS = os.path.join(ROOT, "assets", os.environ.get("KOTH_ROBOT", "g1"))
 
 
 class Policy:
