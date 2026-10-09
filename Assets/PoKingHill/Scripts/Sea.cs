@@ -48,10 +48,14 @@ namespace PoKingHill
             Restart();
         }
 
+        /// <summary>Hold the water at the bottom (menu).</summary>
+        public void Park() { _parked = true; Level = -startDepth; }
+        bool _parked;
+
         /// <summary>Start a new flood: water back at the bottom, new random arrival time.</summary>
         public void Restart()
         {
-            Duration = Random.Range(minSeconds, maxSeconds);
+            _parked = false; Duration = Random.Range(minSeconds, maxSeconds);
             _t0 = MjScene.Instance.Data != null ? MjScene.Instance.Data->time : 0;
             Level = -startDepth;
         }
@@ -60,7 +64,7 @@ namespace PoKingHill
         {
             if (_bodies == null) return;
             var m = MjScene.Instance.Model; var d = MjScene.Instance.Data;
-            Level = Mathf.Min(0.05f, -startDepth + startDepth * (float)((d->time - _t0) / Duration));
+            Level = _parked ? -startDepth : Mathf.Min(0.05f, -startDepth + startDepth * (float)((d->time - _t0) / Duration));
             double g = -m->opt.gravity[2];
             foreach (int b in _bodies)
             {

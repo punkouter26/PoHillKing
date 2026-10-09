@@ -147,6 +147,19 @@ namespace PoKingHill
             System.Array.Clear(LastAction, 0, LastAction.Length);
         }
 
+        /// <summary>Swap the brain at runtime (menu fighter selection). policy = null gives the passive stance.</summary>
+        public void SetBrain(ModelAsset newPolicy, int obsDim, GoalMode newGoal, float stopDist, float vmax)
+        {
+            _worker?.Dispose(); _input?.Dispose(); _worker = null; _input = null;
+            policy = newPolicy; policyObsDim = obsDim; goal = newGoal; goalStopDist = stopDist; goalVmax = vmax; command = Vector3.zero;
+            if (policy != null)
+            {
+                _worker = new Worker(ModelLoader.Load(policy), BackendType.CPU);
+                Obs = new float[policyObsDim]; _input = new Tensor<float>(new TensorShape(1, policyObsDim));
+            }
+            _substep = 0; _phase = 0; System.Array.Clear(LastAction, 0, LastAction.Length);
+        }
+
         /// <summary>Keyframe pose at a chosen spot on the summit (MuJoCo frame x, y in metres, yaw in radians).</summary>
         public void ResetPose(float x, float y, float yaw)
         {

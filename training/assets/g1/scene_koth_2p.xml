@@ -135,7 +135,7 @@
     <mesh name="right_wrist_pitch_link" file="right_wrist_pitch_link.STL" />
     <mesh name="right_wrist_yaw_link" file="right_wrist_yaw_link.STL" />
     <mesh name="right_rubber_hand" file="right_rubber_hand.STL" />
-    <mesh name="arena" file="arena.obj" />
+    <mesh name="arena" file="arena.stl" />
   </asset>
   <worldbody>
     <light pos="0 0 6" dir="0 0 -1" directional="true" />

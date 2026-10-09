@@ -73,6 +73,22 @@ namespace PoKingHill.EditorTools
             var light = new GameObject("Directional Light").AddComponent<Light>(); light.type = LightType.Directional;
             light.transform.rotation = Quaternion.Euler(50f, -30f, 0f);
 
+            // The plugin's own renderer for the arena geom drew nothing (verified by screenshots: robots appeared to
+            // stand on open water), although the imported mesh asset is correct. Draw the hill with a separate
+            // render-only object that shows the same mesh asset with a two-sided material. No physics component.
+            foreach (var geom in UnityEngine.Object.FindObjectsByType<MjGeom>(FindObjectsInactive.Include))
+            {
+                if (geom.gameObject.name != "arena" || geom.Mesh == null || geom.Mesh.Mesh == null) continue;
+                var own = geom.GetComponent<MeshRenderer>(); if (own != null) own.enabled = false;
+                var visual = new GameObject("ArenaVisual (render only)");
+                visual.transform.SetPositionAndRotation(geom.transform.position, geom.transform.rotation);
+                visual.AddComponent<MeshFilter>().sharedMesh = geom.Mesh.Mesh;
+                var mat = new Material(MjcfImporter.GetLitShader()) { color = new Color(0.47f, 0.42f, 0.36f, 1f), doubleSidedGI = true };
+                mat.SetFloat("_Cull", 0f);
+                AssetDatabase.CreateAsset(mat, $"{SceneDir}/ArenaMaterial_{tag}.mat");
+                visual.AddComponent<MeshRenderer>().sharedMaterial = mat;
+                Debug.Log($"[ParityBatch] arena visual: {geom.Mesh.Mesh.vertexCount} verts, bounds {geom.Mesh.Mesh.bounds.center} / {geom.Mesh.Mesh.bounds.size}");
+            }
             int colliders = UnityEngine.Object.FindObjectsByType<Collider>(FindObjectsInactive.Include).Length;
             int bodies = UnityEngine.Object.FindObjectsByType<Rigidbody>(FindObjectsInactive.Include).Length;
             if (colliders + bodies > 0) throw new Exception($"PhysX components present after import: {colliders} colliders, {bodies} rigidbodies");
@@ -122,10 +138,7 @@ namespace PoKingHill.EditorTools
             if (attacker == null) throw new Exception("attacker_policy.onnx missing in " + ModelDir);
             var runners = UnityEngine.Object.FindObjectsByType<PolicyRunner>(FindObjectsInactive.Include).OrderBy(r => r.robotPrefix).ToArray();
             var a = runners[0]; var b = runners[1];
-            foreach (var (r, o) in new[] { (a, b), (b, a) })
-            {
-                r.policy = attacker; r.policyObsDim = 112; r.goal = GoalMode.Opponent; r.goalStopDist = 0f; r.goalVmax = 1f; r.opponent = o;
-            }
+            a.opponent = b; b.opponent = a;      // brains are assigned at launch by DemoDirector from the roster
             foreach (var probe in UnityEngine.Object.FindObjectsByType<ParityProbe>(FindObjectsInactive.Include)) UnityEngine.Object.DestroyImmediate(probe);
             var rig = a.transform.parent.gameObject;
 
@@ -137,12 +150,17 @@ namespace PoKingHill.EditorTools
             var sea = rig.AddComponent<Sea>(); sea.waterVisual = water.transform;
 
             var director = rig.AddComponent<DemoDirector>(); director.attacker = a; director.defender = b; director.sea = sea;
-            director.labelA = "Robot A"; director.labelB = "Robot B"; director.behaviour = "King of the hill: Attacker vs Attacker";
+            Fighter F(string name, string file, int dim, GoalMode goal) => new Fighter { name = name, obsDim = dim, goal = goal, stopDist = 0f, vmax = 1f,
+                policy = AssetDatabase.LoadAssetAtPath<Unity.InferenceEngine.ModelAsset>($"{ModelDir}/{file}_policy.onnx") };
+            director.roster = new[] { F("G1 All-rounder (champion)", "attacker", 112, GoalMode.Opponent), F("G1 Duelist (generation 7)", "duelist", 112, GoalMode.Opponent),
+                                      F("G1 Rammer (generation 1)", "rammer", 112, GoalMode.Opponent), F("G1 Walker (stands its ground)", "r1", 103, GoalMode.None) };
+            if (director.roster.Any(f => f.policy == null)) throw new Exception("a roster policy is missing in " + ModelDir);
             var cam = Camera.main;                      // 9:16 portrait framing of the summit
             cam.transform.position = new Vector3(0f, 2.6f, -6.2f); cam.transform.LookAt(new Vector3(0f, 0.5f, 0f)); cam.fieldOfView = 38f;
             var mc = cam.gameObject.AddComponent<MatchCamera>(); mc.robotA = a; mc.robotB = b; mc.director = director;
             if (cam.GetComponent<AudioListener>() == null) cam.gameObject.AddComponent<AudioListener>();
             var synth = rig.AddComponent<ImpactSynth>(); synth.robots = new[] { a, b }; synth.sea = sea;   // adds the AudioSource it requires
+            director.synth = synth;
             int physx = UnityEngine.Object.FindObjectsByType<Collider>(FindObjectsInactive.Include).Length + UnityEngine.Object.FindObjectsByType<Rigidbody>(FindObjectsInactive.Include).Length;
             if (physx > 0) throw new Exception($"PhysX components present in the demo scene: {physx}");
             string path = $"{SceneDir}/Demo_duel.unity";
@@ -157,6 +175,8 @@ namespace PoKingHill.EditorTools
             string rung = Arg("-kothRung", "r4duel");
             BuildDuelDemo();
             EditorSceneManager.OpenScene($"{SceneDir}/Demo_duel.unity", OpenSceneMode.Single);
+            var champion = AssetDatabase.LoadAssetAtPath<Unity.InferenceEngine.ModelAsset>($"{ModelDir}/attacker_policy.onnx");
+            foreach (var r in UnityEngine.Object.FindObjectsByType<PolicyRunner>(FindObjectsInactive.Include)) { r.policy = champion; r.policyObsDim = 112; r.goal = GoalMode.Opponent; r.goalStopDist = 0f; r.goalVmax = 1f; }
             foreach (var dd in UnityEngine.Object.FindObjectsByType<DemoDirector>(FindObjectsInactive.Include)) UnityEngine.Object.DestroyImmediate(dd);
             foreach (var sea in UnityEngine.Object.FindObjectsByType<Sea>(FindObjectsInactive.Include)) UnityEngine.Object.DestroyImmediate(sea);
             foreach (var runner in UnityEngine.Object.FindObjectsByType<PolicyRunner>(FindObjectsInactive.Include))
@@ -178,7 +198,7 @@ namespace PoKingHill.EditorTools
             EditorSceneManager.OpenScene($"{SceneDir}/Demo_duel.unity", OpenSceneMode.Single);
             foreach (var sea in UnityEngine.Object.FindObjectsByType<Sea>(FindObjectsInactive.Include)) UnityEngine.Object.DestroyImmediate(sea);
             var dd = UnityEngine.Object.FindAnyObjectByType<DemoDirector>(); dd.sea = null; dd.roundSeconds = 25f;
-            dd.statsRounds = int.Parse(Arg("-kothRounds", "200"));
+            dd.statsRounds = int.Parse(Arg("-kothRounds", "200")); dd.selectedA = int.Parse(Arg("-kothA", "0")); dd.selectedB = int.Parse(Arg("-kothB", "0"));
             EditorApplication.EnterPlaymode();
         }
 
