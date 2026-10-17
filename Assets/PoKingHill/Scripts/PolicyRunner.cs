@@ -30,6 +30,10 @@ namespace PoKingHill
         const float ShoveFar = 1.6f, ShoveNear = 1.0f, ShoveSmooth = 0.5f, ShoveShoulderPitch = -1.0f, ShoveElbow = 0.5f;
 
         public JointMap Map { get; private set; }
+        public JointMapSpec Spec => _spec;
+        /// <summary>The pelvis body's GameObject transform (moved by the MuJoCo plugin): what cameras and effects follow.</summary>
+        public Transform PelvisTransform { get { if (_pelvisT == null) { var go = GameObject.Find(robotPrefix + "pelvis"); if (go != null) _pelvisT = go.transform; } return _pelvisT; } }
+        Transform _pelvisT;
         public float[] Obs { get; private set; } = new float[ObsBuilder.ObsDim];
         public float[] LastAction { get; private set; }
         public float[] RawAction { get; private set; }   // network output before clamping

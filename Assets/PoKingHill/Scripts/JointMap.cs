@@ -23,6 +23,17 @@ namespace PoKingHill
         public int ls_iterations;
         public float[] hold_ctrl;     // gravity-compensated stance targets, canonical order
         public float key_root_z;       // pelvis height of the training keyframe
+        public ArenaSpec arena;        // the hill and the "out" rule (training/koth/rules.py); defaults when absent
+    }
+
+    /// <summary>Hill shape and the game's elimination thresholds, written by build_mjcf.py from koth/rules.py. Doubles,
+    /// so the C# rule is bit-identical to the Python one (a float 1/9 differs in the 8th digit).</summary>
+    [Serializable]
+    public class ArenaSpec
+    {
+        public double plateau_r = 1.5, slope_k = 1.0 / 9.0, out_radius = 1.7, fall_height = 0.3, fall_up = 0.3;
+        /// <summary>Height of the dome surface at radius r (flat plateau, then z = -k (r - R)²).</summary>
+        public double Ground(double r) => -slope_k * Math.Pow(Math.Max(r - plateau_r, 0), 2);
     }
 
     public unsafe class JointMap

@@ -172,11 +172,15 @@ namespace PoKingHill.EditorTools
         [MenuItem("PoKingHill/Build duel demo scene")]
         public static void BuildDuelDemo() => BuildDuelDemo("koth_5p");
 
-        /// <summary>Builds and saves Demo_duel.unity from an imported arena scene: the game uses the one with four G1
-        /// and Kim (koth_5p, default), the two-fighter parity gates the scene the brains were trained in (koth_2p). The menu
-        /// seats the ticked agents on the bodies, everyone starts on the summit and the sea rises as the round clock.
-        /// No PhysX components are created (the water disc loses its collider).</summary>
-        public static void BuildDuelDemo(string tag)
+        /// <summary>The two-fighter gates' scene (git-ignored), so a gate run never overwrites the game scene.</summary>
+        const string GateScene = SceneDir + "/Gate_duel_2p.unity";
+
+        /// <summary>Builds the game scene from an imported arena scene and saves it to <paramref name="savePath"/>
+        /// (Demo_duel.unity by default): the game uses the one with four G1 and Kim (koth_5p, default), the two-fighter
+        /// parity gates the scene the brains were trained in (koth_2p, saved as Gate_duel_2p.unity). The menu seats the
+        /// ticked agents on the bodies, everyone starts on the summit and the sea rises as the round clock. Presentation
+        /// (HUD, cameras, effects) comes from GameSceneBuilder. No PhysX components are created.</summary>
+        public static void BuildDuelDemo(string tag, string savePath = DemoScene)
         {
             AssetDatabase.Refresh();
             var scene = EditorSceneManager.OpenScene(SceneOf("g1", tag), OpenSceneMode.Single);
@@ -195,17 +199,21 @@ namespace PoKingHill.EditorTools
             var water = GameObject.CreatePrimitive(PrimitiveType.Cylinder); water.name = "Sea (render only)";
             UnityEngine.Object.DestroyImmediate(water.GetComponent<Collider>());                 // PhysX stays out of the scene
             water.transform.localScale = new Vector3(900f, 0.01f, 900f);         // reaches past the distant peaks
-            var mat = new Material(MjcfImporter.GetLitShader()) { color = new Color(0.10f, 0.35f, 0.55f, 1f) };
-            AssetDatabase.CreateAsset(mat, $"{SceneDir}/SeaMaterial.mat"); water.GetComponent<MeshRenderer>().sharedMaterial = mat;
-            var sea = rig.AddComponent<Sea>(); sea.waterVisual = water.transform;
+            var mat = AssetDatabase.LoadAssetAtPath<Material>($"{SceneDir}/SeaMaterial.mat");          // fallback look if the water shader is missing
+            if (mat == null) { mat = new Material(MjcfImporter.GetLitShader()) { color = new Color(0.10f, 0.35f, 0.55f, 1f) }; AssetDatabase.CreateAsset(mat, $"{SceneDir}/SeaMaterial.mat"); }
+            water.GetComponent<MeshRenderer>().sharedMaterial = mat;
+            var sea = rig.AddComponent<Sea>(); sea.waterVisual = water.transform;     // robotPrefixes left empty: every fighter body floats
 
             var director = rig.AddComponent<DemoDirector>(); director.fighters = runners; director.sea = sea;
-            Fighter F(string name, string file, int dim, GoalMode goal) => new Fighter { name = name, obsDim = dim, goal = goal, stopDist = 0f, vmax = 1f,
-                policy = AssetDatabase.LoadAssetAtPath<Unity.InferenceEngine.ModelAsset>($"{ModelDir}/{file}_policy.onnx") };
-            director.roster = new[] { F("G1 All-rounder (champion)", "attacker", 112, GoalMode.Opponent), F("G1 Duelist (generation 7)", "duelist", 112, GoalMode.Opponent),
-                                      F("G1 Rammer (generation 1)", "rammer", 112, GoalMode.Opponent), F("G1 Walker (stands its ground)", "r1", 103, GoalMode.None),
+            Unity.InferenceEngine.ModelAsset Onnx(string file) => AssetDatabase.LoadAssetAtPath<Unity.InferenceEngine.ModelAsset>($"{ModelDir}/{file}.onnx");
+            // value = the critic exported next to the policy by export_policy.py --value, when present (drives the win-odds bar)
+            Fighter F(string name, string badge, string file, int dim, GoalMode goal) => new Fighter { name = name, shortName = badge, obsDim = dim, goal = goal,
+                policy = Onnx(file + "_policy"), value = Onnx(file + "_value") };
+            var walker = F("G1 Walker (stands its ground)", "Walker", "r1", 103, GoalMode.None); walker.steerable = true;
+            director.roster = new[] { F("G1 All-rounder (champion)", "All-rounder", "attacker", 112, GoalMode.Opponent), F("G1 Duelist (generation 7)", "Duelist", "duelist", 112, GoalMode.Opponent),
+                                      F("G1 Rammer (generation 1)", "Rammer", "rammer", 112, GoalMode.Opponent), walker,
                                       // Kim is offered only when this scene has a Kim body (koth_5p: e_) and her walking brain has been exported.
-                                      new Fighter { name = "Kim", body = "kim", policy = kimBrain, obsDim = 103, goal = GoalMode.Opponent, stopDist = 0f, vmax = 0.8f,
+                                      new Fighter { name = "Kim", shortName = "Kim", body = "kim", policy = kimBrain, obsDim = 103, goal = GoalMode.Opponent, stopDist = 0f, vmax = 0.8f,
                                                     available = kimBrain != null && kimBody, inGame = kimBrain != null && kimBody,
                                                     note = !kimBody ? "no Kim body in this scene" : kimBrain == null ? "no brain yet" : "walks at you, never trained to fight" } };
             if (director.roster.Any(f => f.available && f.policy == null)) throw new Exception("a roster policy is missing in " + ModelDir);
@@ -220,9 +228,10 @@ namespace PoKingHill.EditorTools
             var synth = rig.AddComponent<ImpactSynth>(); synth.robots = runners; synth.sea = sea;   // adds the AudioSource it requires
             director.synth = synth;
             rig.AddComponent<PerfProbe>();              // inert unless started with -kothPerf <seconds>
+            GameSceneBuilder.Dress(rig, director, sea, synth, cam, mc, rig.GetComponent<ProjectilePool>());
             AssertNoPhysX("in the demo scene");
-            EditorSceneManager.SaveScene(scene, DemoScene);
-            Debug.Log("[ParityBatch] saved " + DemoScene);
+            EditorSceneManager.SaveScene(scene, savePath);
+            Debug.Log("[ParityBatch] saved " + savePath);
         }
 
         const string MapDir = "Assets/PoKingHill/Maps/Mountain";
@@ -285,8 +294,8 @@ namespace PoKingHill.EditorTools
         public static void RunDuelParity()
         {
             string rung = Cli.Arg("-kothRung", "r4duel");
-            BuildDuelDemo("koth_2p");
-            EditorSceneManager.OpenScene(DemoScene, OpenSceneMode.Single);
+            BuildDuelDemo("koth_2p", GateScene);
+            EditorSceneManager.OpenScene(GateScene, OpenSceneMode.Single);
             var champion = AssetDatabase.LoadAssetAtPath<Unity.InferenceEngine.ModelAsset>($"{ModelDir}/attacker_policy.onnx");
             foreach (var r in UnityEngine.Object.FindObjectsByType<PolicyRunner>(FindObjectsInactive.Include)) { r.policy = champion; r.policyObsDim = 112; r.goal = GoalMode.Opponent; r.goalStopDist = 0f; r.goalVmax = 1f; }
             foreach (var dd in UnityEngine.Object.FindObjectsByType<DemoDirector>(FindObjectsInactive.Include)) UnityEngine.Object.DestroyImmediate(dd);
@@ -306,8 +315,8 @@ namespace PoKingHill.EditorTools
         /// (fixed 25 s bell, as in training evaluation) and write duel_stats_unity.json.</summary>
         public static void RunDuelStats()
         {
-            BuildDuelDemo("koth_2p");
-            EditorSceneManager.OpenScene(DemoScene, OpenSceneMode.Single);
+            BuildDuelDemo("koth_2p", GateScene);
+            EditorSceneManager.OpenScene(GateScene, OpenSceneMode.Single);
             foreach (var sea in UnityEngine.Object.FindObjectsByType<Sea>(FindObjectsInactive.Include)) UnityEngine.Object.DestroyImmediate(sea);
             var dd = UnityEngine.Object.FindAnyObjectByType<DemoDirector>(); dd.sea = null; dd.roundSeconds = 25f;
             dd.statsRounds = int.Parse(Cli.Arg("-kothRounds", "200")); dd.selectedA = int.Parse(Cli.Arg("-kothA", "0")); dd.selectedB = int.Parse(Cli.Arg("-kothB", "0"));

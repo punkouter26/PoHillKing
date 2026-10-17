@@ -21,6 +21,10 @@ namespace PoKingHill
             oz = (float)(vz - w * tz + (x * ty - y * tx));
         }
 
+        /// <summary>Uprightness of unit quaternion q=(w,x,y,z): the world-z component of the body's z axis, 1 - 2(x² + y²).
+        /// The same expression as the last combat input and the game's fall rule.</summary>
+        public static double Up(double* q) => 1 - 2 * (q[1] * q[1] + q[2] * q[2]);
+
         /// <summary>Mirror of obs.build_combat(): 9 values about the opponent and the ring, written at obs[o..o+8].
         /// Heading frame = world rotated by my yaw only.</summary>
         public static void FillCombat(float[] obs, int o, MujocoLib.mjData_* d, JointMap me, JointMap opp)

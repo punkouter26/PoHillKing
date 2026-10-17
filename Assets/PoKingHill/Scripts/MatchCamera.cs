@@ -39,8 +39,9 @@ namespace PoKingHill
 
             // Cut-away: the newest fallen fighter to reach the water, shown once.
             if (fallen.Count == 0) { _shown.Clear(); if (_cut != null) { _cut = null; _snap = true; } }
-            if (director.RoundOver && _cut != null) { _cut = null; _snap = true; }      // the winner panel is up: stay on the summit
-            if (director.sea != null && !director.RoundOver)
+            if (director.State == MatchState.Result && _cut != null) { _cut = null; _snap = true; }      // the winner panel is up: stay on the summit
+            if (ReplaySystem.Active && ReplaySystem.Focus != null && ReplaySystem.Focus.Map != null) { _cut = ReplaySystem.Focus; _cutUntil = Time.unscaledTime + 1f; }
+            else if (director.sea != null && !director.RoundOver && GameSettings.CutAways)
                 for (int i = 0; i < fallen.Count; i++)      // index loops: foreach over IReadOnlyList boxes its enumerator every frame
                     if (fallen[i] is var r && !_shown.Contains(r) && Pelvis(r).y < director.sea.Level + cutAbove)
                     {
@@ -48,7 +49,7 @@ namespace PoKingHill
                         Debug.Log($"[MatchCamera] cut to {r.robotPrefix} at the water (sea {director.sea.Level:0.0} m)");
                         director.Shot("splash");
                     }
-            if (_cut != null && (Time.unscaledTime > _cutUntil || Pelvis(_cut).y < director.sea.Level - cutUnder))
+            if (_cut != null && !ReplaySystem.Active && (Time.unscaledTime > _cutUntil || director.sea == null || Pelvis(_cut).y < director.sea.Level - cutUnder))
             {
                 Debug.Log($"[MatchCamera] back to the summit ({(Time.unscaledTime > _cutUntil ? "time limit" : "gone under")})");
                 _cut = null; _snap = true;

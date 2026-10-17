@@ -149,7 +149,7 @@ PlayerSettings:
   loadStoreDebugModeEnabled: 0
   visionOSBundleVersion: 1.0
   tvOSBundleVersion: 1.0
-  bundleVersion: 0.1.0
+  bundleVersion: 261017
   preloadedAssets: []
   metroInputSource: 0
   wsaTransparentSwapchain: 0
@@ -836,7 +836,7 @@ PlayerSettings:
   webProgressiveAssetLoading: 0
   scriptingDefineSymbols:
     Android: SENTIS_ANALYTICS_ENABLED
-    Standalone: SENTIS_ANALYTICS_ENABLED
+    Standalone: SENTIS_ANALYTICS_ENABLED;APP_UI_EDITOR_ONLY
   additionalCompilerArguments: {}
   platformArchitecture: {}
   scriptingBackend:

@@ -3,7 +3,11 @@
     "rootNamespace": "PoKingHill",
     "references": [
         "Mujoco.Runtime",
-        "Unity.InferenceEngine"
+        "Unity.InferenceEngine",
+        "Unity.InputSystem",
+        "Unity.RenderPipelines.Core.Runtime",
+        "Unity.RenderPipelines.Universal.Runtime",
+        "Unity.Cinemachine"
     ],
     "includePlatforms": [],
     "excludePlatforms": [],

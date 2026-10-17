@@ -3,7 +3,13 @@
     "rootNamespace": "PoKingHill.Tests",
     "references": [
         "UnityEngine.TestRunner",
-        "UnityEditor.TestRunner"
+        "UnityEditor.TestRunner",
+        "PoKingHill",
+        "Mujoco.Runtime",
+        "Unity.Cinemachine",
+        "Unity.InferenceEngine",
+        "Unity.RenderPipelines.Core.Runtime",
+        "Unity.RenderPipelines.Universal.Runtime"
     ],
     "includePlatforms": [
         "Editor"

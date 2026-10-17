@@ -10,26 +10,29 @@ namespace PoKingHill
     public class Fighter
     {
         public string name = "Fighter";
+        [Tooltip("What fits on a badge, e.g. All-rounder")] public string shortName = "";
         [Tooltip("The kind of body this brain drives (g1, kim)")] public string body = "g1";
         public ModelAsset policy;
+        [Tooltip("Optional critic exported by export_policy.py --value: drives the win-odds bar")] public ModelAsset value;
         [Tooltip("103 = locomotion inputs, 112 = with opponent/ring inputs")] public int obsDim = 112;
         public GoalMode goal = GoalMode.Opponent;
         public float stopDist = 0f, vmax = 1f;
         [Tooltip("Trained in the shove style (arm pose + action smoothing)")] public bool shove;
+        [Tooltip("A walking brain that follows velocity commands: the player can steer it")] public bool steerable;
         [Tooltip("Ticked in the menu: this agent takes part in matches")] public bool inGame = true;
         [Tooltip("False = listed in the menu but cannot be ticked yet; note says why")] public bool available = true;
         public string note = "";
+        public string Badge => shortName.Length > 0 ? shortName : name;
     }
 
     /// <summary>
-    /// Match flow for king of the hill: pre-match menu (a tick per agent, map), launch, round, result, back to the
-    /// menu. Every ticked agent gets one of the scene's fighter bodies (two to fighters.Length of them; unused bodies
-    /// are parked in the sky) and all start on top of the hill. A fighter is out when it leaves the plateau
-    /// (radius &gt; outRadius) or falls; the round ends when one is left (it wins), none is left, or the sea reaches
-    /// the summit (tie). The brains were trained one against one: in a larger fight each one sees and chases the
-    /// nearest fighter that is still in. Everything is done by writing
-    /// mjData (no scene reload, no Instantiate/Destroy). HUD anchors: TL title, TC telemetry, TR menu / behaviour,
-    /// BL score and reset, BR version.
+    /// Match flow for king of the hill, as an explicit state machine: Menu -> Fight -> Result (-> Replay) -> Fight or
+    /// Menu. Every seated agent gets one of the scene's fighter bodies of its own kind (unused bodies are parked in the
+    /// sky) and all start on top of the hill. A fighter is out when it leaves the plateau (radius &gt; OutRadiusNow) or
+    /// falls; the round ends when one is left (it wins), none is left, or the sea reaches the summit (the one nearest
+    /// the centre wins). The brains were trained one against one: in a larger fight each one is pointed at one
+    /// opponent (nearest, or the easiest to push off). Everything is done by writing mjData (no scene reload, no
+    /// Instantiate/Destroy). Presentation listens to <see cref="MatchEvents"/>; the HUD is HudView.
     /// </summary>
     public unsafe class DemoDirector : MonoBehaviour
     {
@@ -45,37 +48,67 @@ namespace PoKingHill
         public int selectedMap;
         public Vector2 spawnRadiusA = new(0.5f, 1.2f), spawnRadiusB = new(0.5f, 1.2f);
         public float roundSeconds = 25f, outRadius = 1.7f;
-        [Tooltip("How long the winner panel stays up before the menu returns")] public float pauseBetweenRounds = 5f;
-        [Tooltip("Rounds per launch before returning to the menu. 0 = keep fighting.")] public int roundsPerMatch = 1;
+        [Tooltip("How long the winner panel stays up before the next round or the menu")] public float pauseBetweenRounds = 5f;
+        [Tooltip("Rounds per launch before returning to the menu. 0 = keep fighting. GameSettings overrides it at launch.")] public int roundsPerMatch = 1;
         [Tooltip("Skip the menu and start fighting immediately.")] public bool autoLaunch;
         [Tooltip("Statistical parity gate: play this many rounds fast, write duel_stats_unity.json, then stop. 0 = off.")]
         public int statsRounds = 0;
 
-        /// <summary>The robot the camera should follow after a decided round (the loser), else null.</summary>
-        public PolicyRunner FollowTarget { get; private set; }
-        public bool InMenu { get; private set; } = true;
-        /// <summary>The round is decided and the winner panel is up.</summary>
-        public bool RoundOver => _pauseUntil > 0;
+        /// <summary>Colour of each body's badge and team trim, in fighters[] order after seating.</summary>
+        public static readonly Color[] SeatColors =
+            { new(0.95f, 0.36f, 0.30f), new(0.27f, 0.62f, 0.98f), new(0.98f, 0.78f, 0.25f), new(0.45f, 0.85f, 0.45f), new(0.80f, 0.50f, 0.95f) };
+
+        public static DemoDirector Instance { get; private set; }
+        public MatchState State { get; private set; } = MatchState.Booting;
+        public bool InMenu => State <= MatchState.Menu;
+        /// <summary>The round is decided and the winner panel (or its replay) is up.</summary>
+        public bool RoundOver => State == MatchState.Result || State == MatchState.Replay;
         /// <summary>Fighters of the current round that are still in (what the camera frames).</summary>
         public IReadOnlyList<PolicyRunner> Alive => _alive;
         /// <summary>Fighters knocked out of the current round, oldest first (the camera cuts to them at the water).</summary>
         public IReadOnlyList<PolicyRunner> Fallen => _fallen;
+        public int Playing => _playing;
+        public int AgentOf(int body) => body >= 0 && body < _seat.Length ? _seat[body] : -1;
+        public int Wins(int agent) => agent >= 0 && agent < _score.Length ? _score[agent] : 0;
+        /// <summary>Wins of one body this session; in a mirror match the badges show these, not the shared agent's.</summary>
+        public int BodyWins(int body) => body >= 0 && body < _wins.Length ? _wins[body] : 0;
+        public bool AgentSeatedTwice(int agent) { int n = 0; for (int i = 0; i < _playing; i++) if (_seat[i] == agent) n++; return n > 1; }
+        public int Draws => _draws;
+        public bool IsOut(int body) => body >= 0 && body < _out.Length && _out[body];
+        public double RoundTime => State >= MatchState.Fight && MjScene.InstanceExists && MjScene.Instance.Data != null ? MjScene.Instance.Data->time - _roundStart : 0;
+        public float ResultSecondsLeft => Mathf.Max(0f, _resultUntil - Time.unscaledTime);
+        public RoundResult LastResult { get; private set; }
+        public string Status => _last;
+        public double StepMs => _stepMs;
+        /// <summary>Plateau radius that counts as "still in" this round (a hazard may shrink it).</summary>
+        public float OutRadiusNow { get; set; }
+        /// <summary>The player steers this body with the stick (walker brain, velocity commands), -1 = nobody.</summary>
+        public int PuppetBody { get; private set; } = -1;
+        /// <summary>Ticked in the menu: the next launch seats the player on the first body.</summary>
+        public bool PuppetRequested { get; set; }
+        public bool LastRoundOfMatch => _bracket.Count == 0 && roundsPerMatch > 0 && _roundsThisMatch >= roundsPerMatch;
+        public IReadOnlyList<BracketMatch> Bracket => _bracket;
+        public bool InTournament => _bracket.Count > 0;
+        public string TournamentChampion { get; private set; } = "";
+
+        public class BracketMatch { public int a, b, winner = -1, tries; public string label; }
+        readonly List<BracketMatch> _bracket = new(); int _bracketAt;
+
         readonly List<PolicyRunner> _alive = new(), _fallen = new();
-        int[] _seat = Array.Empty<int>(), _wins = Array.Empty<int>(), _score = Array.Empty<int>();   // roster index per body (-1 = parked); wins per seat; wins per agent
+        int[] _seat = Array.Empty<int>(), _wins = Array.Empty<int>(), _score = Array.Empty<int>();   // roster index per body (-1 = parked); wins per body; wins per agent
         bool[] _out = Array.Empty<bool>(); int _playing;
-
+        PolicyRunner[] _target = Array.Empty<PolicyRunner>();
         readonly List<double> _times = new();
-        string _winner = "", _how = "";      // what the winner panel says
-        int _draws, _roundsThisMatch; double _roundStart; float _pauseUntil; string _last = ""; bool _pending;
-        float _fps; readonly System.Diagnostics.Stopwatch _sw = new(); double _stepMs;
-        string _shotDir; readonly HashSet<string> _shots = new(); float _menuShotAt = -1;
-
+        int _draws, _roundsThisMatch; double _roundStart; float _resultUntil; string _last = ""; bool _pending, _knockout;
+        readonly System.Diagnostics.Stopwatch _sw = new(); double _stepMs;
+        string _shotDir; readonly HashSet<string> _shots = new(); float _menuShotAt = -1, _launchAt = -1;
+        ArenaSpec _arena = new();
 
         void OnEnable()
         {
+            Instance = this;
             Application.targetFrameRate = 60;            // the editor otherwise renders uncapped and starves GPU training
             Application.runInBackground = true;
-            useGUILayout = false;                        // OnGUI uses fixed rects only: skip IMGUI's Layout pass (half the OnGUI calls)
             _shotDir = Cli.Arg("-kothShots");
             // Player-side statistical gate (-kothRounds N): same rules as ParityBatch.RunDuelStats, no sea and a 25 s bell.
             if (!Application.isEditor && int.TryParse(Cli.Arg("-kothRounds"), out int rounds) && rounds > 0)
@@ -88,14 +121,18 @@ namespace PoKingHill
             if (statsRounds > 0 || Cli.Flag("-kothAutoLaunch")) autoLaunch = true;
             // The unfocused editor renders about one frame per second, so in stats mode let each frame carry up to 2 s of physics.
             if (statsRounds > 0) { Time.timeScale = 50f; Time.maximumDeltaTime = 2f; pauseBetweenRounds = 0f; roundsPerMatch = 0; }
+            OutRadiusNow = outRadius;
             MjScene.Instance.postInitEvent += OnInit;
             MjScene.Instance.preUpdateEvent += Pre; MjScene.Instance.postUpdateEvent += Post;
         }
         void OnDisable()
         {
+            if (Instance == this) Instance = null;
             if (!MjScene.InstanceExists) return;
             MjScene.Instance.postInitEvent -= OnInit; MjScene.Instance.preUpdateEvent -= Pre; MjScene.Instance.postUpdateEvent -= Post;
         }
+
+        void SetState(MatchState s) { if (State == s) return; State = s; MatchEvents.RaiseState(s); }
 
         void OnInit(object s, MjStepArgs a) => _pending = true;   // act on the first physics step, once every runner has its map
         void Pre(object s, MjStepArgs a)
@@ -103,7 +140,9 @@ namespace PoKingHill
             if (_pending && Ready())
             {
                 _pending = false;
-                _seat = new int[fighters.Length]; _wins = new int[fighters.Length]; _out = new bool[fighters.Length]; _score = new int[Mathf.Max(1, roster.Length)];
+                _seat = new int[fighters.Length]; _wins = new int[fighters.Length]; _out = new bool[fighters.Length]; _target = new PolicyRunner[fighters.Length];
+                _score = new int[Mathf.Max(1, roster.Length)];
+                _arena = fighters[0].Spec?.arena ?? new ArenaSpec();
                 if (autoLaunch) Launch(); else EnterMenu();
             }
             if (!_pending && _seat.Length > 0)
@@ -128,20 +167,35 @@ namespace PoKingHill
             MjScene.Instance.Data->qpos[fighters[i].Map.RootQposAdr + 2] = 50.0;
         }
 
-        // Each fighter watches the nearest one that is still in (with two fighters: always the other one).
+        // Each fighter is pointed at one opponent still in. With two fighters: always the other one. With more, either
+        // the nearest (as trained) or, with Targeting.Opportunist, the one easiest to push off: near the rim or unsteady.
         void Retarget()
         {
             var d = MjScene.Instance.Data;
+            bool opportunist = _playing > 2 && statsRounds == 0 && GameSettings.Targeting == Targeting.Opportunist;
             for (int i = 0; i < _playing; i++)
             {
-                double* q = d->qpos + fighters[i].Map.RootQposAdr; double best = double.MaxValue; PolicyRunner pick = null, any = null;
+                double* q = d->qpos + fighters[i].Map.RootQposAdr; double best = double.MaxValue, current = double.MaxValue; PolicyRunner pick = null, any = null;
                 for (int j = 0; j < _playing; j++)
                 {
                     if (j == i) continue;
-                    double* o = d->qpos + fighters[j].Map.RootQposAdr; double dist = (o[0] - q[0]) * (o[0] - q[0]) + (o[1] - q[1]) * (o[1] - q[1]);
+                    double* o = d->qpos + fighters[j].Map.RootQposAdr;
+                    double dist = Math.Sqrt((o[0] - q[0]) * (o[0] - q[0]) + (o[1] - q[1]) * (o[1] - q[1]));
                     any ??= fighters[j];
-                    if (!_out[j] && dist < best) { best = dist; pick = fighters[j]; }
+                    if (_out[j]) continue;
+                    double score = dist;
+                    if (opportunist)
+                    {
+                        double r = Math.Sqrt(o[0] * o[0] + o[1] * o[1]), rim = Math.Clamp((r - 0.8) / Math.Max(0.1, OutRadiusNow - 0.8), 0, 1);
+                        score = dist - 1.2 * rim - 0.8 * (1 - ObsBuilder.Up(o + 3));
+                    }
+                    else score = dist * dist;          // nearest, compared exactly as before (squared distance)
+                    if (fighters[j] == _target[i]) current = score;
+                    if (score < best) { best = score; pick = fighters[j]; }
                 }
+                // Keep the current target unless another is clearly better (no flicker between two).
+                if (opportunist && pick != null && _target[i] != null && current < double.MaxValue && best > current - 0.25) pick = _target[i];
+                _target[i] = pick;
                 fighters[i].opponent = pick ?? any;
             }
         }
@@ -149,27 +203,29 @@ namespace PoKingHill
         void Seat(int count)
         {
             _playing = count;
-            for (int i = 0; i < fighters.Length; i++) { fighters[i].paused = i >= count; if (i >= count) _seat[i] = -1; }
+            for (int i = 0; i < fighters.Length; i++) { fighters[i].paused = i >= count; if (i >= count) _seat[i] = -1; _target[i] = null; }
         }
 
         // ------------------------------------------------------------------ flow
-        void EnterMenu()
+        public void EnterMenu()
         {
-            InMenu = true; FollowTarget = null; _pauseUntil = 0; _roundsThisMatch = 0;
+            _bracket.Clear(); PuppetBody = -1;
+            _resultUntil = 0; _roundsThisMatch = 0;
             foreach (var f in fighters) f.SetBrain(null, ObsBuilder.ObsDim, GoalMode.None, 0.3f, 0.8f);      // passive stance while the menu is up
             Seat(2); _seat[0] = _seat[1] = 0;
             Place(); ClearOut();
             if (sea != null) sea.Park();
             _menuShotAt = Time.unscaledTime + 1.5f;
+            SetState(MatchState.Menu);
         }
 
+        /// <summary>Menu launch: every ticked agent takes a seat, in random order (one ticked = it fights itself; more
+        /// ticked than bodies = that many are drawn). The statistics gate keeps the pair it was started with.</summary>
         public void Launch()
         {
+            var agents = new List<int>();
             if (roster.Length > 0)
             {
-                // Menu launch: every ticked agent takes a seat, in random order (one ticked = it fights itself; more
-                // ticked than bodies = that many are drawn). The statistics gate keeps the pair it was started with.
-                var agents = new List<int>();
                 if (statsRounds > 0) { agents.Add(Mathf.Clamp(selectedA, 0, roster.Length - 1)); agents.Add(Mathf.Clamp(selectedB, 0, roster.Length - 1)); }
                 else
                 {
@@ -177,6 +233,52 @@ namespace PoKingHill
                     if (pool.Count == 1) pool.Add(pool[0]);
                     while (pool.Count > 0) { int k = UnityEngine.Random.Range(0, pool.Count); agents.Add(pool[k]); pool.RemoveAt(k); }
                 }
+            }
+            _bracket.Clear();
+            StartMatch(agents, statsRounds == 0 && PuppetRequested);
+        }
+
+        /// <summary>One tap from the menu: the champion against itself on the first map.</summary>
+        public void QuickMatch()
+        {
+            _bracket.Clear(); selectedMap = 0;
+            StartMatch(PuppetRequested ? new List<int> { 0 } : new List<int> { 0, 0 }, PuppetRequested);     // with the player: you vs the champion
+        }
+
+        /// <summary>Single elimination between up to four available agents (the ticked ones, or all when fewer than two
+        /// are ticked): semi-finals, then the final. A tie is replayed once; a second tie goes to the higher rating.</summary>
+        public void StartTournament()
+        {
+            var pool = InGame(); if (pool.Count < 2) { pool.Clear(); for (int i = 0; i < roster.Length; i++) if (roster[i].available) pool.Add(i); }
+            for (int i = pool.Count - 1; i > 0; i--) { int k = UnityEngine.Random.Range(0, i + 1); (pool[i], pool[k]) = (pool[k], pool[i]); }
+            if (pool.Count > 4) pool.RemoveRange(4, pool.Count - 4);
+            if (pool.Count < 2) { _last = "Need two agents with a brain for a tournament"; return; }
+            _bracket.Clear(); TournamentChampion = "";
+            if (pool.Count == 2) _bracket.Add(new BracketMatch { a = pool[0], b = pool[1], label = "Final" });
+            else
+            {
+                _bracket.Add(new BracketMatch { a = pool[0], b = pool[1], label = "Semi-final 1" });
+                if (pool.Count == 4) _bracket.Add(new BracketMatch { a = pool[2], b = pool[3], label = "Semi-final 2" });
+                _bracket.Add(new BracketMatch { a = -1, b = pool.Count == 3 ? pool[2] : -1, label = "Final" });     // filled by the semi-final winners
+            }
+            _bracketAt = 0; PlayBracketMatch();
+        }
+
+        void PlayBracketMatch()
+        {
+            var m = _bracket[_bracketAt];
+            StartMatch(new List<int> { m.a, m.b }, false);
+            _last = m.label;
+        }
+
+        void StartMatch(List<int> agents, bool puppet)
+        {
+            PuppetBody = -1;
+            if (roster.Length > 0)
+            {
+                int steer = Array.FindIndex(roster, f => f.steerable && f.available && f.policy != null);
+                if (puppet && steer >= 0) agents.Insert(0, steer);
+                if (agents.Count == 1) agents.Add(agents[0]);
                 // Each agent takes a free body of its own kind; the bodies in use move to the front of fighters[].
                 var seats = new List<int>();
                 foreach (int agent in agents)
@@ -193,11 +295,14 @@ namespace PoKingHill
                 {
                     if (i >= _playing) { fighters[i].SetBrain(null, ObsBuilder.ObsDim, GoalMode.None, 0.3f, 0.8f); continue; }
                     var f = roster[seats[i]]; _seat[i] = seats[i];
-                    fighters[i].SetBrain(f.policy, f.obsDim, f.goal, f.stopDist, f.vmax, f.shove);
+                    bool steered = puppet && steer >= 0 && i == 0;
+                    fighters[i].SetBrain(f.policy, f.obsDim, steered ? GoalMode.None : f.goal, f.stopDist, f.vmax, f.shove);
                 }
+                if (puppet && steer >= 0) PuppetBody = 0;
             }
             else Seat(2);
-            InMenu = false; _roundsThisMatch = 0;
+            if (statsRounds == 0 && !autoLaunch) roundsPerMatch = _bracket.Count > 0 ? 1 : GameSettings.RoundsPerMatch;   // PerfProbe/auto runs keep theirs
+            _roundsThisMatch = 0;
             NewRound();
         }
 
@@ -207,6 +312,7 @@ namespace PoKingHill
             for (int i = 0; i < roster.Length; i++) if (roster[i].available && roster[i].inGame) pool.Add(i);
             return pool;
         }
+        public int TickedCount { get { int n = 0; foreach (var f in roster) if (f.available && f.inGame) n++; return n; } }
 
         void Place()
         {
@@ -226,92 +332,130 @@ namespace PoKingHill
             for (int i = 0; i < _playing; i++) { _out[i] = false; fighters[i].paused = false; _alive.Add(fighters[i]); }
         }
 
-        void NewRound()
+        /// <summary>Start the next round of the current match (also the HUD's Reset).</summary>
+        public void NewRound()
         {
-            Place(); ClearOut();
-            _roundStart = MjScene.Instance.Data->time; FollowTarget = null;
-            if (sea != null) sea.Restart();
+            Place(); ClearOut(); _knockout = false;
+            _roundStart = MjScene.Instance.Data->time; OutRadiusNow = outRadius; _resultUntil = 0;
+            if (sea != null) { sea.pace = statsRounds > 0 ? 1f : GameSettings.SeaPace; sea.Restart(); }
+            SetState(MatchState.Fight);
+            MatchEvents.RaiseRoundStarted();
         }
 
-        static bool Out(MujocoLib.mjData_* d, PolicyRunner r, float outRadius)
+        bool Out(MujocoLib.mjData_* d, PolicyRunner r)
         {
             double* q = d->qpos + r.Map.RootQposAdr;
             double rad = Math.Sqrt(q[0] * q[0] + q[1] * q[1]);
-            double ground = -(1.0 / 9.0) * Math.Pow(Math.Max(rad - 1.5, 0), 2);
-            double up = 1 - 2 * (q[4] * q[4] + q[5] * q[5]);
-            return rad > outRadius || up < 0.3 || q[2] - ground < 0.3;
+            return rad > OutRadiusNow || ObsBuilder.Up(q + 3) < _arena.fall_up || q[2] - _arena.Ground(rad) < _arena.fall_height;
         }
 
         void Post(object s, MjStepArgs a)
         {
             _stepMs = 0.95 * _stepMs + 0.05 * _sw.Elapsed.TotalMilliseconds;
-            if (_pending || InMenu || !Ready()) return;
+            if (_pending || !Ready() || State != MatchState.Fight) return;
             var d = MjScene.Instance.Data;
-            if (_pauseUntil > 0)
-            {
-                if (FollowTarget != null && Time.unscaledTime >= _pauseUntil - pauseBetweenRounds + 1.0f) Shot("ejection");
-                if (Time.unscaledTime >= _pauseUntil - pauseBetweenRounds + 1.0f) Shot("winner");
-                if (Time.unscaledTime < _pauseUntil) return;
-                _pauseUntil = 0;
-                if (ShotsDone()) return;
-                if (roundsPerMatch > 0 && _roundsThisMatch >= roundsPerMatch && !(_shotDir != null && Cli.Exit)) EnterMenu(); else NewRound();
-                return;
-            }
             double t = d->time - _roundStart;
             if (t > 1.2) Shot("combat");
-            PolicyRunner justOut = null; int alive = 0, last = -1;
+            int alive = 0, last = -1;
             for (int i = 0; i < _playing; i++)
             {
-                if (!_out[i] && Out(d, fighters[i], outRadius))
+                if (!_out[i] && Out(d, fighters[i]))
                 {
-                    _out[i] = true; justOut = fighters[i]; _alive.Remove(fighters[i]); _fallen.Add(fighters[i]);
+                    _out[i] = true; _knockout = true; _alive.Remove(fighters[i]); _fallen.Add(fighters[i]);
                     if (_playing > 2) fighters[i].paused = true;        // in a free-for-all an eliminated fighter goes limp
+                    MatchEvents.RaiseKnockout(fighters[i]);
                 }
                 if (!_out[i]) { alive++; last = i; }
             }
             bool bell = sea != null ? sea.ReachedSummit : t >= roundSeconds;
             if (alive > 1 && !bell) return;
+            EndRound(d, alive, last, t);
+        }
+
+        void EndRound(MujocoLib.mjData_* d, int alive, int last, double t)
+        {
+            int winner = -1; string how; RoundEnd end;
             if (alive == 1)
             {
-                Award(last);
-                _times.Add(t); _last = $"{(char)('A' + last)} ({NameOf(_seat[last], "Robot")}) wins in {t:0.0} s"; FollowTarget = justOut;
-                _winner = NameOf(_seat[last], "Robot"); _how = $"last one on the summit after {t:0.0} s";
+                winner = last; end = RoundEnd.Knockout; _times.Add(t);
+                how = $"last one on the summit after {t:0.0} s";
+                _last = $"{(char)('A' + last)} ({NameOf(_seat[last], "Robot")}) wins in {t:0.0} s";
             }
             else if (alive > 1 && sea != null)
             {
                 // The sea has reached the top with several still standing: the hill belongs to whoever is nearest its
                 // centre. (Without a sea, in the statistics gate, a full-time round stays a tie as in training.)
-                int king = -1; double best = double.MaxValue;
+                double best = double.MaxValue;
                 for (int i = 0; i < _playing; i++)
                 {
                     if (_out[i]) continue;
                     double* q = d->qpos + fighters[i].Map.RootQposAdr; double r2 = q[0] * q[0] + q[1] * q[1];
-                    if (r2 < best) { best = r2; king = i; }
+                    if (r2 < best) { best = r2; winner = i; }
                 }
-                Award(king);
-                _winner = NameOf(_seat[king], "Robot"); _how = $"nearest the centre when the sea arrived ({Math.Sqrt(best):0.0} m, {alive} still standing)";
-                _last = $"{(char)('A' + king)} ({_winner}) holds the summit as the sea arrives";
+                end = RoundEnd.SeaArrived;
+                how = $"nearest the centre when the sea arrived ({Math.Sqrt(best):0.0} m, {alive} still standing)";
+                _last = $"{(char)('A' + winner)} ({NameOf(_seat[winner], "Robot")}) holds the summit as the sea arrives";
             }
             else
             {
-                _draws++; _last = alive > 1 ? "Tie: full time" : "Tie: nobody left on the summit";
-                _winner = "No winner"; _how = alive > 1 ? "full time" : "nobody was left on the summit";
+                end = alive > 1 ? RoundEnd.FullTime : RoundEnd.NobodyLeft;
+                how = alive > 1 ? "full time" : "nobody was left on the summit";
+                _last = alive > 1 ? "Tie: full time" : "Tie: nobody left on the summit";
             }
+            if (winner >= 0) Award(winner); else _draws++;
             _roundsThisMatch++;
-            _pauseUntil = Time.unscaledTime + pauseBetweenRounds;
-            if (statsRounds > 0 && _wins[0] + _wins[1] + _draws >= statsRounds) WriteStats();
-            else if (statsRounds > 0) { _pauseUntil = 0; NewRound(); }
+            var agents = new int[_playing]; for (int i = 0; i < _playing; i++) agents[i] = _seat[i];
+            LastResult = new RoundResult(winner, winner >= 0 ? NameOf(_seat[winner], "Robot") : "No winner", how, end, (float)t, agents);
+            if (statsRounds > 0)
+            {
+                if (_wins[0] + _wins[1] + _draws >= statsRounds) WriteStats(); else NewRound();
+                return;
+            }
+            if (_bracket.Count > 0) RecordBracket(winner);
+            _resultUntil = Time.unscaledTime + pauseBetweenRounds;
+            MatchEvents.RaiseRoundEnded(LastResult);       // first: the ladder and telemetry settle before the results sheet reads them
+            SetState(MatchState.Result);
+        }
+
+        void RecordBracket(int winnerBody)
+        {
+            var m = _bracket[_bracketAt];
+            if (winnerBody < 0 && m.tries++ == 0) { _last = m.label + ": tie, replayed once"; return; }
+            int w = winnerBody >= 0 ? _seat[winnerBody] : Ladder.Rating(roster[m.a].name) >= Ladder.Rating(roster[m.b].name) ? m.a : m.b;
+            m.winner = w;
+            if (m.label != "Final")
+            {
+                var final = _bracket[^1];
+                if (final.a < 0) final.a = w; else final.b = w;
+            }
+            else TournamentChampion = roster[w].name;
+        }
+
+        /// <summary>Leave the winner panel now (its button).</summary>
+        public void Continue() { if (State == MatchState.Result) _resultUntil = Time.unscaledTime; }
+
+        /// <summary>ReplaySystem holds the result while it plays the knockout back.</summary>
+        public void BeginReplay() { if (State == MatchState.Result) SetState(MatchState.Replay); }
+        public void EndReplay() { if (State != MatchState.Replay) return; _resultUntil = Mathf.Max(_resultUntil, Time.unscaledTime + 2f); SetState(MatchState.Result); }
+
+        void Advance()
+        {
+            if (ShotsDone()) return;
+            if (_bracket.Count > 0)
+            {
+                var m = _bracket[_bracketAt];
+                if (m.winner < 0) { PlayBracketMatch(); return; }                  // replay a tied match
+                if (++_bracketAt < _bracket.Count) { PlayBracketMatch(); return; }
+                _last = "Tournament champion: " + TournamentChampion;
+                _bracket.Clear(); EnterMenu(); return;
+            }
+            if (LastRoundOfMatch && !(_shotDir != null && Cli.Exit)) EnterMenu(); else NewRound();
         }
 
         void Award(int body) { _wins[body]++; if (_seat[body] >= 0 && _seat[body] < _score.Length) _score[_seat[body]]++; }
 
-        string NameOf(int i, string fallback) => roster.Length > 0 ? roster[Mathf.Clamp(i, 0, roster.Length - 1)].name : fallback;
-        // "G1 All-rounder (champion)" -> "All-rounder": what fits on a line when four fight.
-        string ShortName(int i)
-        {
-            string n = NameOf(i, "Robot"); int p = n.IndexOf(" ("); if (p > 0) n = n.Substring(0, p);
-            return n.StartsWith("G1 ") ? n.Substring(3) : n;
-        }
+        public string NameOf(int agent, string fallback) => roster.Length > 0 && agent >= 0 ? roster[Mathf.Clamp(agent, 0, roster.Length - 1)].name : fallback;
+        public string BadgeOf(int agent) => roster.Length > 0 && agent >= 0 ? roster[Mathf.Clamp(agent, 0, roster.Length - 1)].Badge : "Robot";
 
         // ------------------------------------------------------------------ verification helpers
         public void Shot(string name)
@@ -359,84 +503,18 @@ namespace PoKingHill
         void Update()
         {
             for (int i = 0; i < mapVisuals.Length; i++) if (mapVisuals[i] != null && mapVisuals[i].activeSelf != (i == selectedMap)) mapVisuals[i].SetActive(i == selectedMap);
-            _fps = Mathf.Lerp(_fps, 1f / Mathf.Max(Time.unscaledDeltaTime, 1e-4f), 0.05f);
-            if (InMenu && _menuShotAt > 0 && Time.unscaledTime >= _menuShotAt)
+            if (State == MatchState.Menu && _menuShotAt > 0 && Time.unscaledTime >= _menuShotAt)
             {
                 _menuShotAt = -1; Shot("menu");
                 if (_shotDir != null && Cli.Exit) _launchAt = Time.unscaledTime + 1.0f;     // automated capture run: continue into a round
             }
             if (_launchAt > 0 && Time.unscaledTime >= _launchAt) { _launchAt = -1; Launch(); }
-        }
-        float _launchAt = -1;
-
-        // ------------------------------------------------------------------ HUD and menu (IMGUI)
-        static void Label(Rect r, string text, GUIStyle st)
-        {
-            var c = st.normal.textColor; st.normal.textColor = new Color(0f, 0f, 0f, 0.75f);
-            GUI.Label(new Rect(r.x + 2, r.y + 2, r.width, r.height), text, st); st.normal.textColor = c; GUI.Label(r, text, st);
-        }
-
-        GUIStyle _st, _big, _right, _mid, _btn, _launch, _headline, _line; float _styleK;
-        void OnGUI()
-        {
-            int w = Screen.width, h = Screen.height; float k = Mathf.Max(1f, h / 900f);
-            if (_st == null || _styleK != k)             // styles are rebuilt only when the window height changes, not every OnGUI call
+            if (State == MatchState.Result)
             {
-                _styleK = k;
-                _st = new GUIStyle(GUI.skin.label) { fontSize = Mathf.RoundToInt(15 * k), normal = { textColor = Color.white } };
-                _big = new GUIStyle(_st) { fontSize = Mathf.RoundToInt(20 * k), fontStyle = FontStyle.Bold };
-                _right = new GUIStyle(_st) { alignment = TextAnchor.UpperRight }; _mid = new GUIStyle(_st) { alignment = TextAnchor.UpperCenter };
-                _btn = new GUIStyle(GUI.skin.button) { fontSize = Mathf.RoundToInt(14 * k) };
-                _launch = new GUIStyle(_btn) { fontSize = Mathf.RoundToInt(18 * k), fontStyle = FontStyle.Bold };
-                _headline = new GUIStyle(_big) { alignment = TextAnchor.UpperCenter }; _line = new GUIStyle(_mid) { wordWrap = true };
+                float shownFor = pauseBetweenRounds - (_resultUntil - Time.unscaledTime);
+                if (shownFor >= 1f) { if (_knockout) Shot("ejection"); Shot("winner"); }
+                if (Time.unscaledTime >= _resultUntil) Advance();
             }
-            GUIStyle st = _st, big = _big, right = _right, mid = _mid, btn = _btn;
-            float pad = 12 * k, lh = 26 * k;
-            Label(new Rect(pad, pad, w, lh), "PoKingHill", big);                                                          // top left: title
-            double t = !InMenu && MjScene.InstanceExists && MjScene.Instance.Data != null ? MjScene.Instance.Data->time - _roundStart : 0;
-            string seaText = sea != null && !InMenu ? $"   sea {sea.Level:0.0} m, arrives at {sea.Duration:0} s" : "";
-            float brainMs = fighters.Length > 0 && fighters[0] != null ? (float)fighters[0].LastInferenceMs : 0f;
-            Label(new Rect(0, pad + lh, w, lh * 2), $"{_fps:0} FPS   physics {_stepMs:0.00} ms   brain {brainMs:0.00} ms\n" + (InMenu ? "menu" : $"round {t:0.0} s{seaText}"), mid);   // top centre: telemetry
-            var score = new System.Text.StringBuilder();                                                                  // bottom left: wins per agent
-            for (int i = 0; i < roster.Length && i < _score.Length; i++) if (roster[i].available && (roster[i].inGame || _score[i] > 0)) score.Append($"{ShortName(i)} {_score[i]}   ");
-            Label(new Rect(pad, h - pad - lh * 2, w, lh * 2), $"{score}Ties {_draws}\n{_last}", st);
-            Label(new Rect(0, h - pad - lh, w - pad, lh), "v0.3", right);                                               // bottom right: version
-            if (!InMenu)
-            {
-                string title = _playing == 2 ? $"{NameOf(_seat[0], "A")}  vs  {NameOf(_seat[1], "B")}" : "";
-                for (int i = 0; _playing > 2 && i < _playing; i++) title += (i > 0 ? "  vs  " : "") + ShortName(_seat[i]);
-                Label(new Rect(0, pad + lh * 2.9f, w, lh), title, mid);
-                if (statsRounds == 0 && GUI.Button(new Rect(w - pad - 80 * k, pad, 80 * k, lh), "Menu", btn)) EnterMenu();              // top right: menu
-                if (statsRounds == 0 && GUI.Button(new Rect(pad, h - pad - lh * 3.3f, 90 * k, lh), "Reset", btn)) NewRound();           // bottom left: reset
-                if (statsRounds == 0 && _pauseUntil > 0)                                                                          // centre: winner panel
-                {
-                    float pw = Mathf.Min(w - 2 * pad, 420 * k), ph = lh * 6.2f, px = (w - pw) / 2, py = h * 0.36f;
-                    GUI.Box(new Rect(px, py, pw, ph), GUIContent.none); GUI.Box(new Rect(px, py, pw, ph), GUIContent.none);     // twice: the stock box is very transparent
-                    Label(new Rect(px, py + pad, pw, lh * 1.3f), _winner == "No winner" ? _winner : "Winner: " + _winner, _headline);
-                    Label(new Rect(px + pad, py + pad + lh * 1.4f, pw - 2 * pad, lh * 2.2f), _how, _line);
-                    string wait = roundsPerMatch > 0 && _roundsThisMatch >= roundsPerMatch ? "Main menu" : "Next round";
-                    if (GUI.Button(new Rect(px + pw * 0.2f, py + ph - lh * 1.5f - pad, pw * 0.6f, lh * 1.5f), $"{wait} ({Mathf.Max(0f, _pauseUntil - Time.unscaledTime):0})", _launch)) _pauseUntil = Time.unscaledTime;
-                }
-                return;
-            }
-            // ---- pre-match menu
-            float mw = Mathf.Min(w - 2 * pad, 420 * k), x = (w - mw) / 2, y = h * 0.16f;
-            GUI.Box(new Rect(x - pad, y - pad, mw + 2 * pad, lh * (6.2f + 1.1f * roster.Length) + 4 * pad), GUIContent.none);
-            Label(new Rect(x, y, mw, lh), "Agents in the game", big); y += lh * 1.2f;
-            foreach (var f in roster)                 // one tick box per agent; an agent without a brain is listed but locked
-            {
-                GUI.enabled = f.available;
-                bool on = f.available && f.inGame;      // the stock tick box is a few pixels wide at this scale, so the mark is drawn as text
-                f.inGame = GUI.Toggle(new Rect(x, y, mw, lh), on, (on ? "[x]  " : "[  ]  ") + f.name + (f.note.Length > 0 ? "  (" + f.note + ")" : ""), st);
-                y += lh * 1.1f;
-            }
-            GUI.enabled = true; int ticked = InGame().Count;
-            Label(new Rect(x, y, mw, lh), ticked == 0 ? "Tick at least one agent" : ticked == 1 ? "One agent: it fights itself" : ticked == 2 ? "These two fight" : ticked <= fighters.Length ? $"All {ticked} fight at once: the last one on the summit wins" : $"{fighters.Length} of them are drawn for each match", st); y += lh * 1.3f;
-            Label(new Rect(x, y, mw * 0.3f, lh), "Map", st);
-            selectedMap = GUI.SelectionGrid(new Rect(x + mw * 0.3f, y, mw * 0.7f, lh), selectedMap, maps, 1, btn); y += lh * 1.6f;
-            GUI.enabled = ticked > 0;
-            if (GUI.Button(new Rect(x, y, mw, lh * 1.5f), "Launch", _launch)) Launch();
-            GUI.enabled = true;
         }
     }
 }

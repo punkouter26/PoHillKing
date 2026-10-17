@@ -17,7 +17,9 @@ namespace PoKingHill
         public Transform waterVisual;           // render-only disc, moved to the water level (Unity Y = MuJoCo Z)
         public float startDepth = 6f, minSeconds = 20f, maxSeconds = 30f;
         public float buoyancyRatio = 1.05f, dragPerKg = 4f, band = 0.2f;
-        public string[] robotPrefixes = { "a_", "b_" };
+        [Tooltip("Multiplier on the arrival time (GameSettings.SeaPace)")] public float pace = 1f;
+        [Tooltip("Bodies whose names start with one of these float. Empty = every PolicyRunner's robot in the scene.")]
+        public string[] robotPrefixes = System.Array.Empty<string>();
 
         public float Level { get; private set; }          // MuJoCo z of the surface
         public float Duration { get; private set; }
@@ -39,10 +41,13 @@ namespace PoKingHill
         void OnInit(object s, MjStepArgs a)
         {
             var m = MjScene.Instance.Model; var list = new System.Collections.Generic.List<int>();
+            // Every fighter body floats, however many the scene holds (the game scene has five).
+            var prefixes = robotPrefixes != null && robotPrefixes.Length > 0 ? robotPrefixes
+                         : System.Array.ConvertAll(FindObjectsByType<PolicyRunner>(FindObjectsInactive.Include), r => r.robotPrefix);
             int nbody = (int)m->nbody; for (int b = 1; b < nbody; b++)
             {
                 string name = System.Runtime.InteropServices.Marshal.PtrToStringAnsi((System.IntPtr)MujocoLib.mj_id2name(m, (int)MujocoLib.mjtObj.mjOBJ_BODY, b)) ?? "";
-                foreach (var p in robotPrefixes) if (name.StartsWith(p)) { list.Add(b); break; }
+                foreach (var p in prefixes) if (name.StartsWith(p)) { list.Add(b); break; }
             }
             _bodies = list.ToArray();
             Restart();
@@ -55,7 +60,7 @@ namespace PoKingHill
         /// <summary>Start a new flood: water back at the bottom, new random arrival time.</summary>
         public void Restart()
         {
-            _parked = false; Duration = Random.Range(minSeconds, maxSeconds);
+            _parked = false; Duration = Random.Range(minSeconds, maxSeconds) * pace;
             _t0 = MjScene.Instance.Data != null ? MjScene.Instance.Data->time : 0;
             Level = -startDepth;
         }

@@ -34,3 +34,17 @@ Thumbs.db
 
 # Poly Haven source photos (CC0); tools/make_mountain_map.py downloads them when missing
 tools/polyhaven/
+
+# Android native build intermediates (Unity player build); 950e3e1 committed them by accident
+.utmp/
+
+# Written by Assets/PoKingHill/Editor/BuildVersion.cs (YYMMDD of the last commit)
+Assets/PoKingHill/Resources/build_version.txt
+Assets/PoKingHill/Resources/build_version.txt.meta
+
+# Two-fighter gate scene, rebuilt by ParityBatch.RunDuelStats / RunDuelParity
+Assets/PoKingHill/Scenes/Gate_duel_2p.unity
+Assets/PoKingHill/Scenes/Gate_duel_2p.unity.meta
+
+# MuJoCo native warnings file (written next to the project when a simulation goes unstable, e.g. by plugin tests)
+MUJOCO_LOG.TXT
