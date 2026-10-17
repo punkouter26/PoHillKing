@@ -90,8 +90,7 @@ def apply_pd_gains(default: ET.Element) -> ET.Element:
 
 # ---- arena ---------------------------------------------------------------------------------------
 HF_DEPTH = 10.0       # dome depth below the plateau
-PLATEAU_R = 1.5
-SLOPE_K = 1.0 / 9.0   # z = -k (r-1.5)^2  -> 45 deg at r = 6
+from koth.rules import PLATEAU_R, SLOPE_K, arena_json     # z = -k (r-1.5)^2 -> 45 deg at r = 6 (rules.py is the one source)
 
 
 def write_arena() -> str:
@@ -340,10 +339,11 @@ def build_mixed():
     pelvis, acts, excl = make_robot(kim, "e_", 128, (0.0, 0.0, build_kim.SPAWN_Z), (1, 0, 0, 0), others=sum(ROBOT_BITS))
     wb = scene.find("worldbody"); wb.insert(list(wb).index(wb.find("body[@name='box0']")), pelvis)
     scene.find("actuator").extend(acts); scene.find("contact").extend(excl)
-    return finish(scene, "koth_5p", PREFIXES + ["e_"], {"e_": build_kim.DEFAULT_POSE})
+    return finish(scene, "koth_5p", PREFIXES + ["e_"], {"e_": build_kim.DEFAULT_POSE}, bodies={"e_": "kim"})
 
 
-def finish(scene: ET.Element, tag: str, prefixes: list[str], poses: dict | None = None):
+def finish(scene: ET.Element, tag: str, prefixes: list[str], poses: dict | None = None, bodies: dict | None = None):
+    """bodies: prefix -> body kind ("g1" / "kim") for robots that are not this module's ROBOT (written to the dump)."""
     ET.indent(scene)
     authoring = os.path.join(ASSETS, f"scene_{tag}.xml")
     ET.ElementTree(scene).write(authoring, encoding="unicode")
@@ -370,6 +370,7 @@ def finish(scene: ET.Element, tag: str, prefixes: list[str], poses: dict | None 
     m = mujoco.MjModel.from_xml_path(resolved)
     d1, d2 = dump_model(m), dump_model(mujoco.MjModel.from_xml_path(unity))
     assert d1 == d2, "train and unity XML compile to different models"
+    d1["robots"] = [{"prefix": p, "body": (bodies or {}).get(p, ROBOT)} for p in prefixes]     # Unity: which body kind sits where
     json.dump(d1, open(os.path.join(ASSETS, f"model_dump_{tag}.json"), "w"), indent=1)
     aid = [mujoco.mj_name2id(m, mujoco.mjtObj.mjOBJ_ACTUATOR, "a_" + j) for j in JOINTS]
     build.hold_ctrl = [float(ctrl[i]) for i in aid]            # canonical order; identical for both robots
@@ -400,7 +401,7 @@ if __name__ == "__main__":
     json.dump({"joints": JOINTS, "default_pose": [DEFAULT_POSE.get(j, 0.0) for j in JOINTS],
                "action_scale": ACTION_SCALE, "sim_dt": SIM_DT, "ctrl_dt": CTRL_DT, "decimation": round(CTRL_DT / SIM_DT),
                "pool_bodies": [f"box{i}" for i in range(POOL_N)], "pool_park": [list(pool_park(i)) for i in range(POOL_N)],
-               "ls_iterations": LS_ITERATIONS, "hold_ctrl": build.hold_ctrl, "key_root_z": build.key_root_z},
+               "ls_iterations": LS_ITERATIONS, "hold_ctrl": build.hold_ctrl, "key_root_z": build.key_root_z, "arena": arena_json()},
               open(os.path.join(ASSETS, "joint_map.json"), "w"), indent=1)
     print("wrote joint_map.json")
     # Unity reads these as TextAssets

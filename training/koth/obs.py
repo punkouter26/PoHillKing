@@ -28,9 +28,15 @@ def quat_rotate_inverse(q: torch.Tensor, v: torch.Tensor) -> torch.Tensor:
     return v - w * t + torch.cross(xyz, t, dim=1)
 
 
+def down_like(root_quat: torch.Tensor) -> torch.Tensor:
+    """(N,3) world down vector (0, 0, -1) on root_quat's device and dtype, made by fill kernels (no host copy)."""
+    g = root_quat.new_zeros(root_quat.shape[0], 3); g[:, 2] = -1.0
+    return g
+
+
 def build_obs(root_quat, root_linvel_world, root_angvel_body, jpos, jvel, default_pose, last_action, command, phase):
     """All tensors batched (N, ...). phase in radians (N,)."""
-    g = torch.tensor([0.0, 0.0, -1.0], device=root_quat.device, dtype=root_quat.dtype).expand(root_quat.shape[0], 3)
+    g = down_like(root_quat)
     return torch.cat([
         quat_rotate_inverse(root_quat, root_linvel_world),
         root_angvel_body,

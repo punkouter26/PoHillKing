@@ -11,37 +11,17 @@ Outputs into Assets/PoKingHill/Models/:  <rung>_policy.onnx   <rung>_reference_t
 Checks: torch policy vs ONNX max abs error < 1e-5 on 1000 random observations."""
 import argparse, json, os, shutil, sys
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-import numpy as np, torch, mujoco, onnx, onnxruntime as ort
-from koth.obs import build_obs, build_combat, goal_command, OBS_DIM, GAIT_FREQ_HZ
-
-ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-ASSETS = os.path.join(ROOT, "assets", os.environ.get("KOTH_ROBOT", "g1"))
-
-from koth.build_mjcf import PLATEAU_R, SLOPE_K, UNITY_MODELS    # Models/ for G1, Models/<robot>/ otherwise
+import numpy as np, torch, mujoco, onnxruntime as ort
+from koth.obs import goal_command, OBS_DIM, GAIT_FREQ_HZ
+from koth.build_mjcf import ASSETS, UNITY_MODELS    # Models/ for G1, Models/<robot>/ otherwise
+from koth.rules import PLATEAU_R, SLOPE_K
+from koth import cpu_sim
 
 
 def export_onnx(ckpt: str, out_path: str) -> None:
-    from rsl_rl.runners import OnPolicyRunner
-    from koth.env import KothEnv, default_cfg
-    from scripts.train import train_cfg
-    env = KothEnv(default_cfg("r0"), 16)
-    runner = OnPolicyRunner(env, train_cfg(), log_dir=None, device="cuda")
-    runner.load(ckpt)
-    net = runner.alg.get_policy().as_onnx(verbose=False).to("cpu").eval()
-    torch.onnx.export(net, (torch.zeros(1, OBS_DIM),), out_path, export_params=True, opset_version=17,
-                      input_names=["obs"], output_names=["actions"], dynamo=False)
-    m = onnx.load(out_path); onnx.checker.check_model(m)
-    onnx.save(m, out_path, save_as_external_data=False)             # one self-contained file for Unity
-    if os.path.exists(out_path + ".data"): os.remove(out_path + ".data")
-    sess = ort.InferenceSession(out_path, providers=["CPUExecutionProvider"])
-    x = torch.randn(1000, OBS_DIM) * 2
-    with torch.no_grad():
-        ref = net(x).numpy()
-    got = np.concatenate([sess.run(None, {"obs": x[i:i + 1].numpy()})[0] for i in range(1000)])
-    err = float(np.abs(ref - got).max())
-    print(f"onnx: opset {m.opset_import[0].version}, input {[d.dim_value for d in m.graph.input[0].type.tensor_type.shape.dim]}, "
-          f"torch-vs-onnx max abs err {err:.2e}")
-    assert err < 1e-5, "ONNX export does not reproduce the torch policy"
+    """Checkpoint actor -> single-file ONNX at out_path (scripts/export_policy.py, which checks torch vs ONNX)."""
+    from scripts.export_policy import export
+    export(ckpt, out_path)
 
 
 def record(onnx_path, scene, prefixes, cmd, seconds, goal="none", spawns=None, stop_dist=0.3, vmax=0.8) -> dict:
@@ -52,26 +32,21 @@ def record(onnx_path, scene, prefixes, cmd, seconds, goal="none", spawns=None, s
     spec = json.load(open(os.path.join(ASSETS, "joint_map.json")))
     m = mujoco.MjModel.from_xml_path(os.path.join(ASSETS, scene)); d = mujoco.MjData(m)
     mujoco.mj_resetDataKeyframe(m, d, 0)
-    J, A = mujoco.mjtObj.mjOBJ_JOINT, mujoco.mjtObj.mjOBJ_ACTUATOR
     R = {}
     for p in prefixes:
-        jid = [mujoco.mj_name2id(m, J, p + j) for j in spec["joints"]]
-        root = mujoco.mj_name2id(m, J, p + "floating_base_joint")
-        aid = np.array([mujoco.mj_name2id(m, A, p + j) for j in spec["joints"]])
-        R[p] = dict(qadr=np.array([m.jnt_qposadr[j] for j in jid]), dadr=np.array([m.jnt_dofadr[j] for j in jid]), aid=aid,
-                    rq=m.jnt_qposadr[root], rd=m.jnt_dofadr[root], lo=m.actuator_ctrlrange[aid, 0], hi=m.actuator_ctrlrange[aid, 1],
-                    last=np.zeros(29, dtype=np.float32), phase=np.float32(0.0), frames=[], cmd=np.array(cmd, dtype=np.float32), ctrl=None)
+        R[p] = dict(cpu_sim.robot(m, spec["joints"], p), last=np.zeros(29, dtype=np.float32), phase=np.float32(0.0), frames=[],
+                    cmd=np.array(cmd, dtype=np.float32), ctrl=None)
         if spawns and p in spawns:               # same placement rule as KothEnv.reset_idx
             r, bearing, yaw = spawns[p]; rq = R[p]["rq"]
             slope = 2 * SLOPE_K * max(r - PLATEAU_R, 0.0); h = -SLOPE_K * max(r - PLATEAU_R, 0.0) ** 2
             d.qpos[rq:rq + 3] = [r * np.cos(bearing), r * np.sin(bearing), spec["key_root_z"] + h + 0.02 + 0.12 * slope]
             d.qpos[rq + 3:rq + 7] = [np.cos(yaw / 2), 0, 0, np.sin(yaw / 2)]
-    pool = [(m.jnt_qposadr[mujoco.mj_name2id(m, J, b + "_free")], m.jnt_dofadr[mujoco.mj_name2id(m, J, b + "_free")]) for b in spec["pool_bodies"]]
-    park = [d.qpos[q:q + 7].copy() for q, _ in pool]
-    default = np.array(spec["default_pose"], dtype=np.float32)
+    pool = cpu_sim.pool(m, spec["pool_bodies"])
+    park = cpu_sim.park(d, pool)
+    default = np.array(spec["default_pose"], dtype=np.float32)       # float32-rounded default pose, as Unity holds it
     sessions = [ort.InferenceSession(p_, providers=["CPUExecutionProvider"]) for p_ in onnx_paths]
     f32 = lambda a: [float(np.float32(v)) for v in a]; f64 = lambda a: [float(v) for v in a]
-    T = lambda a: torch.tensor(np.asarray(a, dtype=np.float64))[None]
+    T = cpu_sim.T
     for tick in range(int(round(seconds / spec["ctrl_dt"]))):
         for pi, p in enumerate(prefixes):         # all robots observe the same pre-step state, as in Unity
             s = R[p]; rq, rd = s["rq"], s["rd"]; goal = goals[pi]; sess = sessions[pi]
@@ -82,14 +57,8 @@ def record(onnx_path, scene, prefixes, cmd, seconds, goal="none", spawns=None, s
                 o = other["rq"]; gv = [d.qpos[o] - d.qpos[rq], d.qpos[o + 1] - d.qpos[rq + 1]]
             if goal != "none":
                 s["cmd"] = goal_command(T(d.qpos[rq + 3:rq + 7]), T(gv), stops[pi], vmaxs[pi])[0].numpy().astype(np.float32)
-            obs = build_obs(T(d.qpos[rq + 3:rq + 7]), T(d.qvel[rd:rd + 3]), T(d.qvel[rd + 3:rd + 6]), T(d.qpos[s["qadr"]]), T(d.qvel[s["dadr"]]),
-                            torch.tensor(default, dtype=torch.float64), T(s["last"]), T(s["cmd"]),
-                            torch.tensor([float(s["phase"])], dtype=torch.float64))
-            if sess.get_inputs()[0].shape[1] > OBS_DIM:      # combat policy: append the opponent/ring block
-                oq, od = other["rq"], other["rd"]
-                obs = torch.cat([obs, build_combat(T(d.qpos[rq:rq + 3]), T(d.qpos[rq + 3:rq + 7]), T(d.qvel[rd:rd + 3]),
-                                                   T(d.qpos[oq:oq + 3]), T(d.qpos[oq + 3:oq + 7]), T(d.qvel[od:od + 3]))], 1)
-            obs = obs[0].numpy().astype(np.float32)
+            combat = sess.get_inputs()[0].shape[1] > OBS_DIM          # combat policy: append the opponent/ring block
+            obs = cpu_sim.observe(d, s, default, s["cmd"], s["phase"], other=other if combat else None)[0].numpy().astype(np.float32)
             raw = sess.run(None, {"obs": obs[None]})[0][0]
             act = np.clip(raw, -1, 1).astype(np.float32)
             s["ctrl"] = np.clip(default.astype(np.float64) + spec["action_scale"] * act.astype(np.float64), s["lo"], s["hi"])
@@ -99,11 +68,7 @@ def record(onnx_path, scene, prefixes, cmd, seconds, goal="none", spawns=None, s
                                     obs=f32(obs), action=f32(raw), ctrl=f64(s["ctrl"]), command=f32(s["cmd"])))
             s["last"] = act; s["phase"] = np.float32(s["phase"] + np.float32(2 * np.pi * GAIT_FREQ_HZ * spec["ctrl_dt"]))
             if s["phase"] > 2 * np.pi: s["phase"] = np.float32(s["phase"] - np.float32(2 * np.pi))
-        for _ in range(spec["decimation"]):
-            for (q, dof), pk in zip(pool, park):
-                d.qpos[q:q + 7] = pk; d.qvel[dof:dof + 6] = 0
-            for p in prefixes: d.ctrl[R[p]["aid"]] = R[p]["ctrl"]
-            mujoco.mj_step(m, d)
+        cpu_sim.step(m, d, pool, park, [R[p] for p in prefixes], spec["decimation"])
     out = {}
     for p in prefixes:
         fr = R[p]["frames"]; up = [1 - 2 * (f["root_quat"][1] ** 2 + f["root_quat"][2] ** 2) for f in fr]

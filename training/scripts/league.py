@@ -7,20 +7,16 @@ After training, generation k is evaluated against that same pool.
 Files: runs/league/gen<k>.pt (checkpoints), runs/league/results.jsonl (one line per generation).
 If runs/r4league/gen<k>/model_final.pt already exists (or is being written by a running job) it is waited for
 and reused instead of retraining."""
-import argparse, json, os, shutil, subprocess, sys, time
+import argparse, json, os, shutil, sys, time
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-PY = sys.executable
+sys.path.insert(0, ROOT)
+from scripts.league_util import PY, run, evaluate
 LG = os.path.join(ROOT, "runs", "league")
 
 
 def pool_for(k):
     return [os.path.join(LG, f"gen{i}.pt") for i in range(max(1, k - 5), k)]
-
-
-def run(cmd, log):
-    with open(log, "a", encoding="utf-8") as f:
-        return subprocess.run(cmd, cwd=ROOT, stdout=f, stderr=subprocess.STDOUT).returncode
 
 
 ap = argparse.ArgumentParser()
@@ -44,10 +40,8 @@ for k in range(a.first, a.last + 1):
             time.sleep(15)                                   # let the trainer finish its ONNX export and release the GPU
         shutil.copyfile(final, out)
     elog = os.path.join(ROOT, "runs", f"league_eval_gen{k}.log")
-    if os.path.exists(elog): os.remove(elog)
-    run([PY, "scripts/eval.py", "--rung", "r4league", "--ckpt", out, "--opponent", *pool, "--seeds", "3", "--num-envs", "256", "--seconds", str(a.eval_seconds)], elog)
-    rows = [json.loads(l) for l in open(elog, encoding="utf-8") if l.startswith("{")]
-    if not rows: print(f"gen{k}: evaluation produced no rows, see {elog}", flush=True); sys.exit(1)
+    try: rows = evaluate("r4league", out, pool, a.eval_seconds, elog)
+    except RuntimeError: print(f"gen{k}: evaluation produced no rows, see {elog}", flush=True); sys.exit(1)
     avg = lambda key: round(sum(r[key] for r in rows) / len(rows), 4)
     w, l, u = avg("attacker_ejects_defender"), avg("attacker_lost"), avg("undecided")
     res = dict(gen=k, pool=[os.path.basename(p) for p in pool], win=w, loss=l, tie=u, win_rate_of_decided=round(w / max(w + l, 1e-9), 4),

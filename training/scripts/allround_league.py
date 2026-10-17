@@ -12,26 +12,18 @@ Each generation k:
      did (2-point tolerance).
 Stops when less time remains than one generation needs. Results: runs/league/allround_results.jsonl,
 champion pointer: runs/league/champion.txt."""
-import argparse, json, os, shutil, subprocess, sys, time
+import argparse, json, os, shutil, sys, time
 
-ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__))); PY = sys.executable
+ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+sys.path.insert(0, ROOT)
+from scripts import league_util
+from scripts.league_util import PY, run
 LG = os.path.join(ROOT, "runs", "league"); P = lambda n: os.path.join(LG, n)
 
 
-def run(cmd, log):
-    with open(log, "a", encoding="utf-8") as f:
-        return subprocess.run(cmd, cwd=ROOT, stdout=f, stderr=subprocess.STDOUT).returncode
-
-
 def evaluate(rung, ckpt, opponents, seconds, tag):
-    log = os.path.join(ROOT, "runs", f"allround_eval_{tag}.log")
-    if os.path.exists(log): os.remove(log)
-    run([PY, "scripts/eval.py", "--rung", rung, "--ckpt", ckpt, "--opponent", *opponents, "--seeds", "3", "--num-envs", "256", "--seconds", str(seconds)], log)
-    rows = [json.loads(l) for l in open(log, encoding="utf-8") if l.startswith("{")]
-    if not rows: raise RuntimeError(f"evaluation failed, see {log}")
-    avg = lambda k: sum(r[k] for r in rows) / len(rows)
-    w, l, u = avg("attacker_ejects_defender"), avg("attacker_lost"), avg("undecided")
-    return dict(win=round(w, 4), loss=round(l, 4), tie=round(u, 4), share=round(w / max(w + l, 1e-9), 4), median_s=round(avg("median_time_s"), 2))
+    s = league_util.summarize(league_util.evaluate(rung, ckpt, opponents, seconds, os.path.join(ROOT, "runs", f"allround_eval_{tag}.log")))
+    return dict(win=round(s["win"], 4), loss=round(s["loss"], 4), tie=round(s["tie"], 4), share=round(s["share"], 4), median_s=round(s["median_s"], 2))
 
 
 ap = argparse.ArgumentParser()

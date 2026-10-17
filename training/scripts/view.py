@@ -3,9 +3,10 @@
 Every 4 s a pool box is fired at a robot, the same way training and Unity do it (write qpos/qvel of the free joint).
 Viewer keys: space = pause, backspace = reset, double-click + ctrl-drag = push a body."""
 import os, sys, time
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 import mujoco, mujoco.viewer, numpy as np
-
-ASSETS = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "assets", os.environ.get("KOTH_ROBOT", "g1"))
+from koth.build_mjcf import ASSETS
+from koth import cpu_sim
 args = [a for a in sys.argv[1:] if not a.startswith("--")]
 scene = os.path.join(ASSETS, args[0] if args else "scene_koth_2p_train.xml")
 boxes = "--no-boxes" not in sys.argv
@@ -15,8 +16,8 @@ d = mujoco.MjData(m)
 mujoco.mj_resetDataKeyframe(m, d, 0)
 J = mujoco.mjtObj.mjOBJ_JOINT
 roots = [m.jnt_qposadr[j] for j in (mujoco.mj_name2id(m, J, p + "floating_base_joint") for p in ("a_", "b_")) if j >= 0]
-pool = [(m.jnt_qposadr[j], m.jnt_dofadr[j]) for j in (mujoco.mj_name2id(m, J, f"box{i}_free") for i in range(8)) if j >= 0]
-park = [d.qpos[q:q + 7].copy() for q, _ in pool]
+pool = cpu_sim.pool(m)
+park = cpu_sim.park(d, pool)
 life = [0.0] * len(pool)
 rng = np.random.default_rng(0)
 shot = 0

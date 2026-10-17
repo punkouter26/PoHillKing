@@ -9,8 +9,8 @@ Deterministic policy, r4league evaluation settings, robot a_ only. Prints one JS
 import argparse, json, os, sys
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 import torch
-from koth.env import KothEnv, default_cfg
-from scripts.eval import load_policy
+from koth.env import KothEnv
+from scripts.eval import load_policy, eval_cfg
 
 ap = argparse.ArgumentParser()
 ap.add_argument("--ckpt", required=True); ap.add_argument("--opponent", required=True, nargs="+")
@@ -18,11 +18,7 @@ ap.add_argument("--num-envs", type=int, default=256); ap.add_argument("--seconds
 ap.add_argument("--no-noise", action="store_true")
 ap.add_argument("--shove", action="store_true", help="the tested policy fights in the shove style (arm pose + action smoothing)")
 a = ap.parse_args()
-cfg = default_cfg("r4league"); cfg["max_radius"] = 1.7
-cfg["frozen_opponent"] = list(a.opponent)
-cfg["shove"] = a.shove
-if a.no_noise: cfg["noise"] = {k: 0.0 for k in cfg["noise"]}
-cfg["push"] = dict(interval_s=[1e6, 1e6], vel=[0.0, 0.0]); cfg["projectile"]["enabled"] = False
+cfg = eval_cfg("r4league", shove=a.shove, opponent=a.opponent, noise=not a.no_noise)     # eval.py's r4league settings
 env = KothEnv(cfg, a.num_envs, seed=0); policy = load_policy(env, a.ckpt)
 torch.manual_seed(1000); obs = env.reset()
 n = change = arm = hands = 0.0; total = 0

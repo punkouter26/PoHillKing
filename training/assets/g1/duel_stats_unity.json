@@ -1,4 +1,4 @@
 {
- "rounds": 100, "wins_a": 49, "wins_b": 49, "ties": 2, "decided": 0.98,
- "median_time_s": 8.36, "mean_time_s": 9.09, "p25_time_s": 5.87, "p75_time_s": 11.95
+ "rounds": 200, "wins_a": 107, "wins_b": 91, "ties": 2, "decided": 0.99,
+ "median_time_s": 8.05, "mean_time_s": 8.63, "p25_time_s": 5.07, "p75_time_s": 11.08
 }

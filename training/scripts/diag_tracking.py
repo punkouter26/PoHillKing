@@ -3,9 +3,8 @@ velocity. uv run python scripts/diag_tracking.py --ckpt runs/r1/r1_a/model_1000.
 import argparse, os, sys
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 import torch
-from rsl_rl.runners import OnPolicyRunner
 from koth.env import KothEnv, default_cfg
-from scripts.train import train_cfg
+from scripts.eval import load_policy
 
 ap = argparse.ArgumentParser(); ap.add_argument("--ckpt", required=True); a = ap.parse_args()
 cfg = default_cfg("r1")
@@ -13,8 +12,7 @@ cfg["push"] = dict(interval_s=[1e6, 1e6], vel=[0, 0]); cfg["projectile"]["enable
 cfg["noise"] = {k: 0.0 for k in cfg["noise"]}; cfg["command"]["resample_s"] = 1e6
 cmds = [(0, 0, 0), (0.5, 0, 0), (1.0, 0, 0), (-0.5, 0, 0), (0, 0.4, 0), (0, 0, 0.8), (0, 0, -0.8), (0.6, 0, 0.6)]
 env = KothEnv(cfg, 64 * len(cmds))
-runner = OnPolicyRunner(env, train_cfg(), log_dir=None, device="cuda"); runner.load(a.ckpt)
-policy = runner.alg.get_policy(); policy.eval()
+policy = load_policy(env, a.ckpt)
 obs = env.reset()
 C = torch.tensor(cmds, device=env.device, dtype=torch.float32).repeat_interleave(64, 0)
 env.command[:] = C; obs = env.get_observations()

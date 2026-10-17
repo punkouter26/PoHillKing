@@ -1899,5 +1899,11 @@
    "condim": 3
   }
  ],
- "meshes": []
+ "meshes": [],
+ "robots": [
+  {
+   "prefix": "a_",
+   "body": "g1"
+  }
+ ]
 }

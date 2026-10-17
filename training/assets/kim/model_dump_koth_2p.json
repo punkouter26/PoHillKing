@@ -3469,5 +3469,15 @@
    "nvert": 818,
    "nface": 1632
   }
+ ],
+ "robots": [
+  {
+   "prefix": "a_",
+   "body": "kim"
+  },
+  {
+   "prefix": "b_",
+   "body": "kim"
+  }
  ]
 }

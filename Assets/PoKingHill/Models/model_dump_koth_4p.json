@@ -6921,5 +6921,23 @@
    "nvert": 818,
    "nface": 1632
   }
+ ],
+ "robots": [
+  {
+   "prefix": "a_",
+   "body": "g1"
+  },
+  {
+   "prefix": "b_",
+   "body": "g1"
+  },
+  {
+   "prefix": "c_",
+   "body": "g1"
+  },
+  {
+   "prefix": "d_",
+   "body": "g1"
+  }
  ]
 }
