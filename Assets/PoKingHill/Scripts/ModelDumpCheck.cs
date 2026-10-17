@@ -14,7 +14,6 @@ namespace PoKingHill
     {
         public TextAsset modelDumpJson;
         public bool Passed { get; private set; }
-        public bool HasRun { get; private set; }
         public int Mismatches { get; private set; }
         public string Report { get; private set; } = "";
 
@@ -95,7 +94,7 @@ namespace PoKingHill
                 if (D(g["type"]) != 7 && D(g["type"]) != 0)   // skip mesh and plane sizes
                     for (int k = 0; k < 3; k++) Check($"{name}.size{k}", m->geom_size[3 * id + k], L(g["size"])[k], 1e-5);
             }
-            Mismatches = bad; Passed = bad == 0; HasRun = true;
+            Mismatches = bad; Passed = bad == 0;
             Report = Passed ? $"ModelDumpCheck PASS (nq={m->nq} nv={m->nv} nu={m->nu} nbody={m->nbody} ngeom={m->ngeom})"
                             : $"ModelDumpCheck FAIL: {bad} mismatches (unity nq={m->nq} nv={m->nv} nu={m->nu} nbody={m->nbody})\n{sb}";
             if (Passed) Debug.Log(Report); else Debug.LogError(Report);

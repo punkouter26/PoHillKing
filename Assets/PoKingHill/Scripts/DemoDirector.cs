@@ -35,8 +35,6 @@ namespace PoKingHill
     {
         [Tooltip("Every fighter body in the scene (a_, b_, ...). A match seats agents on the first ones.")]
         public PolicyRunner[] fighters = Array.Empty<PolicyRunner>();
-        public PolicyRunner attacker => fighters[0];     // seat A and seat B: the pair the two-fighter gates measure
-        public PolicyRunner defender => fighters[1];
         public Sea sea;                                  // optional; without it the round lasts roundSeconds
         public ImpactSynth synth;                        // optional, for the audio counters in the verification file
         public Fighter[] roster = Array.Empty<Fighter>();
@@ -72,27 +70,22 @@ namespace PoKingHill
         float _fps; readonly System.Diagnostics.Stopwatch _sw = new(); double _stepMs;
         string _shotDir; readonly HashSet<string> _shots = new(); float _menuShotAt = -1;
 
-        static string Arg(string name)
-        {
-            var a = Environment.GetCommandLineArgs(); int i = Array.IndexOf(a, name);
-            return i >= 0 && i + 1 < a.Length ? a[i + 1] : null;
-        }
-        static bool Flag(string name) => Array.IndexOf(Environment.GetCommandLineArgs(), name) >= 0;
 
         void OnEnable()
         {
             Application.targetFrameRate = 60;            // the editor otherwise renders uncapped and starves GPU training
             Application.runInBackground = true;
-            _shotDir = Arg("-kothShots");
+            useGUILayout = false;                        // OnGUI uses fixed rects only: skip IMGUI's Layout pass (half the OnGUI calls)
+            _shotDir = Cli.Arg("-kothShots");
             // Player-side statistical gate (-kothRounds N): same rules as ParityBatch.RunDuelStats, no sea and a 25 s bell.
-            if (!Application.isEditor && int.TryParse(Arg("-kothRounds"), out int rounds) && rounds > 0)
+            if (!Application.isEditor && int.TryParse(Cli.Arg("-kothRounds"), out int rounds) && rounds > 0)
             {
                 statsRounds = rounds; roundSeconds = 25f;
-                if (int.TryParse(Arg("-kothA"), out int fa)) selectedA = fa;
-                if (int.TryParse(Arg("-kothB"), out int fb)) selectedB = fb;
+                if (int.TryParse(Cli.Arg("-kothA"), out int fa)) selectedA = fa;
+                if (int.TryParse(Cli.Arg("-kothB"), out int fb)) selectedB = fb;
                 if (sea != null) { sea.enabled = false; sea = null; }
             }
-            if (statsRounds > 0 || Flag("-kothAutoLaunch")) autoLaunch = true;
+            if (statsRounds > 0 || Cli.Flag("-kothAutoLaunch")) autoLaunch = true;
             // The unfocused editor renders about one frame per second, so in stats mode let each frame carry up to 2 s of physics.
             if (statsRounds > 0) { Time.timeScale = 50f; Time.maximumDeltaTime = 2f; pauseBetweenRounds = 0f; roundsPerMatch = 0; }
             MjScene.Instance.postInitEvent += OnInit;
@@ -261,7 +254,7 @@ namespace PoKingHill
                 if (Time.unscaledTime < _pauseUntil) return;
                 _pauseUntil = 0;
                 if (ShotsDone()) return;
-                if (roundsPerMatch > 0 && _roundsThisMatch >= roundsPerMatch && !(_shotDir != null && Flag("-kothExit"))) EnterMenu(); else NewRound();
+                if (roundsPerMatch > 0 && _roundsThisMatch >= roundsPerMatch && !(_shotDir != null && Cli.Exit)) EnterMenu(); else NewRound();
                 return;
             }
             double t = d->time - _roundStart;
@@ -280,7 +273,7 @@ namespace PoKingHill
             if (alive > 1 && !bell) return;
             if (alive == 1)
             {
-                _wins[last]++; if (_seat[last] >= 0 && _seat[last] < _score.Length) _score[_seat[last]]++;
+                Award(last);
                 _times.Add(t); _last = $"{(char)('A' + last)} ({NameOf(_seat[last], "Robot")}) wins in {t:0.0} s"; FollowTarget = justOut;
                 _winner = NameOf(_seat[last], "Robot"); _how = $"last one on the summit after {t:0.0} s";
             }
@@ -295,7 +288,7 @@ namespace PoKingHill
                     double* q = d->qpos + fighters[i].Map.RootQposAdr; double r2 = q[0] * q[0] + q[1] * q[1];
                     if (r2 < best) { best = r2; king = i; }
                 }
-                _wins[king]++; if (_seat[king] >= 0 && _seat[king] < _score.Length) _score[_seat[king]]++;
+                Award(king);
                 _winner = NameOf(_seat[king], "Robot"); _how = $"nearest the centre when the sea arrived ({Math.Sqrt(best):0.0} m, {alive} still standing)";
                 _last = $"{(char)('A' + king)} ({_winner}) holds the summit as the sea arrives";
             }
@@ -309,6 +302,8 @@ namespace PoKingHill
             if (statsRounds > 0 && _wins[0] + _wins[1] + _draws >= statsRounds) WriteStats();
             else if (statsRounds > 0) { _pauseUntil = 0; NewRound(); }
         }
+
+        void Award(int body) { _wins[body]++; if (_seat[body] >= 0 && _seat[body] < _score.Length) _score[_seat[body]]++; }
 
         string NameOf(int i, string fallback) => roster.Length > 0 ? roster[Mathf.Clamp(i, 0, roster.Length - 1)].name : fallback;
         // "G1 All-rounder (champion)" -> "All-rounder": what fits on a line when four fight.
@@ -329,9 +324,9 @@ namespace PoKingHill
         // Automated capture run (-kothShots dir -kothExit): leave once menu, combat and ejection frames exist.
         bool ShotsDone()
         {
-            if (_shotDir == null || !Flag("-kothExit")) return false;
+            if (_shotDir == null || !Cli.Exit) return false;
             if (!_shots.Contains("menu") || !_shots.Contains("combat") || !_shots.Contains("ejection")) return false;
-            if (Flag("-kothWaitSplash") && !_shots.Contains("splash")) return false;      // keep playing until the camera has cut to a faller at the water
+            if (Cli.Flag("-kothWaitSplash") && !_shots.Contains("splash")) return false;      // keep playing until the camera has cut to a faller at the water
             if (synth != null)
                 System.IO.File.WriteAllText(System.IO.Path.Combine(_shotDir, "audio.json"),
                     $"{{\"thuds\": {synth.Thuds}, \"footfalls\": {synth.Clicks}, \"splashes\": {synth.Splashes}, \"peak_sample\": {synth.Peak.ToString("0.###", System.Globalization.CultureInfo.InvariantCulture)}, \"audio_blocks\": {synth.Blocks}}}\n");
@@ -353,9 +348,9 @@ namespace PoKingHill
             string path = System.IO.Path.GetFullPath(Application.isEditor ? System.IO.Path.Combine(Application.dataPath, "..", "training", "assets", "g1", "duel_stats_unity.json")
                                                                           : System.IO.Path.Combine(Application.dataPath, "..", "duel_stats_unity.json"));
             System.IO.File.WriteAllText(path, json); Debug.Log("[DemoDirector] wrote " + path + "\n" + json);
-            statsRounds = 0; attacker.paused = defender.paused = true;
+            statsRounds = 0; fighters[0].paused = fighters[1].paused = true;      // seats A and B: the pair the two-fighter gate measures
 #if UNITY_EDITOR
-            if (Flag("-kothExit")) UnityEditor.EditorApplication.Exit(0);
+            if (Cli.Exit) UnityEditor.EditorApplication.Exit(0);
 #else
             Application.Quit();
 #endif
@@ -368,7 +363,7 @@ namespace PoKingHill
             if (InMenu && _menuShotAt > 0 && Time.unscaledTime >= _menuShotAt)
             {
                 _menuShotAt = -1; Shot("menu");
-                if (_shotDir != null && Flag("-kothExit")) _launchAt = Time.unscaledTime + 1.0f;     // automated capture run: continue into a round
+                if (_shotDir != null && Cli.Exit) _launchAt = Time.unscaledTime + 1.0f;     // automated capture run: continue into a round
             }
             if (_launchAt > 0 && Time.unscaledTime >= _launchAt) { _launchAt = -1; Launch(); }
         }
@@ -381,7 +376,7 @@ namespace PoKingHill
             GUI.Label(new Rect(r.x + 2, r.y + 2, r.width, r.height), text, st); st.normal.textColor = c; GUI.Label(r, text, st);
         }
 
-        GUIStyle _st, _big, _right, _mid, _btn, _toggle, _launch; float _styleK;
+        GUIStyle _st, _big, _right, _mid, _btn, _launch, _headline, _line; float _styleK;
         void OnGUI()
         {
             int w = Screen.width, h = Screen.height; float k = Mathf.Max(1f, h / 900f);
@@ -392,8 +387,8 @@ namespace PoKingHill
                 _big = new GUIStyle(_st) { fontSize = Mathf.RoundToInt(20 * k), fontStyle = FontStyle.Bold };
                 _right = new GUIStyle(_st) { alignment = TextAnchor.UpperRight }; _mid = new GUIStyle(_st) { alignment = TextAnchor.UpperCenter };
                 _btn = new GUIStyle(GUI.skin.button) { fontSize = Mathf.RoundToInt(14 * k) };
-                _toggle = new GUIStyle(GUI.skin.toggle) { fontSize = _st.fontSize, normal = { textColor = Color.white } };
                 _launch = new GUIStyle(_btn) { fontSize = Mathf.RoundToInt(18 * k), fontStyle = FontStyle.Bold };
+                _headline = new GUIStyle(_big) { alignment = TextAnchor.UpperCenter }; _line = new GUIStyle(_mid) { wordWrap = true };
             }
             GUIStyle st = _st, big = _big, right = _right, mid = _mid, btn = _btn;
             float pad = 12 * k, lh = 26 * k;
@@ -417,9 +412,8 @@ namespace PoKingHill
                 {
                     float pw = Mathf.Min(w - 2 * pad, 420 * k), ph = lh * 6.2f, px = (w - pw) / 2, py = h * 0.36f;
                     GUI.Box(new Rect(px, py, pw, ph), GUIContent.none); GUI.Box(new Rect(px, py, pw, ph), GUIContent.none);     // twice: the stock box is very transparent
-                    var headline = new GUIStyle(big) { alignment = TextAnchor.UpperCenter }; var line = new GUIStyle(mid) { wordWrap = true };
-                    Label(new Rect(px, py + pad, pw, lh * 1.3f), _winner == "No winner" ? _winner : "Winner: " + _winner, headline);
-                    Label(new Rect(px + pad, py + pad + lh * 1.4f, pw - 2 * pad, lh * 2.2f), _how, line);
+                    Label(new Rect(px, py + pad, pw, lh * 1.3f), _winner == "No winner" ? _winner : "Winner: " + _winner, _headline);
+                    Label(new Rect(px + pad, py + pad + lh * 1.4f, pw - 2 * pad, lh * 2.2f), _how, _line);
                     string wait = roundsPerMatch > 0 && _roundsThisMatch >= roundsPerMatch ? "Main menu" : "Next round";
                     if (GUI.Button(new Rect(px + pw * 0.2f, py + ph - lh * 1.5f - pad, pw * 0.6f, lh * 1.5f), $"{wait} ({Mathf.Max(0f, _pauseUntil - Time.unscaledTime):0})", _launch)) _pauseUntil = Time.unscaledTime;
                 }

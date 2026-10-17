@@ -132,7 +132,7 @@ namespace PoKingHill
             Debug.Log($"[PolicyParity] wrote {path}\n{sb}");
 #if UNITY_EDITOR
             s_active--; if (!(replayOk && loopOk)) s_failed++;
-            if (s_active <= 0 && (Application.isBatchMode || System.Array.IndexOf(System.Environment.GetCommandLineArgs(), "-kothExit") >= 0))
+            if (s_active <= 0 && (Application.isBatchMode || Cli.Exit))
                 UnityEditor.EditorApplication.Exit(s_failed == 0 ? 0 : 4);
 #endif
         }

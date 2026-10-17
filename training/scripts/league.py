@@ -7,7 +7,7 @@ After training, generation k is evaluated against that same pool.
 Files: runs/league/gen<k>.pt (checkpoints), runs/league/results.jsonl (one line per generation).
 If runs/r4league/gen<k>/model_final.pt already exists (or is being written by a running job) it is waited for
 and reused instead of retraining."""
-import argparse, glob, json, os, shutil, subprocess, sys, time
+import argparse, json, os, shutil, subprocess, sys, time
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 PY = sys.executable

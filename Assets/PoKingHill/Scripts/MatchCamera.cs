@@ -41,8 +41,8 @@ namespace PoKingHill
             if (fallen.Count == 0) { _shown.Clear(); if (_cut != null) { _cut = null; _snap = true; } }
             if (director.RoundOver && _cut != null) { _cut = null; _snap = true; }      // the winner panel is up: stay on the summit
             if (director.sea != null && !director.RoundOver)
-                foreach (var r in fallen)
-                    if (!_shown.Contains(r) && Pelvis(r).y < director.sea.Level + cutAbove)
+                for (int i = 0; i < fallen.Count; i++)      // index loops: foreach over IReadOnlyList boxes its enumerator every frame
+                    if (fallen[i] is var r && !_shown.Contains(r) && Pelvis(r).y < director.sea.Level + cutAbove)
                     {
                         _shown.Add(r); _cut = r; _cutUntil = Time.unscaledTime + cutSeconds; _snap = true;
                         Debug.Log($"[MatchCamera] cut to {r.robotPrefix} at the water (sea {director.sea.Level:0.0} m)");
@@ -65,9 +65,9 @@ namespace PoKingHill
                 // The fighter nearest the centre of the summit; the current one keeps the job unless clearly beaten.
                 if (_centre != null && !Contains(alive, _centre)) _centre = null;
                 float best = _centre != null ? FromCentre(Pelvis(_centre)) - centreMargin : float.MaxValue;
-                foreach (var r in alive) { float d = FromCentre(Pelvis(r)); if (d < best) { best = d; _centre = r; } }
+                for (int i = 0; i < alive.Count; i++) { float d = FromCentre(Pelvis(alive[i])); if (d < best) { best = d; _centre = alive[i]; } }
                 look = Pelvis(_centre); float reach = 0f;
-                foreach (var r in alive) reach = Mathf.Max(reach, Vector3.Distance(Pelvis(r), look));
+                for (int i = 0; i < alive.Count; i++) reach = Mathf.Max(reach, Vector3.Distance(Pelvis(alive[i]), look));
                 look.y = Mathf.Max(0.5f, look.y * 0.8f);
                 pos = new Vector3(look.x * 0.5f, height, look.z * 0.5f - (baseDistance + distancePerMetre * 2f * reach));
             }
@@ -79,7 +79,7 @@ namespace PoKingHill
 
         static bool Contains(IReadOnlyList<PolicyRunner> list, PolicyRunner r)
         {
-            foreach (var x in list) if (x == r) return true;
+            for (int i = 0; i < list.Count; i++) if (list[i] == r) return true;
             return false;
         }
     }

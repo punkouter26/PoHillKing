@@ -1,4 +1,3 @@
-using System;
 using UnityEngine;
 
 namespace PoKingHill
@@ -9,18 +8,13 @@ namespace PoKingHill
     /// </summary>
     public class AutoShot : MonoBehaviour
     {
-        string _path; float _at = 3f; int _doneFrame = -1;
-
-        static string Arg(string name)
-        {
-            var a = Environment.GetCommandLineArgs(); int i = Array.IndexOf(a, name);
-            return i >= 0 && i + 1 < a.Length ? a[i + 1] : null;
-        }
+        string _path; float _at = 3f; int _doneFrame = -1; bool _exit;
 
         void OnEnable()
         {
-            _path = Arg("-kothShot"); if (_path == null) { enabled = false; return; }
-            if (float.TryParse(Arg("-kothShotAt"), System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out float t)) _at = t;
+            _path = Cli.Arg("-kothShot"); if (_path == null) { enabled = false; return; }
+            _exit = Cli.Exit;
+            if (float.TryParse(Cli.Arg("-kothShotAt"), System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out float t)) _at = t;
             Application.targetFrameRate = 60; Application.runInBackground = true;
         }
 
@@ -28,7 +22,7 @@ namespace PoKingHill
         {
             if (_doneFrame < 0 && Time.time >= _at) { ScreenCapture.CaptureScreenshot(_path); _doneFrame = Time.frameCount; Debug.Log("[AutoShot] " + _path); }
 #if UNITY_EDITOR
-            if (_doneFrame >= 0 && Time.frameCount > _doneFrame + 3 && Array.IndexOf(Environment.GetCommandLineArgs(), "-kothExit") >= 0) UnityEditor.EditorApplication.Exit(0);
+            if (_doneFrame >= 0 && Time.frameCount > _doneFrame + 3 && _exit) UnityEditor.EditorApplication.Exit(0);
 #endif
         }
     }

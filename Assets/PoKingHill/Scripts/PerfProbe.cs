@@ -31,8 +31,7 @@ namespace PoKingHill
 
         void OnEnable()
         {
-            var a = Environment.GetCommandLineArgs(); int i = Array.IndexOf(a, "-kothPerf");
-            if (i < 0 || i + 1 >= a.Length || !float.TryParse(a[i + 1], NumberStyles.Float, CultureInfo.InvariantCulture, out _seconds)) { enabled = false; return; }
+            if (!float.TryParse(Cli.Arg("-kothPerf"), NumberStyles.Float, CultureInfo.InvariantCulture, out _seconds)) { enabled = false; return; }
             int cap = (int)((_seconds + 1) / Time.fixedDeltaTime);
             _tick = new float[cap]; _mj = new float[cap]; _brain = new float[cap]; _frame = new float[cap];
             var dd = FindAnyObjectByType<DemoDirector>(); if (dd != null) { dd.autoLaunch = true; dd.roundsPerMatch = 0; dd.pauseBetweenRounds = 0f; }
@@ -109,7 +108,7 @@ namespace PoKingHill
             string path = System.IO.Path.GetFullPath(System.IO.Path.Combine(Application.dataPath, "..", "perf_unity.json"));
             System.IO.File.WriteAllText(path, json); Debug.Log("[PerfProbe] wrote " + path + "\n" + json);
 #if UNITY_EDITOR
-            if (Array.IndexOf(Environment.GetCommandLineArgs(), "-kothExit") >= 0) UnityEditor.EditorApplication.Exit(0);
+            if (Cli.Exit) UnityEditor.EditorApplication.Exit(0);
 #else
             Application.Quit();
 #endif

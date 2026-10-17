@@ -19,7 +19,6 @@ namespace PoKingHill
         public float sim_dt;
         public float ctrl_dt;
         public int decimation;
-        public string[] robot_prefixes;
         public string[] pool_bodies;
         public int ls_iterations;
         public float[] hold_ctrl;     // gravity-compensated stance targets, canonical order
@@ -28,7 +27,6 @@ namespace PoKingHill
 
     public unsafe class JointMap
     {
-        public readonly string Prefix;
         public readonly int N;
         public readonly int[] QposAdr;     // per canonical joint
         public readonly int[] DofAdr;
@@ -41,7 +39,6 @@ namespace PoKingHill
 
         public JointMap(MujocoLib.mjModel_* m, JointMapSpec spec, string prefix)
         {
-            Prefix = prefix;
             N = spec.joints.Length;
             QposAdr = new int[N]; DofAdr = new int[N]; ActId = new int[N];
             CtrlMin = new double[N]; CtrlMax = new double[N];

@@ -16,8 +16,8 @@ from koth.obs import build_obs, build_combat, goal_command, OBS_DIM, GAIT_FREQ_H
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 ASSETS = os.path.join(ROOT, "assets", os.environ.get("KOTH_ROBOT", "g1"))
-UNITY_MODELS = os.path.normpath(os.path.join(ROOT, "..", "Assets", "PoKingHill", "Models"))
-SLOPE_K, PLATEAU_R = 1.0 / 9.0, 1.5
+
+from koth.build_mjcf import PLATEAU_R, SLOPE_K, UNITY_MODELS    # Models/ for G1, Models/<robot>/ otherwise
 
 
 def export_onnx(ckpt: str, out_path: str) -> None:

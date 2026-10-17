@@ -35,7 +35,6 @@ namespace PoKingHill
         public float[] RawAction { get; private set; }   // network output before clamping
         public double[] Ctrl { get; private set; }        // held position targets, canonical order
         public event System.Action<PolicyRunner> OnPolicyStep;
-        public int PolicySteps { get; private set; }
         public double LastInferenceMs { get; private set; }
 
         JointMapSpec _spec;
@@ -56,12 +55,7 @@ namespace PoKingHill
             for (int i = 0; i < _spec.joints.Length; i++)
                 _shoveOffset[i] = _spec.joints[i].Contains("shoulder_pitch") ? ShoveShoulderPitch - _spec.default_pose[i]
                                 : _spec.joints[i].Contains("elbow") ? ShoveElbow - _spec.default_pose[i] : 0f;
-            if (policy != null)
-            {
-                _worker = new Worker(ModelLoader.Load(policy), BackendType.CPU);
-                Obs = new float[policyObsDim];
-                _input = new Tensor<float>(new TensorShape(1, policyObsDim));
-            }
+            LoadBrain();
             MjScene.Instance.postInitEvent += OnSceneInit;
             MjScene.Instance.preUpdateEvent += OnPreStep;
             if (MjScene.Instance.Model != null) OnSceneInit(null, null);
@@ -84,8 +78,6 @@ namespace PoKingHill
             if (_spec.ls_iterations > 0) MjScene.Instance.Model->opt.ls_iterations = _spec.ls_iterations;
             if (Mathf.Abs(Time.fixedDeltaTime - _spec.sim_dt) > 1e-6f)
                 Debug.LogError($"Fixed Timestep {Time.fixedDeltaTime} != training sim_dt {_spec.sim_dt}");
-            _substep = 0; _phase = 0; PolicySteps = 0;
-            System.Array.Clear(LastAction, 0, LastAction.Length);
             ResetPose();   // the plugin cannot import keyframes: start from the training keyframe explicitly
         }
 
@@ -145,7 +137,6 @@ namespace PoKingHill
             }
             _phase += 2f * Mathf.PI * ObsBuilder.GaitFreqHz * _spec.ctrl_dt;
             if (_phase > 2f * Mathf.PI) _phase -= 2f * Mathf.PI;
-            PolicySteps++;
             OnPolicyStep?.Invoke(this);
         }
 
@@ -162,8 +153,21 @@ namespace PoKingHill
                 d->qpos[Map.QposAdr[i]] = Map.DefaultPose[i]; d->qvel[Map.DofAdr[i]] = 0;
                 Ctrl[i] = _spec.hold_ctrl[i]; d->ctrl[Map.ActId[i]] = Ctrl[i];
             }
+            ResetClock();
+        }
+
+        // Policy clock, last action and shove filter back to the start of an episode (no allocation: ResetPose runs every step for parked bodies).
+        void ResetClock()
+        {
             _substep = 0; _phase = 0;
             System.Array.Clear(LastAction, 0, LastAction.Length); System.Array.Clear(_actF, 0, _actF.Length);
+        }
+
+        void LoadBrain()
+        {
+            if (policy == null) return;
+            _worker = new Worker(ModelLoader.Load(policy), BackendType.CPU);
+            Obs = new float[policyObsDim]; _input = new Tensor<float>(new TensorShape(1, policyObsDim));
         }
 
         /// <summary>Swap the brain at runtime (menu fighter selection). policy = null gives the passive stance.</summary>
@@ -171,12 +175,7 @@ namespace PoKingHill
         {
             _worker?.Dispose(); _input?.Dispose(); _worker = null; _input = null;
             policy = newPolicy; policyObsDim = obsDim; goal = newGoal; goalStopDist = stopDist; goalVmax = vmax; command = Vector3.zero; shoveStyle = shove;
-            if (policy != null)
-            {
-                _worker = new Worker(ModelLoader.Load(policy), BackendType.CPU);
-                Obs = new float[policyObsDim]; _input = new Tensor<float>(new TensorShape(1, policyObsDim));
-            }
-            _substep = 0; _phase = 0; System.Array.Clear(LastAction, 0, LastAction.Length); System.Array.Clear(_actF, 0, _actF.Length);
+            LoadBrain(); ResetClock();
         }
 
         /// <summary>Keyframe pose at a chosen spot on the summit (MuJoCo frame x, y in metres, yaw in radians).</summary>

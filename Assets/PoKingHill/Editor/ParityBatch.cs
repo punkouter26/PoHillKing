@@ -9,9 +9,10 @@ using UnityEngine;
 namespace PoKingHill.EditorTools
 {
     /// <summary>
-    /// Editor-side authoring of the parity testbed scenes, runnable from the menu or headless:
-    ///   Unity.exe -batchmode -projectPath . -executeMethod PoKingHill.EditorTools.ParityBatch.ImportAll -quit
-    ///   Unity.exe -batchmode -projectPath . -executeMethod PoKingHill.EditorTools.ParityBatch.RunHold -kothScene flat_1p
+    /// Editor-side authoring of the parity testbed scenes, runnable from the menu or from the command line (batch mode
+    /// needs a licence this project does not have, so automated runs use a normal editor launch and -kothExit):
+    ///   Unity.exe -projectPath . -executeMethod PoKingHill.EditorTools.ParityBatch.ImportAll -kothExit
+    ///   Unity.exe -projectPath . -executeMethod PoKingHill.EditorTools.ParityBatch.RunHold -kothScene flat_1p -kothExit
     /// Import uses the plugin's own MJCF importer on training/assets/g1/scene_&lt;tag&gt;_unity.xml, so the Unity
     /// hierarchy (MjBody / MjGeom / MjHingeJoint / MjActuator) is derived from the exact training model.
     /// </summary>
@@ -19,36 +20,33 @@ namespace PoKingHill.EditorTools
     {
         const string SceneDir = "Assets/PoKingHill/Scenes";
         const string ModelDir = "Assets/PoKingHill/Models";
+        const string DemoScene = SceneDir + "/Demo_duel.unity";
 
         // Which fighter's body a testbed scene holds: -kothRobot g1 (default) or kim. Kim's files sit in kim subfolders.
-        static string Robot => Arg("-kothRobot", "g1");
+        static string Robot => Cli.Arg("-kothRobot", "g1");
         static string ModelsOf(string robot) => robot == "g1" ? ModelDir : $"{ModelDir}/{robot}";
         static string SceneOf(string robot, string tag) => $"{SceneDir}/Testbed_{(robot == "g1" ? "" : robot + "_")}{tag}.unity";
 
-        static string Arg(string name, string fallback)
-        {
-            var a = Environment.GetCommandLineArgs();
-            int i = Array.IndexOf(a, name);
-            return i >= 0 && i + 1 < a.Length ? a[i + 1] : fallback;
-        }
-
-        [MenuItem("PoKingHill/Import testbed scenes (flat_1p + koth_2p)")]
-        public static void ImportAll()
-        {
-            try { Import("flat_1p", Robot); Import("koth_1p", Robot); Import("koth_2p", Robot); if (Robot == "g1") Import("koth_4p", Robot); }
-            catch (Exception e) { Debug.LogError("[ParityBatch] IMPORT FAILED: " + e); if (HasFlag("-kothExit")) EditorApplication.Exit(3); throw; }
-            if (HasFlag("-kothExit")) EditorApplication.Exit(0);
-        }
+        [MenuItem("PoKingHill/Import testbed scenes (flat_1p, koth_1p, koth_2p, koth_4p)")]
+        public static void ImportAll() => ImportOrExit(() => { Import("flat_1p", Robot); Import("koth_1p", Robot); Import("koth_2p", Robot); if (Robot == "g1") Import("koth_4p", Robot); });
 
         /// <summary>Import one testbed scene only: -kothScene &lt;tag&gt; (for example koth_4p), -kothRobot as usual.</summary>
-        public static void ImportOne()
+        public static void ImportOne() => ImportOrExit(() => Import(Cli.Arg("-kothScene", "koth_4p"), Robot));
+
+        static void ImportOrExit(Action import)
         {
-            try { Import(Arg("-kothScene", "koth_4p"), Robot); }
-            catch (Exception e) { Debug.LogError("[ParityBatch] IMPORT FAILED: " + e); if (HasFlag("-kothExit")) EditorApplication.Exit(3); throw; }
-            if (HasFlag("-kothExit")) EditorApplication.Exit(0);
+            try { import(); }
+            catch (Exception e) { Debug.LogError("[ParityBatch] IMPORT FAILED: " + e); if (Cli.Exit) EditorApplication.Exit(3); throw; }
+            if (Cli.Exit) EditorApplication.Exit(0);
         }
 
-        static bool HasFlag(string f) => Array.IndexOf(Environment.GetCommandLineArgs(), f) >= 0;
+        // Gate B.2 at authoring time: MuJoCo is the only simulator, so a scene must never hold a PhysX component.
+        static void AssertNoPhysX(string where)
+        {
+            int colliders = UnityEngine.Object.FindObjectsByType<Collider>(FindObjectsInactive.Include).Length;
+            int bodies = UnityEngine.Object.FindObjectsByType<Rigidbody>(FindObjectsInactive.Include).Length;
+            if (colliders + bodies > 0) throw new Exception($"PhysX components present {where}: {colliders} colliders, {bodies} rigidbodies");
+        }
 
         public static void Import(string tag, string robot = "g1")
         {
@@ -107,9 +105,7 @@ namespace PoKingHill.EditorTools
                 visual.AddComponent<MeshRenderer>().sharedMaterial = mat;
                 Debug.Log($"[ParityBatch] arena visual: {geom.Mesh.Mesh.vertexCount} verts, bounds {geom.Mesh.Mesh.bounds.center} / {geom.Mesh.Mesh.bounds.size}");
             }
-            int colliders = UnityEngine.Object.FindObjectsByType<Collider>(FindObjectsInactive.Include).Length;
-            int bodies = UnityEngine.Object.FindObjectsByType<Rigidbody>(FindObjectsInactive.Include).Length;
-            if (colliders + bodies > 0) throw new Exception($"PhysX components present after import: {colliders} colliders, {bodies} rigidbodies");
+            AssertNoPhysX("after import");
 
             if (robot == "kim")
             {
@@ -151,7 +147,7 @@ namespace PoKingHill.EditorTools
         /// with &lt;rung&gt;_reference_trajectory.json, enter play mode. Scene changes are in memory only (not saved).</summary>
         public static void RunPolicy()
         {
-            string tag = Arg("-kothScene", "flat_1p"), rung = Arg("-kothRung", "r0");
+            string tag = Cli.Arg("-kothScene", "flat_1p"), rung = Cli.Arg("-kothRung", "r0");
             AssetDatabase.Refresh();
             EditorSceneManager.OpenScene(SceneOf(Robot, tag), OpenSceneMode.Single); string models = ModelsOf(Robot);
             var policy = AssetDatabase.LoadAssetAtPath<Unity.InferenceEngine.ModelAsset>($"{models}/{rung}_policy.onnx");
@@ -169,7 +165,7 @@ namespace PoKingHill.EditorTools
                 probe.referenceJson = reference; probe.policy = policy; probe.runner = runner; probe.rung = rung; probe.suffix = suffix;
                 probes++;
             }
-            if (probes != runners.Length) { Debug.LogError($"[ParityBatch] missing {rung}_policy.onnx or reference json in {models} ({probes}/{runners.Length} robots)"); if (HasFlag("-kothExit")) EditorApplication.Exit(3); return; }
+            if (probes != runners.Length) { Debug.LogError($"[ParityBatch] missing {rung}_policy.onnx or reference json in {models} ({probes}/{runners.Length} robots)"); if (Cli.Exit) EditorApplication.Exit(3); return; }
             EditorApplication.EnterPlaymode();
         }
 
@@ -183,7 +179,7 @@ namespace PoKingHill.EditorTools
         public static void BuildDuelDemo(string tag)
         {
             AssetDatabase.Refresh();
-            var scene = EditorSceneManager.OpenScene($"{SceneDir}/Testbed_{tag}.unity", OpenSceneMode.Single);
+            var scene = EditorSceneManager.OpenScene(SceneOf("g1", tag), OpenSceneMode.Single);
             var attacker = AssetDatabase.LoadAssetAtPath<Unity.InferenceEngine.ModelAsset>($"{ModelDir}/attacker_policy.onnx");
             if (attacker == null) throw new Exception("attacker_policy.onnx missing in " + ModelDir);
             var runners = UnityEngine.Object.FindObjectsByType<PolicyRunner>(FindObjectsInactive.Include).OrderBy(r => r.robotPrefix).ToArray();
@@ -208,7 +204,7 @@ namespace PoKingHill.EditorTools
                 policy = AssetDatabase.LoadAssetAtPath<Unity.InferenceEngine.ModelAsset>($"{ModelDir}/{file}_policy.onnx") };
             director.roster = new[] { F("G1 All-rounder (champion)", "attacker", 112, GoalMode.Opponent), F("G1 Duelist (generation 7)", "duelist", 112, GoalMode.Opponent),
                                       F("G1 Rammer (generation 1)", "rammer", 112, GoalMode.Opponent), F("G1 Walker (stands its ground)", "r1", 103, GoalMode.None),
-                                      // Kim has a body (Testbed_kim_* scenes) but no trained brain yet, and this scene holds two G1 bodies.
+                                      // Kim is offered only when this scene has a Kim body (koth_5p: e_) and her walking brain has been exported.
                                       new Fighter { name = "Kim", body = "kim", policy = kimBrain, obsDim = 103, goal = GoalMode.Opponent, stopDist = 0f, vmax = 0.8f,
                                                     available = kimBrain != null && kimBody, inGame = kimBrain != null && kimBody,
                                                     note = !kimBody ? "no Kim body in this scene" : kimBrain == null ? "no brain yet" : "walks at you, never trained to fight" } };
@@ -224,11 +220,9 @@ namespace PoKingHill.EditorTools
             var synth = rig.AddComponent<ImpactSynth>(); synth.robots = runners; synth.sea = sea;   // adds the AudioSource it requires
             director.synth = synth;
             rig.AddComponent<PerfProbe>();              // inert unless started with -kothPerf <seconds>
-            int physx = UnityEngine.Object.FindObjectsByType<Collider>(FindObjectsInactive.Include).Length + UnityEngine.Object.FindObjectsByType<Rigidbody>(FindObjectsInactive.Include).Length;
-            if (physx > 0) throw new Exception($"PhysX components present in the demo scene: {physx}");
-            string path = $"{SceneDir}/Demo_duel.unity";
-            EditorSceneManager.SaveScene(scene, path);
-            Debug.Log("[ParityBatch] saved " + path);
+            AssertNoPhysX("in the demo scene");
+            EditorSceneManager.SaveScene(scene, DemoScene);
+            Debug.Log("[ParityBatch] saved " + DemoScene);
         }
 
         const string MapDir = "Assets/PoKingHill/Maps/Mountain";
@@ -281,18 +275,18 @@ namespace PoKingHill.EditorTools
             var rt = new RenderTexture(1280, 960, 24, RenderTextureFormat.ARGB32, RenderTextureReadWrite.sRGB); cam.targetTexture = rt; cam.Render();
             RenderTexture.active = rt; var tex = new Texture2D(rt.width, rt.height, TextureFormat.RGB24, false);
             tex.ReadPixels(new Rect(0, 0, rt.width, rt.height), 0, 0); tex.Apply(); RenderTexture.active = null;
-            string path = Path.GetFullPath(Arg("-kothOut", "map_overview.png")); File.WriteAllBytes(path, tex.EncodeToPNG());
+            string path = Path.GetFullPath(Cli.Arg("-kothOut", "map_overview.png")); File.WriteAllBytes(path, tex.EncodeToPNG());
             Debug.Log("[ParityBatch] wrote " + path);
-            if (HasFlag("-kothExit")) EditorApplication.Exit(0);
+            if (Cli.Exit) EditorApplication.Exit(0);
         }
 
         /// <summary>Parity gate for the combat policy: Demo_duel with the director replaced by one probe per robot,
         /// compared against &lt;rung&gt;_reference_trajectory_a/_b.json (recorded with the same two ONNX files).</summary>
         public static void RunDuelParity()
         {
-            string rung = Arg("-kothRung", "r4duel");
+            string rung = Cli.Arg("-kothRung", "r4duel");
             BuildDuelDemo("koth_2p");
-            EditorSceneManager.OpenScene($"{SceneDir}/Demo_duel.unity", OpenSceneMode.Single);
+            EditorSceneManager.OpenScene(DemoScene, OpenSceneMode.Single);
             var champion = AssetDatabase.LoadAssetAtPath<Unity.InferenceEngine.ModelAsset>($"{ModelDir}/attacker_policy.onnx");
             foreach (var r in UnityEngine.Object.FindObjectsByType<PolicyRunner>(FindObjectsInactive.Include)) { r.policy = champion; r.policyObsDim = 112; r.goal = GoalMode.Opponent; r.goalStopDist = 0f; r.goalVmax = 1f; }
             foreach (var dd in UnityEngine.Object.FindObjectsByType<DemoDirector>(FindObjectsInactive.Include)) UnityEngine.Object.DestroyImmediate(dd);
@@ -301,7 +295,7 @@ namespace PoKingHill.EditorTools
             {
                 string suffix = "_" + runner.robotPrefix.Trim('_');
                 var reference = AssetDatabase.LoadAssetAtPath<TextAsset>($"{ModelDir}/{rung}_reference_trajectory{suffix}.json");
-                if (reference == null) { Debug.LogError("[ParityBatch] missing reference for " + runner.robotPrefix); if (HasFlag("-kothExit")) EditorApplication.Exit(3); return; }
+                if (reference == null) { Debug.LogError("[ParityBatch] missing reference for " + runner.robotPrefix); if (Cli.Exit) EditorApplication.Exit(3); return; }
                 var probe = runner.gameObject.AddComponent<PolicyParityProbe>();
                 probe.referenceJson = reference; probe.policy = runner.policy; probe.runner = runner; probe.rung = rung; probe.suffix = suffix;
             }
@@ -313,10 +307,10 @@ namespace PoKingHill.EditorTools
         public static void RunDuelStats()
         {
             BuildDuelDemo("koth_2p");
-            EditorSceneManager.OpenScene($"{SceneDir}/Demo_duel.unity", OpenSceneMode.Single);
+            EditorSceneManager.OpenScene(DemoScene, OpenSceneMode.Single);
             foreach (var sea in UnityEngine.Object.FindObjectsByType<Sea>(FindObjectsInactive.Include)) UnityEngine.Object.DestroyImmediate(sea);
             var dd = UnityEngine.Object.FindAnyObjectByType<DemoDirector>(); dd.sea = null; dd.roundSeconds = 25f;
-            dd.statsRounds = int.Parse(Arg("-kothRounds", "200")); dd.selectedA = int.Parse(Arg("-kothA", "0")); dd.selectedB = int.Parse(Arg("-kothB", "0"));
+            dd.statsRounds = int.Parse(Cli.Arg("-kothRounds", "200")); dd.selectedA = int.Parse(Cli.Arg("-kothA", "0")); dd.selectedB = int.Parse(Cli.Arg("-kothB", "0"));
             EditorApplication.EnterPlaymode();
         }
 
@@ -329,28 +323,28 @@ namespace PoKingHill.EditorTools
                 BuildDuelDemo();
                 var report = BuildPipeline.BuildPlayer(new BuildPlayerOptions
                 {
-                    scenes = new[] { $"{SceneDir}/Demo_duel.unity" }, locationPathName = "Builds/Win/PoKingHill.exe",
-                    target = BuildTarget.StandaloneWindows64, options = HasFlag("-kothDev") ? BuildOptions.Development : BuildOptions.None,
+                    scenes = new[] { DemoScene }, locationPathName = "Builds/Win/PoKingHill.exe",
+                    target = BuildTarget.StandaloneWindows64, options = Cli.Flag("-kothDev") ? BuildOptions.Development : BuildOptions.None,
                 });
                 Debug.Log($"[ParityBatch] build {report.summary.result}: {report.summary.totalErrors} errors, {report.summary.totalSize / (1024 * 1024)} MB -> {report.summary.outputPath}");
-                if (HasFlag("-kothExit")) EditorApplication.Exit(report.summary.result == UnityEditor.Build.Reporting.BuildResult.Succeeded ? 0 : 3);
+                if (Cli.Exit) EditorApplication.Exit(report.summary.result == UnityEditor.Build.Reporting.BuildResult.Succeeded ? 0 : 3);
             }
-            catch (Exception e) { Debug.LogError("[ParityBatch] BUILD FAILED: " + e); if (HasFlag("-kothExit")) EditorApplication.Exit(3); throw; }
+            catch (Exception e) { Debug.LogError("[ParityBatch] BUILD FAILED: " + e); if (Cli.Exit) EditorApplication.Exit(3); throw; }
         }
 
         /// <summary>Build the duel demo, open it and press Play (used with a normal, visible editor launch).</summary>
         public static void PlayDuelDemo()
         {
             BuildDuelDemo();
-            EditorSceneManager.OpenScene($"{SceneDir}/Demo_duel.unity", OpenSceneMode.Single);
+            EditorSceneManager.OpenScene(DemoScene, OpenSceneMode.Single);
             EditorApplication.ExecuteMenuItem("Window/General/Game");      // the Simulator view turns clicks into touches, which the IMGUI menu ignores
             EditorApplication.EnterPlaymode();
         }
 
-        /// <summary>Open Testbed_&lt;tag&gt; and enter play mode. ParityProbe writes the trace and exits the editor in batch mode.</summary>
+        /// <summary>Open Testbed_&lt;tag&gt; and enter play mode. ParityProbe writes the trace and, with -kothExit, closes the editor.</summary>
         public static void RunHold()
         {
-            string tag = Arg("-kothScene", "flat_1p");
+            string tag = Cli.Arg("-kothScene", "flat_1p");
             EditorSceneManager.OpenScene(SceneOf(Robot, tag), OpenSceneMode.Single);
             EditorApplication.EnterPlaymode();
         }

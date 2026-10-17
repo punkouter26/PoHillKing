@@ -79,11 +79,5 @@ namespace PoKingHill
             var from = mjTarget + new Vector3(range * Mathf.Cos(ang), range * Mathf.Sin(ang), 0.3f);
             Fire(from, (mjTarget - from).normalized * speed);
         }
-
-        public void ParkAll()
-        {
-            if (_liveUntil == null) return;
-            for (int i = 0; i < _liveUntil.Length; i++) _liveUntil[i] = 0;
-        }
     }
 }

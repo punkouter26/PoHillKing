@@ -1,7 +1,7 @@
 """Export any checkpoint's actor to a single-file ONNX for Unity (opset 17, batch 1), whatever its input size.
   uv run python scripts/export_policy.py --ckpt runs/r4att/r4att_c/model_500.pt --name attacker
 Writes Assets/PoKingHill/Models/<name>_policy.onnx and checks ONNX against torch on 1000 random inputs."""
-import argparse, os, sys
+import argparse, os
 import numpy as np, torch, onnx, onnxruntime as ort
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))

@@ -86,7 +86,7 @@ namespace PoKingHill
             Debug.Log($"ParityProbe wrote {path}\n{sb}");
             if (_check != null && !_check.Passed) Debug.LogError(_check.Report);
 #if UNITY_EDITOR
-            if (Application.isBatchMode || System.Array.IndexOf(System.Environment.GetCommandLineArgs(), "-kothExit") >= 0) UnityEditor.EditorApplication.Exit(0);
+            if (Application.isBatchMode || Cli.Exit) UnityEditor.EditorApplication.Exit(0);
 #endif
         }
     }
