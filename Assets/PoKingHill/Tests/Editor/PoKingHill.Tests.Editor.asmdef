@@ -5,6 +5,7 @@
         "UnityEngine.TestRunner",
         "UnityEditor.TestRunner",
         "PoKingHill",
+        "PoKingHill.Editor",
         "Mujoco.Runtime",
         "Unity.Cinemachine",
         "Unity.InferenceEngine",

@@ -29,7 +29,7 @@ namespace PoKingHill
         UIDocument _doc;
         VisualElement _root, _column, _safe, _scoreboard, _roundInfo, _seaFill, _odds, _puppet, _debug, _debugRows, _sheet, _sheetBody, _knob, _stick;
         Label _fps, _clock, _hazard, _caption, _status, _oddsLabel, _debugText, _countdown;
-        Button _next;
+        Button _next, _skip;
         readonly List<VisualElement> _badges = new(); readonly List<VisualElement> _oddsSegs = new();
         enum SheetKind { None, Menu, Result }
         SheetKind _sheetKind; int _tab; float _fpsAvg = 60, _nextSlow, _captionUntil; string _lastStatus = ""; float _statusUntil;
@@ -75,6 +75,7 @@ namespace PoKingHill
             _roundInfo = El("round-info", _safe);
             _clock = Text("", "clock shadow", _roundInfo);
             var seaBar = El("sea-bar", _roundInfo); _seaFill = El("sea-fill", seaBar);
+            _skip = Btn("Skip", "seg-btn", () => replay?.Stop(), _roundInfo); _skip.style.flexGrow = 0; _skip.style.width = 120; _skip.style.marginLeft = 16;
             _odds = El("odds", _safe);
             _oddsLabel = Text("", "odds-label dim shadow", _safe);
             _hazard = Text("", "hazard-chip", _safe);
@@ -372,6 +373,7 @@ namespace PoKingHill
             if (live)
             {
                 _clock.text = ReplaySystem.Active ? "REPLAY" : $"{director.RoundTime:0.0} s";
+                _skip.style.display = ReplaySystem.Active ? DisplayStyle.Flex : DisplayStyle.None;
                 var sea = director.sea;
                 _seaFill.style.width = Length.Percent(sea != null ? Mathf.Clamp01((sea.Level + sea.startDepth) / sea.startDepth) * 100f : 0f);
                 for (int i = 0; i < _badges.Count; i++) _badges[i].EnableInClassList("out", director.IsOut(i));

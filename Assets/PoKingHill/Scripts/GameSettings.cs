@@ -42,7 +42,10 @@ namespace PoKingHill
         public static bool ClaudeCommentary { get => B("claude", false); set => Set("claude", value); }
         public static bool UploadTelemetry { get => B("azure", false); set => Set("azure", value); }
 
-        public static void ResetAll() { PlayerPrefs.DeleteAll(); PlayerPrefs.Save(); Changed?.Invoke(); }
+        static readonly string[] Keys = { "rounds", "seaPace", "targeting", "hazards", "camera", "cutaways", "replays", "effects", "volume", "winOdds",
+                                          "commentary", "telemetryHud", "overlay", "intent", "twitch", "claude", "azure" };
+        /// <summary>Back to the defaults: deletes only this game's keys, never other PlayerPrefs.</summary>
+        public static void ResetAll() { foreach (var k in Keys) PlayerPrefs.DeleteKey("koth." + k); PlayerPrefs.Save(); Changed?.Invoke(); }
 
         static int I(string k, int d) { try { return PlayerPrefs.GetInt("koth." + k, d); } catch { return d; } }
         static float F(string k, float d) { try { return PlayerPrefs.GetFloat("koth." + k, d); } catch { return d; } }

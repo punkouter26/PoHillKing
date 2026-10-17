@@ -1,0 +1,118 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>HUD Rebuild Report</title>
+<style>
+  :root { --bg:#f6f7f9; --card:#fff; --ink:#1b1f24; --dim:#5b6470; --line:#e2e5ea; --accent:#c78a00; --good:#1f8a3a; --bad:#c0392b; }
+  @media (prefers-color-scheme: dark) { :root { --bg:#111418; --card:#1a1e24; --ink:#eef1f5; --dim:#9aa3ae; --line:#2b313a; --accent:#ffc440; --good:#6ed678; --bad:#f06056; } }
+  * { box-sizing: border-box; }
+  body { margin:0; background:var(--bg); color:var(--ink); font:15px/1.55 system-ui, -apple-system, "Segoe UI", sans-serif; }
+  main { max-width:1100px; margin:0 auto; padding:28px 16px 60px; }
+  h1 { font-size:26px; margin:0 0 4px; } h2 { font-size:19px; margin:36px 0 10px; } h3 { font-size:15px; margin:0 0 6px; }
+  .sub { color:var(--dim); margin:0 0 18px; }
+  .card { background:var(--card); border:1px solid var(--line); border-radius:14px; padding:16px; margin:12px 0; }
+  .pair { display:grid; grid-template-columns: 1fr 1fr 1.2fr; gap:16px; align-items:start; }
+  .shots { display:grid; grid-template-columns: repeat(auto-fill, minmax(190px, 1fr)); gap:14px; }
+  figure { margin:0; } figure img { width:100%; border-radius:10px; border:1px solid var(--line); display:block; }
+  figcaption { font-size:13px; color:var(--dim); margin-top:6px; }
+  .tag { display:inline-block; font-size:12px; font-weight:600; padding:1px 8px; border-radius:20px; border:1px solid var(--line); color:var(--dim); margin-bottom:6px; }
+  .tag.after { color:var(--accent); border-color:var(--accent); }
+  ol, ul { margin:6px 0 0 18px; padding:0; } li { margin:3px 0; }
+  table { border-collapse:collapse; width:100%; font-size:14px; } td, th { text-align:left; padding:6px 8px; border-bottom:1px solid var(--line); vertical-align:top; }
+  .ok { color:var(--good); font-weight:600; } .no { color:var(--bad); font-weight:600; }
+  code { font-size:13px; }
+  @media (max-width: 760px) { .pair { grid-template-columns: 1fr 1fr; } .pair .notes { grid-column: 1 / -1; } }
+</style>
+</head>
+<body>
+<main>
+  <h1>HUD rebuild: before and after</h1>
+  <p class="sub">PoKingHill · build 261017 · IMGUI HUD replaced by UI Toolkit (<code>HudView</code> + <code>UI/Hud.uss</code>) · captured in the editor's Game view at 1080×1920 unless noted.</p>
+
+  <div class="card">
+    <h3>What changed, in one list</h3>
+    <ul>
+      <li>One 9:16 column that never scrolls, with fixed corners: <b>title</b> top left, <b>FPS</b> top centre, <b>menu</b> top right, <b>debug</b> bottom left, <b>build version YYMMDD</b> bottom right (from the last commit date).</li>
+      <li>Menu becomes a bottom sheet with three tabs (Play · Agents · Settings); <b>Quick match</b> is one tap; every optional setting moved to Settings with plain defaults.</li>
+      <li>Results become a sheet that merges the winner, per-fighter telemetry (out time, distance, top speed, Elo change) and a <b>Replay knock-out</b> button.</li>
+      <li>Live strip: team-coloured score badges matching the robots' paint, sea clock, win-odds bar, hazard chip, commentary captions.</li>
+      <li>Touch works: the old IMGUI menu ignored touches (it needed the Game view). Safe-area padding follows <code>Screen.safeArea</code>.</li>
+    </ul>
+  </div>
+
+  <h2>Menu</h2>
+  <div class="card pair">
+    <figure><span class="tag">Before</span><img src="before/menu.jpg" alt="Old IMGUI menu"><figcaption>IMGUI menu: text toggles, no tabs, version hard-coded v0.3.</figcaption></figure>
+    <figure><span class="tag after">After</span><img src="after/01_menu_play.jpg" alt="New Play tab"><figcaption>Play tab.</figcaption></figure>
+    <div class="notes"><h3>Annotations</h3><ol>
+      <li><b>Quick match</b>: the champion against itself on Mountain top, one tap.</li>
+      <li><b>Custom · N agents</b> uses the Agents tab ticks; <b>Tournament</b> runs semi-finals and a final.</li>
+      <li><b>You play</b>: the player steers the walker brain with an on-screen stick or WASD.</li>
+      <li>Corners stay visible above the sheet: debug (bottom left), version 261017 (bottom right).</li>
+    </ol></div>
+  </div>
+  <div class="shots card">
+    <figure><img src="after/02_menu_tab1.jpg" alt="Agents tab"><figcaption>Agents: avatar chips with Elo, rounds and wins; a locked agent shows why.</figcaption></figure>
+    <figure><img src="after/03_menu_tab2.jpg" alt="Settings tab"><figcaption>Settings: match, presentation and connections, all on one screen; secrets come only from environment variables.</figcaption></figure>
+  </div>
+
+  <h2>In the round</h2>
+  <div class="card pair">
+    <figure><span class="tag">Before</span><img src="before/combat.jpg" alt="Old combat HUD"><figcaption>Text-only telemetry line and score text.</figcaption></figure>
+    <figure><span class="tag after">After</span><img src="after/04_fight.jpg" alt="New fight HUD"><figcaption>Quick match, 3 s in.</figcaption></figure>
+    <div class="notes"><h3>Annotations</h3><ol>
+      <li>Badges carry each fighter's colour, which is also its torso paint.</li>
+      <li>Clock and sea bar: the bar fills as the water rises toward the summit.</li>
+      <li><b>Win odds</b>: the exported critic when one exists, otherwise a labelled physical estimate.</li>
+      <li>Physics and brain timings moved to the debug panel (or the telemetry HUD setting).</li>
+    </ol></div>
+  </div>
+  <div class="shots card">
+    <figure><img src="after/05_replay.jpg" alt="Replay"><figcaption>Instant replay of the knock-out in slow motion, with Skip.</figcaption></figure>
+    <figure><img src="after/09_puppet.jpg" alt="Puppet mode"><figcaption>Puppet mode: stick bottom left, side steps bottom right, “(you)” badge.</figcaption></figure>
+    <figure><img src="after/07_debug_strain_intent.jpg" alt="Debug panel"><figcaption>Debug panel (two-finger tap): timings, strain overlay, intent arrows, hazard triggers, wind active.</figcaption></figure>
+    <figure><img src="after/08_colliders.jpg" alt="Collider overlay"><figcaption>Collider overlay: MuJoCo capsules, boxes and spheres with contact force arrows, drawn under the HUD.</figcaption></figure>
+  </div>
+
+  <h2>Result</h2>
+  <div class="card pair">
+    <figure><span class="tag">Before</span><img src="before/winner_panel.jpg" alt="Old winner panel"><figcaption>Centred IMGUI box over the action.</figcaption></figure>
+    <figure><span class="tag after">After</span><img src="after/06_result.jpg" alt="New results sheet"><figcaption>Results sheet.</figcaption></figure>
+    <div class="notes"><h3>Annotations</h3><ol>
+      <li>Headline and a stripe in the winner's colour; how it was won.</li>
+      <li>Per fighter: result, out time, distance walked, top speed, Elo with the change from this round.</li>
+      <li><b>Replay knock-out</b> and <b>Next round / Main menu</b> with a countdown; in a tournament the bracket is listed.</li>
+    </ol></div>
+  </div>
+
+  <h2>Aspect ratios (portrait)</h2>
+  <div class="shots card">
+    <figure><img src="aspect/1080x1920_menu.jpg" alt=""><figcaption>16:9 menu</figcaption></figure>
+    <figure><img src="aspect/1080x2340_menu.jpg" alt=""><figcaption>19.5:9 menu</figcaption></figure>
+    <figure><img src="aspect/1080x2520_menu.jpg" alt=""><figcaption>21:9 menu</figcaption></figure>
+    <figure><img src="aspect/1080x1920_fight.jpg" alt=""><figcaption>16:9 five-way fight</figcaption></figure>
+    <figure><img src="aspect/1080x2340_fight.jpg" alt=""><figcaption>19.5:9 five-way fight</figcaption></figure>
+    <figure><img src="aspect/1080x2520_fight.jpg" alt=""><figcaption>21:9 five-way fight</figcaption></figure>
+    <figure><img src="aspect/1080x1920_result.jpg" alt=""><figcaption>16:9 result</figcaption></figure>
+    <figure><img src="aspect/1080x2340_result.jpg" alt=""><figcaption>19.5:9 result</figcaption></figure>
+    <figure><img src="aspect/1080x2520_result.jpg" alt=""><figcaption>21:9 result</figcaption></figure>
+  </div>
+
+  <h2>Checks</h2>
+  <div class="card">
+    <table>
+      <tr><th>Check</th><th>Result</th></tr>
+      <tr><td>State flow Menu → Fight → Result → Menu, and back to the menu mid-round (PlayMode tests)</td><td class="ok">2 / 2 pass</td></tr>
+      <tr><td>Scene integrity: no missing scripts, every HUD/camera/effects reference wired, no PhysX (EditMode)</td><td class="ok">21 / 21 pass</td></tr>
+      <tr><td>Console during the capture runs at 16:9, 19.5:9, 21:9 (exceptions, errors, NullReference)</td><td class="ok">0</td></tr>
+      <tr><td>Safe area in the Device Simulator (960×2658 phone, 92 px top cut-out)</td><td class="ok">top padding 90.3 units = 24 + 92 × 1920/2658</td></tr>
+      <tr><td>No vertical scrolling: every sheet fits one viewport at 16:9 (the tightest ratio)</td><td class="ok">yes (Settings is the tallest)</td></tr>
+      <tr><td>Combat statistics gate after the rewrite (200 rounds, champion vs itself)</td><td class="ok">99 % decided, median 8.05 s (CPU reference 98.5 %, 8.40 s)</td></tr>
+    </table>
+    <p class="sub" style="margin-top:10px">Not checked: the safe-area screenshots themselves (captures come from the Game view, not the simulator window), the audio output, and a real device.</p>
+  </div>
+</main>
+</body>
+</html>

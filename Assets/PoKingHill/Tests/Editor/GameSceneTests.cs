@@ -70,6 +70,18 @@ namespace PoKingHill.Tests
             }
         }
 
+        [TestCase("Assets/PoKingHill/Models", "flat_1p", "g1", "a_")]
+        [TestCase("Assets/PoKingHill/Models", "koth_2p", "g1", "a_ b_")]
+        [TestCase("Assets/PoKingHill/Models", "koth_4p", "g1", "a_ b_ c_ d_")]
+        [TestCase("Assets/PoKingHill/Models", "koth_5p", "g1", "a_ b_ c_ d_ e_:kim")]
+        [TestCase("Assets/PoKingHill/Models/kim", "koth_2p", "kim", "a_:kim b_:kim")]
+        public void ModelDumpListsItsRobots(string dir, string tag, string robot, string expected)
+        {
+            var dump = AssetDatabase.LoadAssetAtPath<TextAsset>($"{dir}/model_dump_{tag}.json");
+            var got = EditorTools.ParityBatch.RobotsOf(dump, tag, robot).Select(r => r.body == "g1" ? r.prefix : r.prefix + ":" + r.body);
+            Assert.AreEqual(expected, string.Join(" ", got));
+        }
+
         [Test]
         public void BuildVersionIsYYMMDD() => StringAssert.IsMatch(@"^\d{6}$", BuildInfo.Version);
 

@@ -39,7 +39,18 @@ Unity: batch mode does **not** work (no headless licence). Launch a normal edito
 - `BuildDuelDemo`, `PlayDuelDemo` (add `-kothShots <dir>` for menu/combat/ejection captures), `BuildPlayer` (`Builds/Win`, `-kothDev`), `MapOverview`.
 - Player switches: `-kothRounds N` (stats gate in the player), `-kothPerf 30` (writes `perf_unity.json`).
 
-Tests: EditMode `PhysXAudit` in `Assets/PoKingHill/Tests/Editor` (no PhysX components, simulation mode Script, fixed timestep 0.002). `ModelDumpCheck` runs on scene init and diffs the compiled mjModel against `model_dump_<tag>.json`.
+When an editor already has the project open, drive it with the Unity CLI instead of launching a second one (it needs `com.unity.pipeline` ≥ 0.6; the editor must leave play mode to resolve packages or recompile):
+
+```bash
+U="$LOCALAPPDATA/Unity/bin/unity.exe"; P="C:/Users/punko/Downloads/PoHillKing"
+"$U" command recompile --project-path $P                     # then poll: recompile_status
+"$U" command eval --code 'PoKingHill.EditorTools.ParityBatch.RunDuelStats(); return "ok";' --project-path $P
+"$U" command run_tests --mode editor --filter PoKingHill.Tests.Editor --filter_type assembly --project-path $P
+"$U" command run_tests --mode playmode --filter PoKingHill.Tests.PlayMode --filter_type assembly --async_tests true --project-path $P   # poll: test_status
+```
+`eval` bodies run inside a method (no `using`; return a string). Compile errors appear only in `Logs/Editor.log`. When the Device Simulator window is open it is the main play view and `Screen` follows the simulated phone; captures with `ScreenCapture` come from the Game view.
+
+Tests (`Assets/PoKingHill/Tests`): EditMode `PhysXAudit` (no PhysX components, simulation mode Script, fixed timestep 0.002) and `GameSceneTests` (game scene has no missing scripts and every reference wired, arena rule = training constants, model dumps list their robots, Elo, build version); PlayMode `MatchFlowTests` (Menu → Fight → Result → Menu in the real scene). `ModelDumpCheck` runs on scene init and diffs the compiled mjModel against `model_dump_<tag>.json`.
 
 ## Architecture
 
@@ -48,12 +59,15 @@ Tests: EditMode `PhysXAudit` in `Assets/PoKingHill/Tests/Editor` (no PhysX compo
 **Control loop, mirrored on both sides.** 2 ms physics step, policy every 10th step (50 Hz). Observations: 103 locomotion inputs (`koth/obs.py:build_obs` = `ObsBuilder.cs`), plus 9 combat inputs for 112-dim brains (`build_combat` = `ObsBuilder.FillCombat`). The 3 command slots come from a geometric goal law (`obs.goal_command` = `GoalCommand.cs`), not from extra observations. `ctrl = default + 0.5·action`. Any change to one side of these pairs must be made on the other, then re-gated.
 
 **Unity runtime** ([Assets/PoKingHill/Scripts](Assets/PoKingHill/Scripts)): everything hooks `MjScene` events (`postInitEvent`, `preUpdateEvent`, `postUpdateEvent`) and reads/writes `mjData` through unsafe pointers. No Instantiate/Destroy, no scene reloads: rounds reset by writing qpos/qvel. `PolicyRunner` must rewrite held ctrl in `preUpdateEvent` every step because `MjActuator.OnSyncState` zeroes ctrl after each `mj_step`. The physics tick is allocation-free; keep it that way.
-- `DemoDirector`: menu → round → winner panel → menu, IMGUI HUD. Seats ticked roster agents on bodies of their own kind (`g1`/`kim`), parks unused bodies 50 m up, retargets each brain to the nearest fighter still in (brains were trained 1v1).
-- `Sea` (rising water = round clock, buoyancy via `xfrc_applied`), `MatchCamera`, `ImpactSynth` (procedural audio from contacts in `OnAudioFilterRead`, no clips), `SkinFollower` (Kim's scanned mesh follows MuJoCo bodies), `ProjectilePool`.
-- Parity/diagnostic components (`ParityProbe`, `PolicyParityProbe`, `ModelDumpCheck`, `PerfProbe`, `AutoShot`) are inert unless their `-koth*` switch is given.
+- `DemoDirector`: the match state machine (`Menu → Fight → Result (→ Replay) → Fight | Menu`); quick match, custom, tournament, puppet seat. Seats agents on bodies of their own kind (`g1`/`kim`), reorders `fighters[]` at every launch (cache your own copy if you index by body), parks unused bodies 50 m up, points each brain at one opponent (nearest, or with `Targeting.Opportunist` the one easiest to push off; brains were trained 1v1). The statistics gate (`statsRounds`) bypasses Result and the presentation.
+- Presentation never gets called by the director: it subscribes to `MatchEvents` (state, round start/end, knock-out, impact, footfall, splash, caption). `HudView` (UI Toolkit, styles in `UI/Hud.uss`, one 9:16 column, no scrolling), `BroadcastCamera` (Cinemachine) or `MatchCamera` (Classic), `ReplaySystem` (disables `MjScene`, replays qpos via `mj_kinematics`, restores the exact state), `MatchFx`, `BodyLook`, `WinOdds`, `Commentator`, `Hazards` + `ChatVotes`, `MatchLog` (telemetry JSONL + Elo `Ladder` in `persistentDataPath`). Options live in `GameSettings` (PlayerPrefs, plain defaults).
+- `Sea` (rising water = round clock, buoyancy via `xfrc_applied` for every fighter body), `ImpactSynth` (procedural audio from contacts in `OnAudioFilterRead`, no clips), `SkinFollower` (Kim's scanned mesh follows MuJoCo bodies), `ProjectilePool`.
+- Parity/diagnostic components (`ParityProbe`, `PolicyParityProbe`, `ModelDumpCheck`, `PerfProbe`, `AutoShot`) are inert unless their `-koth*` switch is given; switches are read through `Cli`.
 
-**Scenes.** `Testbed_<tag>.unity` per imported model (`flat_1p`, `koth_1p/2p/4p/5p`, `kim_*`). The game uses `koth_5p` (four G1 + Kim as `e_`); the two-fighter gates rebuild `Demo_duel.unity` from `koth_2p`. Both write the same file, so whichever ran last is on disk.
+**Scenes.** `Testbed_<tag>.unity` per imported model (`flat_1p`, `koth_1p/2p/4p/5p`, `kim_*`); the robots come from the `robots` list in `model_dump_<tag>.json`. The game is `Demo_duel.unity`, built from `koth_5p` (four G1 + Kim as `e_`) by `BuildDuelDemo`, which calls `GameSceneBuilder.Dress` for the HUD, cameras, effects and their shared assets (`UI/`, `FX/`). The two-fighter gates build `Gate_duel_2p.unity` (git-ignored) from `koth_2p`. The HUD's version is YYMMDD of the last commit (`Editor/BuildVersion.cs` → `Resources/build_version.txt`, git-ignored).
 
-**Gates.** Training checkpoints are only trusted after the Unity gate: trajectory parity for single-agent rungs (replay error < 1e-4, closed-loop pelvis < 10 cm), statistical parity for combat (decided share and winning-time quartiles vs `duel_stats.py`), because adversarial rounds diverge chaotically after contact. Known rules mismatch: training/`eval.py` end a round on own foot-shin contact, Unity and `duel_stats.py` do not.
+**Gates.** Training checkpoints are only trusted after the Unity gate: trajectory parity for single-agent rungs (replay error < 1e-4, closed-loop pelvis < 10 cm), statistical parity for combat (decided share and winning-time quartiles vs `duel_stats.py`), because adversarial rounds diverge chaotically after contact. Known rules mismatch: training/`eval.py` end a round on own foot-shin contact, Unity and `duel_stats.py` do not (`eval.py --leg-contact-rule unity` measures the Unity rule; staged rungs turn it off). Staged next steps and their Unity mirrors: `training/STAGED_TRAINING.md`.
 
-**Art.** Blender scripts generate render-only assets: `tools/make_mountain_map.py` → `Assets/PoKingHill/Maps/Mountain` (Poly Haven CC0, git-ignored sources in `tools/polyhaven`), `tools/make_kim.py` → `Assets/PoKingHill/Fighters/Kim` + `training/assets/kim/kim_rig.json`, then `koth/build_kim.py` builds her MJCF with the G1's joint names and order so networks and runners are shared.
+**Art.** Blender scripts generate render-only assets: `tools/make_mountain_map.py` → `Assets/PoKingHill/Maps/Mountain` (Poly Haven CC0, git-ignored sources in `tools/polyhaven`), `tools/make_kim.py` (reads `Assets/Art/Raw/Kim/Kim.glb`) → `Assets/PoKingHill/Fighters/Kim` + `training/assets/kim/kim_rig.json`, then `koth/build_kim.py` builds her MJCF with the G1's joint names and order so networks and runners are shared.
+
+**Line endings.** The index mixes CRLF and LF files (`core.autocrlf=true`). `sed -i` and some tools rewrite CRLF files as LF, which turns a small edit into a whole-file diff; check `git ls-files --eol -m` and restore CRLF (`sed -i 's/\r*$/\r/'`) before committing.

@@ -70,14 +70,14 @@ namespace PoKingHill.EditorTools
             if (jointMap == null || dump == null) throw new Exception("joint_map.json / model_dump json missing under " + models + " (run koth.build_mjcf)");
 
             var rig = new GameObject("KothRig");
-            // koth_5p is the game scene: four G1 and Kim (e_), who has her own joint map and wears her scanned mesh.
-            var kimMap = AssetDatabase.LoadAssetAtPath<TextAsset>($"{ModelsOf("kim")}/joint_map.json");
-            foreach (string prefix in tag.EndsWith("5p") ? new[] { "a_", "b_", "c_", "d_", "e_" } : tag.EndsWith("4p") ? new[] { "a_", "b_", "c_", "d_" } : tag.EndsWith("2p") ? new[] { "a_", "b_" } : new[] { "a_" })
+            // One runner per robot the model holds, as listed by build_mjcf in the dump (koth_5p: four G1 and Kim as e_).
+            // Each body uses its own kind's joint map, and every Kim body wears her scanned mesh.
+            foreach (var r in RobotsOf(dump, tag, robot))
             {
-                bool kim = robot == "kim" || prefix == "e_";
-                var go = new GameObject("Policy_" + prefix); go.transform.SetParent(rig.transform);
-                var pr = go.AddComponent<PolicyRunner>(); pr.jointMapJson = kim && robot != "kim" ? kimMap : jointMap; pr.robotPrefix = prefix; pr.body = kim ? "kim" : "g1";
-                if (prefix == "e_") AddKimSkin(prefix, rig);
+                var go = new GameObject("Policy_" + r.prefix); go.transform.SetParent(rig.transform);
+                var pr = go.AddComponent<PolicyRunner>(); pr.robotPrefix = r.prefix; pr.body = r.body;
+                pr.jointMapJson = r.body == robot ? jointMap : AssetDatabase.LoadAssetAtPath<TextAsset>($"{ModelsOf(r.body)}/joint_map.json");
+                if (r.body == "kim") AddKimSkin(r.prefix, rig);
             }
             rig.AddComponent<ProjectilePool>().jointMapJson = jointMap;
             rig.AddComponent<ModelDumpCheck>().modelDumpJson = dump;
@@ -107,16 +107,25 @@ namespace PoKingHill.EditorTools
             }
             AssertNoPhysX("after import");
 
-            if (robot == "kim")
-            {
-                foreach (string prefix in tag.EndsWith("2p") ? new[] { "a_", "b_" } : new[] { "a_" }) AddKimSkin(prefix, rig);
-                cam.transform.position = new Vector3(2.6f, 1.25f, -2.4f); cam.transform.LookAt(new Vector3(0f, 0.85f, 0f));   // she faces +X
-            }
+            if (robot == "kim") { cam.transform.position = new Vector3(2.6f, 1.25f, -2.4f); cam.transform.LookAt(new Vector3(0f, 0.85f, 0f)); }   // she faces +X
             string path = SceneOf(robot, tag);
             EditorSceneManager.SaveScene(scene, path);
             Debug.Log($"[ParityBatch] imported {tag}: {UnityEngine.Object.FindObjectsByType<MjBody>(FindObjectsInactive.Include).Length} MjBody, " +
                       $"{UnityEngine.Object.FindObjectsByType<MjGeom>(FindObjectsInactive.Include).Length} MjGeom, " +
                       $"{UnityEngine.Object.FindObjectsByType<MjActuator>(FindObjectsInactive.Include).Length} MjActuator -> {path}");
+        }
+
+        [Serializable] public class RobotEntry { public string prefix, body; }
+        [Serializable] class DumpRobots { public RobotEntry[] robots; }
+
+        /// <summary>The robots a model holds, from the "robots" list build_mjcf.py writes into model_dump_&lt;tag&gt;.json;
+        /// dumps written before that key existed fall back to the tag (1p/2p/4p, 5p = four G1 and Kim as e_).</summary>
+        public static RobotEntry[] RobotsOf(TextAsset dump, string tag, string robot)
+        {
+            var listed = JsonUtility.FromJson<DumpRobots>(dump.text)?.robots;
+            if (listed != null && listed.Length > 0) return listed;
+            int n = tag.EndsWith("5p") ? 5 : tag.EndsWith("4p") ? 4 : tag.EndsWith("2p") ? 2 : 1;
+            return Enumerable.Range(0, n).Select(i => new RobotEntry { prefix = (char)('a' + i) + "_", body = tag.EndsWith("5p") && i == 4 ? "kim" : robot }).ToArray();
         }
 
         const string KimDir = "Assets/PoKingHill/Fighters/Kim";
@@ -236,6 +245,15 @@ namespace PoKingHill.EditorTools
 
         const string MapDir = "Assets/PoKingHill/Maps/Mountain";
 
+        // Reuse the material asset when it exists (a new one every build gave the scene and the .mat a fresh internal id each time).
+        static Material MapMaterial(string name, Shader shader)
+        {
+            string path = $"{MapDir}/{name}.mat";
+            var m = AssetDatabase.LoadAssetAtPath<Material>(path);
+            if (m == null) { m = new Material(shader); AssetDatabase.CreateAsset(m, path); }
+            return m;
+        }
+
         static Texture2D MapTexture(string name, bool normal, bool srgb, string dir = MapDir)
         {
             string path = $"{dir}/{name}.png"; var imp = AssetImporter.GetAtPath(path) as TextureImporter;
@@ -253,7 +271,7 @@ namespace PoKingHill.EditorTools
             if (prefab == null) throw new Exception($"{MapDir}/mountain.fbx missing (run tools/make_mountain_map.py in Blender)");
             var root = (GameObject)PrefabUtility.InstantiatePrefab(prefab); root.name = "MountainVisual (render only)";
             var lit = Shader.Find("Universal Render Pipeline/Lit");
-            var rock = new Material(lit); var mask = MapTexture("mountain_mask", false, false);
+            var rock = MapMaterial("MountainRock", lit); var mask = MapTexture("mountain_mask", false, false);
             rock.SetTexture("_BaseMap", MapTexture("mountain_albedo", false, true));
             rock.SetTexture("_BumpMap", MapTexture("mountain_normal", true, false)); rock.EnableKeyword("_NORMALMAP");
             rock.SetTexture("_MetallicGlossMap", mask); rock.EnableKeyword("_METALLICSPECGLOSSMAP"); rock.SetFloat("_Smoothness", 1f);   // smoothness = mask alpha
@@ -261,10 +279,10 @@ namespace PoKingHill.EditorTools
             rock.SetTexture("_DetailAlbedoMap", MapTexture("rock_detail_albedo", false, false));
             rock.SetTexture("_DetailNormalMap", MapTexture("rock_detail_normal", true, false));
             rock.SetTextureScale("_DetailAlbedoMap", new Vector2(10.97f, 10.97f)); rock.EnableKeyword("_DETAIL_MULX2");  // value printed by make_mountain_map.py (2.7 m tile)
-            var far = new Material(lit); far.SetTexture("_BaseMap", MapTexture("backdrop_albedo", false, true)); far.SetFloat("_Smoothness", 0.1f);
-            var boulder = new Material(lit); boulder.SetTexture("_BaseMap", MapTexture("boulder_albedo", false, true)); boulder.SetFloat("_Smoothness", 0.15f);
+            var far = MapMaterial("BackdropRock", lit); far.SetTexture("_BaseMap", MapTexture("backdrop_albedo", false, true)); far.SetFloat("_Smoothness", 0.1f);
+            var boulder = MapMaterial("BoulderRock", lit); boulder.SetTexture("_BaseMap", MapTexture("boulder_albedo", false, true)); boulder.SetFloat("_Smoothness", 0.15f);
             boulder.SetTexture("_BumpMap", MapTexture("rock_detail_normal", true, false)); boulder.EnableKeyword("_NORMALMAP");
-            AssetDatabase.CreateAsset(rock, $"{MapDir}/MountainRock.mat"); AssetDatabase.CreateAsset(far, $"{MapDir}/BackdropRock.mat"); AssetDatabase.CreateAsset(boulder, $"{MapDir}/BoulderRock.mat");
+            foreach (var m in new[] { rock, far, boulder }) EditorUtility.SetDirty(m);
             foreach (var r in root.GetComponentsInChildren<MeshRenderer>()) r.sharedMaterial = r.name.StartsWith("Backdrop") ? far : r.name.StartsWith("Rocks") ? boulder : rock;
             foreach (var c in root.GetComponentsInChildren<Collider>()) UnityEngine.Object.DestroyImmediate(c);
             foreach (var f in root.GetComponentsInChildren<MeshFilter>()) Debug.Log($"[ParityBatch] map mesh {f.name}: {f.sharedMesh.vertexCount} verts, world bounds {f.GetComponent<Renderer>().bounds}");
