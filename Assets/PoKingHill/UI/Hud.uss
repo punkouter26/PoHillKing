@@ -60,7 +60,7 @@ Label { color: var(--ink); -unity-font-style: normal; font-size: 34px; margin: 0
 
 .spacer { flex-grow: 1; }
 .caption { align-self: center; font-size: 34px; -unity-font-style: bold; background-color: var(--glass); border-radius: 18px; padding: 10px 26px; margin-bottom: 14px; white-space: normal; max-width: 92%; -unity-text-align: middle-center; transition-property: opacity; transition-duration: 0.35s; }
-.status { font-size: 26px; color: var(--ink-dim); flex-grow: 1; -unity-text-align: lower-center; margin: 0 16px 12px 16px; white-space: normal; }
+.status { font-size: 26px; color: var(--ink-dim); flex-grow: 1; flex-shrink: 1; flex-basis: 0; min-width: 0; overflow: hidden; -unity-text-align: lower-center; margin: 0 16px 12px 16px; white-space: normal; }
 
 /* ---- puppet stick ----------------------------------------------------------------------------------------- */
 .puppet { flex-direction: row; justify-content: space-between; align-items: flex-end; margin-bottom: 16px; }

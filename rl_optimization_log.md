@@ -308,3 +308,15 @@ No `training/runs` on this machine, so the shipped brains were rebuilt from thei
 - **Kim duel statistics gate** (new `ParityBatch.RunKimDuelStats`, fighter vs itself, no sea, 25 s bell, 200 rounds): Unity 100 % decided (95 / 105), winning time median 6.85 s (quartiles 5.48 / 8.19, mean 7.10). CPU MuJoCo (`KOTH_ROBOT=kim duel_stats.py --policy fighter`): 100 % (109 / 91), median 6.67 s (5.54 / 7.92, mean 6.96). Parity holds. Her testbed predates PolicyRunner's body field, so `BuildDuelDemo` now sets body kinds from the model dump's robots list.
 - **`kim_r1c`** (300 iterations from kim_r1b, `tracking_lin_vel` 1.5): tracking 0.114 m/s and 0.073 rad/s (bar 0.15 / 0.2), impacts 99.8 %, R3 99.7 % meet, 0 self-ejection: every bar passes. Unity gate (`kimr1c`, flat walk): replay 7e-7, pelvis 1.9 cm, ctrl 3.3 %. Promoted to `Models/kim/walker_policy.onnx` (walks 2.4 m in 5 s on a 0.6 m/s command, was 2.0 m).
 - **5-way play check** (game rules: sea, opportunist targeting, all agents ticked, 8 rounds): Free-for-all 4 wins, Kim 2, All-rounder 1, Duelist 1, Rammer and Walker 0. Results sheet colour dots shrank on long rows (fixed in Hud.uss).
+- **`ffa2`** (r5ffa, 600 iterations warm from ffa1, opponent pool now includes ffa1; 2 h 36 on the RTX 2060). Python, 3 seeds x 256 rounds:
+
+  | Run | Pool | Last one in | Out | Undecided |
+  |---|---|---|---|---|
+  | ffa2 | old (careful1 x2, gen7, gen1, walker) | 59.2 % | 34.5 % | 6.3 % |
+  | ffa1 | old (from the overnight run) | 44.8 % | 33.6 % | 21.6 % |
+  | ffa2 | new (with ffa1) | 50.4 % | 35.5 % | 14.1 % |
+  | ffa1 | new (with ffa1) | 30.3 % | 33.7 % | 35.9 % |
+
+  Two-fighter regression (Unity leg rule): ffa2 ejects the pool opponent 79.2 %, loses 11.8 % (ffa1: 45 % wins, 42 % undecided). The passivity in duels is gone.
+- **Unity free-for-all gate, ffa2** (same seat and pool as ffa1's gate, 200 rounds): last one in 47.5 %, out 42 %, undecided 10.5 %, median win 7.5 s (ffa1: 36 / 37 / 27 %). Same Python-to-Unity drop as ffa1 (more bell ties, spawn and noise differences); passes the 40 % bar. **Promoted:** `Models/ffa_policy.onnx` / `ffa_value.onnx` = ffa2.
+- **Fixed:** after a statistics gate the director paused the fighters but left `Time.timeScale` 50 and `maximumDeltaTime` 2 s, so an editor run without `-kothExit` kept stepping MuJoCo flat out and stopped answering the CLI (the editor had to be killed). `DemoDirector.StatsDone` now restores real time and leaves play mode. HUD status line wraps instead of overflowing (it pushed the build version off screen); report in `SCREENSHOTS/day2/index.html`.

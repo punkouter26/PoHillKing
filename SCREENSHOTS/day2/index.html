@@ -1,0 +1,45 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>HUD fixes 261018</title>
+<style>
+  :root { --bg: #f6f6f4; --ink: #1d1d1f; --dim: #5d5d63; --card: #ffffff; --line: #ddd; --bad: #c0392b; --good: #1e8449; }
+  @media (prefers-color-scheme: dark) { :root { --bg: #151517; --ink: #ececef; --dim: #a0a0a8; --card: #1f1f23; --line: #333; --bad: #ff6b5b; --good: #4cd18a; } }
+  body { margin: 0; padding: 24px 16px 48px; background: var(--bg); color: var(--ink); font: 16px/1.5 system-ui, sans-serif; }
+  main { max-width: 960px; margin: 0 auto; }
+  h1 { font-size: 26px; margin: 0 0 4px; } h2 { font-size: 20px; margin: 36px 0 8px; }
+  p.sub { color: var(--dim); margin: 0 0 24px; }
+  .pair { display: grid; grid-template-columns: 1fr; gap: 16px; }
+  figure { margin: 0; background: var(--card); border: 1px solid var(--line); border-radius: 12px; padding: 12px; }
+  figure img { width: 100%; height: auto; border-radius: 8px; display: block; }
+  figcaption { font-size: 14px; color: var(--dim); margin-top: 8px; }
+  .tag { font-weight: 600; } .bad { color: var(--bad); } .good { color: var(--good); }
+  .shots { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 16px; }
+  code { font-size: 14px; }
+</style>
+</head>
+<body>
+<main>
+  <h1>HUD fixes, 261018</h1>
+  <p class="sub">Found during the day-2 five-way play check (Free-for-all, Duelist, Rammer, Kim, All-rounder; game rules, 8 rounds).</p>
+
+  <h2>1. Status line ran off the screen and pushed the build version away</h2>
+  <p><code>.status</code> in <code>UI/Hud.uss</code> grew with its text. A long line ("A (G1 Free-for-all (trained 4-way)) holds the summit as the sea arrives") overflowed the right edge and pushed the YYMMDD version out of the bottom bar. Fix: <code>flex-shrink: 1; flex-basis: 0; min-width: 0; overflow: hidden</code>, so the line takes only the space between the settings button and the version and wraps.</p>
+  <div class="pair">
+    <figure><img src="status_wrap_before_crop.png" alt="Before: the status text is cut off at the right edge and no version is shown"><figcaption><span class="tag bad">Before</span>: the text is cut at "as the se", and the version (bottom right) is missing.</figcaption></figure>
+    <figure><img src="status_wrap_fixed_crop.png" alt="After: the status text wraps onto two lines and the version 261018 is visible"><figcaption><span class="tag good">After</span>: same text, wrapped on two lines; version 261018 back in the corner.</figcaption></figure>
+  </div>
+
+  <h2>2. Results sheet colour dots shrank</h2>
+  <p>On the five-row results sheet the per-fighter colour dots were squeezed by long names. Fix: <code>.dot { flex-shrink: 0; }</code> (committed earlier today, 4a22882). After:</p>
+  <div class="shots">
+    <figure><img src="ffa5_result_fixed.png" alt="Results sheet with five fighters, each row with a full round colour dot"><figcaption>Results sheet, five fighters, round dots.</figcaption></figure>
+    <figure><img src="ffa5_early.png" alt="Five-way round in progress"><figcaption>Five-way round, early.</figcaption></figure>
+    <figure><img src="ffa5_late.png" alt="Five-way round later, with the cut-off status line at the bottom"><figcaption>Five-way round, later (the "before" frame for fix 1).</figcaption></figure>
+    <figure><img src="status_wrap_fixed.png" alt="Menu with the wrapped status line and version"><figcaption>Full frame of the fix-1 check.</figcaption></figure>
+  </div>
+</main>
+</body>
+</html>

@@ -490,9 +490,19 @@ namespace PoKingHill
                           $"\"undecided\": {F((double)_ffaTie / n)}, \"median_win_time_s\": {F(median)}\n}}\n";
             string path = System.IO.Path.GetFullPath(System.IO.Path.Combine(Application.dataPath, "..", "training", "assets", "g1", "ffa_stats_unity.json"));
             System.IO.File.WriteAllText(path, json); Debug.Log("[DemoDirector] wrote " + path + "\n" + json);
-            statsRounds = 0; foreach (var f in fighters) f.paused = true;
+            foreach (var f in fighters) f.paused = true;
+            StatsDone();
+        }
+
+        // End of a statistics gate: back to real time (50x with 2 s frames keeps the editor's main thread busy, so the
+        // CLI cannot reach it), then leave play mode, the editor, or the player.
+        void StatsDone()
+        {
+            statsRounds = 0; Time.timeScale = 1f; Time.maximumDeltaTime = 1f / 3f;
 #if UNITY_EDITOR
-            if (Cli.Exit) UnityEditor.EditorApplication.Exit(0);
+            if (Cli.Exit) UnityEditor.EditorApplication.Exit(0); else UnityEditor.EditorApplication.ExitPlaymode();
+#else
+            Application.Quit();
 #endif
         }
 
@@ -536,12 +546,8 @@ namespace PoKingHill
             string path = System.IO.Path.GetFullPath(Application.isEditor ? System.IO.Path.Combine(Application.dataPath, "..", "training", "assets", fighters[0].body, "duel_stats_unity.json")
                                                                           : System.IO.Path.Combine(Application.dataPath, "..", "duel_stats_unity.json"));
             System.IO.File.WriteAllText(path, json); Debug.Log("[DemoDirector] wrote " + path + "\n" + json);
-            statsRounds = 0; fighters[0].paused = fighters[1].paused = true;      // seats A and B: the pair the two-fighter gate measures
-#if UNITY_EDITOR
-            if (Cli.Exit) UnityEditor.EditorApplication.Exit(0);
-#else
-            Application.Quit();
-#endif
+            fighters[0].paused = fighters[1].paused = true;      // seats A and B: the pair the two-fighter gate measures
+            StatsDone();
         }
 
         void Update()
