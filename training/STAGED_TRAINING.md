@@ -1,4 +1,4 @@
-# Staged training (prepared 2026-10-17, nothing trained yet)
+# Staged training (prepared 2026-10-17; stages 2, 3 and 6 trained 2026-10-18, see rl_optimization_log.md)
 
 Everything below is opt-in. Existing rungs (r0 r1 r2 r3 r4 r4att r4sp r4league r4shove r4probe) produce the same
 configuration as before and, verified bit for bit, the same environment trajectories (see "Throughput" below).

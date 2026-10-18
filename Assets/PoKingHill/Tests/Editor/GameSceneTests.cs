@@ -82,6 +82,19 @@ namespace PoKingHill.Tests
             Assert.AreEqual(expected, string.Join(" ", got));
         }
 
+        /// <summary>Unity serializes a component only through the script file named after its class; a second
+        /// MonoBehaviour in one file works in the session that adds it and is a missing script after a restart.</summary>
+        [Test]
+        public void EveryComponentLivesInAFileOfItsOwnName()
+        {
+            foreach (var path in Directory.GetFiles("Assets/PoKingHill/Scripts", "*.cs"))
+            {
+                string text = File.ReadAllText(path), file = Path.GetFileNameWithoutExtension(path);
+                foreach (Match m in Regex.Matches(text, @"class\s+(\w+)\s*:\s*MonoBehaviour"))
+                    Assert.AreEqual(file, m.Groups[1].Value, $"{path} declares MonoBehaviour {m.Groups[1].Value}: move it to {m.Groups[1].Value}.cs");
+            }
+        }
+
         [Test]
         public void BuildVersionIsYYMMDD() => StringAssert.IsMatch(@"^\d{6}$", BuildInfo.Version);
 

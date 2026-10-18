@@ -608,7 +608,7 @@ class KothEnv:
         timeout = self.episode_length_buf >= self.max_episode_length
         if A > 2:                                    # free-for-all: an eliminated robot stays in the world, limp
             fallen = fallen & ~self.out; self.out |= fallen               # fallen = eliminated this step
-            o = self.out.view(N, A); lost = o[:, 0]; won_w = o[:, 1:].all(1) & ~lost
+            o = self.out.view(N, A); lost = o[:, 0].clone(); won_w = o[:, 1:].all(1) & ~lost      # clone: the reset clears self.out before eval reads extras
             decided = lost | won_w; world_done = decided | timeout
         else:
             decided = fallen.view(N, A).any(1); world_done = decided | timeout

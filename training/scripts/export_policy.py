@@ -30,7 +30,9 @@ def export(ckpt: str, path: str, which: str = "actor") -> int:
     dim = net.obs_dim; os.makedirs(os.path.dirname(os.path.abspath(path)), exist_ok=True)
     err = export_module(net, dim, path, "actions" if which == "actor" else "value")
     print(f"wrote {path}: input {dim}, torch-vs-onnx max abs err {err:.2e}")
-    assert err < 1e-5
+    # actions are O(1): 1e-5 absolute; a critic's returns are O(10-100), so its bound is relative to its output size
+    scale = 1.0 if which == "actor" else max(1.0, float(net(torch.randn(256, dim) * 2).abs().max()))
+    assert err < 1e-5 * scale, f"{path}: torch-vs-onnx error {err:.2e} above {1e-5 * scale:.2e}"
     return dim
 
 

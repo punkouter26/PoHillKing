@@ -158,11 +158,13 @@ namespace PoKingHill.EditorTools
 
         /// <summary>Policy gate: open Testbed_&lt;tag&gt;, attach &lt;rung&gt;_policy.onnx to the runner, add the parity probe
         /// with &lt;rung&gt;_reference_trajectory.json, enter play mode. Scene changes are in memory only (not saved).</summary>
-        public static void RunPolicy()
+        public static void RunPolicy() => RunPolicy(Cli.Arg("-kothScene", "flat_1p"), Cli.Arg("-kothRung", "r0"), Robot);
+
+        /// <summary>The same gate with explicit arguments (for an editor that is already open, driven through the Unity CLI).</summary>
+        public static void RunPolicy(string tag, string rung, string robot)
         {
-            string tag = Cli.Arg("-kothScene", "flat_1p"), rung = Cli.Arg("-kothRung", "r0");
             AssetDatabase.Refresh();
-            EditorSceneManager.OpenScene(SceneOf(Robot, tag), OpenSceneMode.Single); string models = ModelsOf(Robot);
+            EditorSceneManager.OpenScene(SceneOf(robot, tag), OpenSceneMode.Single); string models = ModelsOf(robot);
             var policy = AssetDatabase.LoadAssetAtPath<Unity.InferenceEngine.ModelAsset>($"{models}/{rung}_policy.onnx");
             var runners = UnityEngine.Object.FindObjectsByType<PolicyRunner>(FindObjectsInactive.Include).OrderBy(r => r.robotPrefix).ToArray();
             foreach (var hold in UnityEngine.Object.FindObjectsByType<ParityProbe>(FindObjectsInactive.Include)) hold.enabled = false;
@@ -172,7 +174,7 @@ namespace PoKingHill.EditorTools
                 string suffix = runners.Length == 1 ? "" : "_" + runner.robotPrefix.Trim('_');
                 var reference = AssetDatabase.LoadAssetAtPath<TextAsset>($"{models}/{rung}_reference_trajectory{suffix}.json");
                 if (policy == null || reference == null) continue;
-                runner.policy = policy;
+                runner.policy = policy; runner.policyObsDim = InputsOf(policy);     // 103, 112 (combat) or 121 (free-for-all)
                 runner.opponent = runners.FirstOrDefault(r => r != runner);
                 var probe = runner.gameObject.AddComponent<PolicyParityProbe>();
                 probe.referenceJson = reference; probe.policy = policy; probe.runner = runner; probe.rung = rung; probe.suffix = suffix;

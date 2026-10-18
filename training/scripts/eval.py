@@ -33,7 +33,7 @@ def load_policy(env, ckpt):
     if not ck.get("critic_state_dict"):     # rebuilt from a Unity ONNX (scripts/onnx_to_ckpt.py): actor only, deterministic
         from koth.actor import Actor
         actor = Actor(ck["actor_state_dict"]).cuda().eval()
-        return lambda obs: actor(obs["policy"])
+        return lambda obs: actor(obs["policy"][:, :actor.obs_dim])   # a 112-input brain reads the first 112 of a 121-wide observation
     runner = OnPolicyRunner(env, train_cfg(), log_dir=None, device="cuda")
     runner.load(ckpt)
     policy = runner.alg.get_policy(); policy.eval()
