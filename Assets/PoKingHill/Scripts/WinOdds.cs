@@ -60,7 +60,7 @@ namespace PoKingHill
         }
 
         // Critic input, mirror of KothEnv._observe(): clean obs (103) | world linvel (3) | height (1) | feet contact (2)
-        // | mass scale, friction, kp scale at their nominal values (3) | combat block (9) = 121.
+        // | mass scale, friction, kp scale at their nominal values (3) | combat block (9) = 121 | second combat block (9) = 130 for free-for-all brains.
         float Critic(int i, PolicyRunner r, ModelAsset value, MujocoLib.mjData_* d)
         {
             if (r.Obs == null || r.Obs.Length < ObsBuilder.ObsDim) return float.NaN;
@@ -68,7 +68,7 @@ namespace PoKingHill
             {
                 _workers[i]?.Dispose(); _in[i]?.Dispose();
                 var model = ModelLoader.Load(value); int dim = model.inputs[0].shape.Get(1);
-                if (dim != ObsBuilder.ObsDim + 9 && dim != ObsBuilder.ObsDim + 18) { Debug.LogWarning($"[WinOdds] value model input {dim} is not a critic of this game"); _loaded[i] = value; _workers[i] = null; return float.NaN; }
+                if (dim != ObsBuilder.ObsDim + 9 && dim != ObsBuilder.ObsDim + 18 && dim != ObsBuilder.ObsDim + 27) { Debug.LogWarning($"[WinOdds] value model input {dim} is not a critic of this game"); _loaded[i] = value; _workers[i] = null; return float.NaN; }
                 _workers[i] = new Worker(model, BackendType.CPU); _in[i] = new Tensor<float>(new TensorShape(1, dim)); _buf[i] = new float[dim]; _loaded[i] = value;
             }
             if (_workers[i] == null) return float.NaN;
@@ -79,7 +79,11 @@ namespace PoKingHill
             b[o + 3] = (float)(q[2] - arena.Ground(rad));
             FootContacts(r, d, out b[o + 4], out b[o + 5]);
             b[o + 6] = 1f; b[o + 7] = 0.6f; b[o + 8] = 1f;
-            if (b.Length > o + 9 && r.opponent != null && r.opponent.Map != null) ObsBuilder.FillCombat(b, o + 9, d, r.Map, r.opponent.Map);
+            if (b.Length > o + 9 && r.opponent != null && r.opponent.Map != null)
+            {
+                ObsBuilder.FillCombat(b, o + 9, d, r.Map, r.opponent.Map);
+                if (b.Length > o + 18) ObsBuilder.FillCombat(b, o + 18, d, r.Map, r.opponent2 != null && r.opponent2.Map != null ? r.opponent2.Map : r.opponent.Map);   // free-for-all critic (130)
+            }
             _in[i].Upload(b); _workers[i].Schedule(_in[i]);
             var output = _workers[i].PeekOutput() as Tensor<float>; output.CompleteAllPendingOperations();
             return output.AsReadOnlySpan()[0];

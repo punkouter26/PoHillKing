@@ -22,6 +22,7 @@ namespace PoKingHill
         public GoalMode goal = GoalMode.None;
         public float goalStopDist = 0.3f, goalVmax = 0.8f;
         public PolicyRunner opponent;
+        [Tooltip("Second-nearest fighter still in, for 121-input free-for-all brains (null = the opponent again)")] public PolicyRunner opponent2;
         [Tooltip("Network input size: 103 = locomotion state, 112 = state + 9 opponent/ring values (combat policies).")]
         public int policyObsDim = ObsBuilder.ObsDim;
         public bool paused;
@@ -115,7 +116,13 @@ namespace PoKingHill
             }
             ObsBuilder.Fill(Obs, d, Map, _cmd, LastAction, _phase);
             if (policyObsDim > ObsBuilder.ObsDim && opponent != null && opponent.Map != null)
+            {
                 ObsBuilder.FillCombat(Obs, ObsBuilder.ObsDim, d, Map, opponent.Map);
+                // free-for-all brains (121 inputs): the same 9 values again for the second-nearest fighter still in,
+                // or for the opponent again when it is the only one left (training/koth/env.py _refresh_nbr)
+                if (policyObsDim >= ObsBuilder.ObsDim + 18)
+                    ObsBuilder.FillCombat(Obs, ObsBuilder.ObsDim + 9, d, Map, opponent2 != null && opponent2.Map != null ? opponent2.Map : opponent.Map);
+            }
             _sw.Restart();
             _input.Upload(Obs);
             _worker.Schedule(_input);

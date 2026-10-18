@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using Mujoco;
@@ -115,6 +116,9 @@ namespace PoKingHill.EditorTools
                       $"{UnityEngine.Object.FindObjectsByType<MjActuator>(FindObjectsInactive.Include).Length} MjActuator -> {path}");
         }
 
+        /// <summary>Observation width a policy was exported with (103, 112 or 121).</summary>
+        static int InputsOf(Unity.InferenceEngine.ModelAsset policy) => Unity.InferenceEngine.ModelLoader.Load(policy).inputs[0].shape.Get(1);
+
         [Serializable] public class RobotEntry { public string prefix, body; }
         [Serializable] class DumpRobots { public RobotEntry[] robots; }
 
@@ -219,12 +223,20 @@ namespace PoKingHill.EditorTools
             Fighter F(string name, string badge, string file, int dim, GoalMode goal) => new Fighter { name = name, shortName = badge, obsDim = dim, goal = goal,
                 policy = Onnx(file + "_policy"), value = Onnx(file + "_value") };
             var walker = F("G1 Walker (stands its ground)", "Walker", "r1", 103, GoalMode.None); walker.steerable = true;
-            director.roster = new[] { F("G1 All-rounder (champion)", "All-rounder", "attacker", 112, GoalMode.Opponent), F("G1 Duelist (generation 7)", "Duelist", "duelist", 112, GoalMode.Opponent),
-                                      F("G1 Rammer (generation 1)", "Rammer", "rammer", 112, GoalMode.Opponent), walker,
-                                      // Kim is offered only when this scene has a Kim body (koth_5p: e_) and her walking brain has been exported.
-                                      new Fighter { name = "Kim", shortName = "Kim", body = "kim", policy = kimBrain, obsDim = 103, goal = GoalMode.Opponent, stopDist = 0f, vmax = 0.8f,
-                                                    available = kimBrain != null && kimBody, inGame = kimBrain != null && kimBody,
-                                                    note = !kimBody ? "no Kim body in this scene" : kimBrain == null ? "no brain yet" : "walks at you, never trained to fight" } };
+            var roster = new List<Fighter> { F("G1 All-rounder (champion)", "All-rounder", "attacker", 112, GoalMode.Opponent), F("G1 Duelist (generation 7)", "Duelist", "duelist", 112, GoalMode.Opponent),
+                                             F("G1 Rammer (generation 1)", "Rammer", "rammer", 112, GoalMode.Opponent), walker };
+            // The free-for-all brain (scripts/train.py --rung r5ffa) joins when it has been exported; its input size comes from the file.
+            var ffa = Onnx("ffa_policy");
+            if (ffa != null) roster.Insert(1, new Fighter { name = "G1 Free-for-all (trained 4-way)", shortName = "Free-for-all", obsDim = InputsOf(ffa), goal = GoalMode.Opponent, policy = ffa, value = Onnx("ffa_value") });
+            // Kim is offered only when this scene has a Kim body (koth_5p: e_) and a brain of hers exists: her fighting brain
+            // (Models/kim/fighter_policy.onnx, 112 inputs) when exported, else the walker that walks at the nearest opponent.
+            var kimFighter = AssetDatabase.LoadAssetAtPath<Unity.InferenceEngine.ModelAsset>($"{ModelsOf("kim")}/fighter_policy.onnx");
+            var kimPolicy = kimFighter != null ? kimFighter : kimBrain;
+            roster.Add(new Fighter { name = "Kim", shortName = "Kim", body = "kim", policy = kimPolicy, obsDim = kimPolicy != null ? InputsOf(kimPolicy) : 103, goal = GoalMode.Opponent, stopDist = 0f,
+                                     vmax = kimFighter != null ? 1f : 0.8f, available = kimPolicy != null && kimBody, inGame = kimPolicy != null && kimBody,
+                                     value = AssetDatabase.LoadAssetAtPath<Unity.InferenceEngine.ModelAsset>($"{ModelsOf("kim")}/{(kimFighter != null ? "fighter" : "walker")}_value.onnx"),
+                                     note = !kimBody ? "no Kim body in this scene" : kimPolicy == null ? "no brain yet" : kimFighter != null ? "" : "walks at you, never trained to fight" });
+            director.roster = roster.ToArray();
             if (director.roster.Any(f => f.available && f.policy == null)) throw new Exception("a roster policy is missing in " + ModelDir);
             director.maps = new[] { "Mountain top", "Summit (baseline)" };
             director.mapVisuals = new[] { BuildMountainVisual(), GameObject.Find("ArenaVisual (render only)") };
@@ -338,6 +350,28 @@ namespace PoKingHill.EditorTools
             foreach (var sea in UnityEngine.Object.FindObjectsByType<Sea>(FindObjectsInactive.Include)) UnityEngine.Object.DestroyImmediate(sea);
             var dd = UnityEngine.Object.FindAnyObjectByType<DemoDirector>(); dd.sea = null; dd.roundSeconds = 25f;
             dd.statsRounds = int.Parse(Cli.Arg("-kothRounds", "200")); dd.selectedA = int.Parse(Cli.Arg("-kothA", "0")); dd.selectedB = int.Parse(Cli.Arg("-kothB", "0"));
+            EditorApplication.EnterPlaymode();
+        }
+
+        const string GateFfaScene = SceneDir + "/Gate_ffa_4p.unity";
+
+        /// <summary>Free-for-all statistics gate: the candidate (-kothCandidate short name, default the Free-for-all brain,
+        /// else the All-rounder) on body A against three opponents drawn every round from the pool eval.py --rung r5ffa uses
+        /// (All-rounder twice, Duelist, Rammer, standing Walker), four G1 bodies, no sea, 20 s bell, -kothRounds N (default
+        /// 200). Writes training/assets/g1/ffa_stats_unity.json: share of rounds the candidate is last one in / out first /
+        /// undecided, to compare with eval.py's learner_last_one_in / learner_out / undecided.</summary>
+        public static void RunFfaStats()
+        {
+            BuildDuelDemo("koth_4p", GateFfaScene);
+            EditorSceneManager.OpenScene(GateFfaScene, OpenSceneMode.Single);
+            foreach (var sea in UnityEngine.Object.FindObjectsByType<Sea>(FindObjectsInactive.Include)) UnityEngine.Object.DestroyImmediate(sea);
+            var dd = UnityEngine.Object.FindAnyObjectByType<DemoDirector>(); dd.sea = null; dd.roundSeconds = 20f;
+            int Find(string badge) => Array.FindIndex(dd.roster, f => f.Badge == badge && f.available);
+            string want = Cli.Arg("-kothCandidate", Find("Free-for-all") >= 0 ? "Free-for-all" : "All-rounder");
+            dd.statsCandidate = Find(want);
+            if (dd.statsCandidate < 0) { Debug.LogError("[ParityBatch] no available roster agent named " + want); if (Cli.Exit) EditorApplication.Exit(3); return; }
+            dd.statsPool = new[] { Find("All-rounder"), Find("All-rounder"), Find("Duelist"), Find("Rammer"), Find("Walker") }.Where(i => i >= 0).ToArray();
+            dd.statsRounds = int.Parse(Cli.Arg("-kothRounds", "200"));
             EditorApplication.EnterPlaymode();
         }
 

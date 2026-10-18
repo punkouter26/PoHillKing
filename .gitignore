@@ -48,3 +48,5 @@ Assets/PoKingHill/Scenes/Gate_duel_2p.unity.meta
 
 # MuJoCo native warnings file (written next to the project when a simulation goes unstable, e.g. by plugin tests)
 MUJOCO_LOG.TXT
+Assets/PoKingHill/Scenes/Gate_ffa_4p.unity
+Assets/PoKingHill/Scenes/Gate_ffa_4p.unity.meta

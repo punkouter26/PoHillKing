@@ -53,6 +53,9 @@ namespace PoKingHill
         [Tooltip("Skip the menu and start fighting immediately.")] public bool autoLaunch;
         [Tooltip("Statistical parity gate: play this many rounds fast, write duel_stats_unity.json, then stop. 0 = off.")]
         public int statsRounds = 0;
+        [Tooltip("Free-for-all statistics gate: the candidate (roster index) on seat A against three opponents drawn from this pool every round (roster indices). Empty = the two-fighter gate.")]
+        public int[] statsPool = Array.Empty<int>();
+        public int statsCandidate = -1;
 
         /// <summary>Colour of each body's badge and team trim, in fighters[] order after seating.</summary>
         public static readonly Color[] SeatColors =
@@ -176,13 +179,17 @@ namespace PoKingHill
             for (int i = 0; i < _playing; i++)
             {
                 double* q = d->qpos + fighters[i].Map.RootQposAdr; double best = double.MaxValue, current = double.MaxValue; PolicyRunner pick = null, any = null;
+                // nearest and second-nearest still in, as training ranks them (koth/env.py _refresh_nbr): an eliminated
+                // fighter only when nobody else is left; with one opponent left the second is the first
+                double d1 = double.MaxValue, d2 = double.MaxValue, dAny = double.MaxValue; PolicyRunner n1 = null, n2 = null;
                 for (int j = 0; j < _playing; j++)
                 {
                     if (j == i) continue;
                     double* o = d->qpos + fighters[j].Map.RootQposAdr;
                     double dist = Math.Sqrt((o[0] - q[0]) * (o[0] - q[0]) + (o[1] - q[1]) * (o[1] - q[1]));
-                    any ??= fighters[j];
+                    if (dist < dAny) { dAny = dist; any = fighters[j]; }
                     if (_out[j]) continue;
+                    if (dist < d1) { d2 = d1; n2 = n1; d1 = dist; n1 = fighters[j]; } else if (dist < d2) { d2 = dist; n2 = fighters[j]; }
                     double score = dist;
                     if (opportunist)
                     {
@@ -196,7 +203,12 @@ namespace PoKingHill
                 // Keep the current target unless another is clearly better (no flicker between two).
                 if (opportunist && pick != null && _target[i] != null && current < double.MaxValue && best > current - 0.25) pick = _target[i];
                 _target[i] = pick;
-                fighters[i].opponent = pick ?? any;
+                n1 ??= any; n2 ??= n1;
+                // A free-for-all brain (121 inputs) gets what it was trained on: nearest and second-nearest. Two-fighter
+                // brains get the chosen target (nearest, or the opportunist pick).
+                bool ffaBrain = fighters[i].policyObsDim >= ObsBuilder.ObsDim + 18;
+                fighters[i].opponent = ffaBrain ? n1 : pick ?? any;
+                fighters[i].opponent2 = n2;
             }
         }
 
@@ -226,7 +238,8 @@ namespace PoKingHill
             var agents = new List<int>();
             if (roster.Length > 0)
             {
-                if (statsRounds > 0) { agents.Add(Mathf.Clamp(selectedA, 0, roster.Length - 1)); agents.Add(Mathf.Clamp(selectedB, 0, roster.Length - 1)); }
+                if (statsRounds > 0 && FfaStats) agents = FfaDraw();
+                else if (statsRounds > 0) { agents.Add(Mathf.Clamp(selectedA, 0, roster.Length - 1)); agents.Add(Mathf.Clamp(selectedB, 0, roster.Length - 1)); }
                 else
                 {
                     var pool = InGame(); if (pool.Count == 0) return;
@@ -368,6 +381,7 @@ namespace PoKingHill
                 if (!_out[i]) { alive++; last = i; }
             }
             bool bell = sea != null ? sea.ReachedSummit : t >= roundSeconds;
+            if (statsRounds > 0 && FfaStats && (_out[0] || alive == 1 || bell)) { FfaRoundOver(t); return; }    // as eval.py: the candidate's round ends when it is out
             if (alive > 1 && !bell) return;
             EndRound(d, alive, last, t);
         }
@@ -450,6 +464,36 @@ namespace PoKingHill
                 _bracket.Clear(); EnterMenu(); return;
             }
             if (LastRoundOfMatch && !(_shotDir != null && Cli.Exit)) EnterMenu(); else NewRound();
+        }
+
+        // ------------------------------------------------------------------ free-for-all statistics gate
+        bool FfaStats => statsPool != null && statsPool.Length > 0 && statsCandidate >= 0;
+        int _ffaWin, _ffaLoss, _ffaTie; readonly List<double> _ffaTimes = new();
+
+        // Candidate first (it takes body A), then three opponents drawn from the pool, as eval.py draws per world.
+        List<int> FfaDraw()
+        {
+            var agents = new List<int> { statsCandidate };
+            for (int k = 0; k < Mathf.Min(3, fighters.Length - 1); k++) agents.Add(statsPool[UnityEngine.Random.Range(0, statsPool.Length)]);
+            return agents;
+        }
+
+        void FfaRoundOver(double t)
+        {
+            int alive = 0; for (int i = 0; i < _playing; i++) if (!_out[i]) alive++;
+            if (_out[0]) _ffaLoss++; else if (alive == 1) { _ffaWin++; _ffaTimes.Add(t); } else _ffaTie++;
+            int n = _ffaWin + _ffaLoss + _ffaTie;
+            if (n < statsRounds) { StartMatch(FfaDraw(), false); return; }
+            _ffaTimes.Sort(); double median = _ffaTimes.Count > 0 ? _ffaTimes[_ffaTimes.Count / 2] : -1;
+            string F(double v) => v.ToString("0.####", System.Globalization.CultureInfo.InvariantCulture);
+            string json = $"{{\n \"candidate\": \"{NameOf(statsCandidate, "?")}\", \"rounds\": {n}, \"last_one_in\": {F((double)_ffaWin / n)}, \"out\": {F((double)_ffaLoss / n)}, " +
+                          $"\"undecided\": {F((double)_ffaTie / n)}, \"median_win_time_s\": {F(median)}\n}}\n";
+            string path = System.IO.Path.GetFullPath(System.IO.Path.Combine(Application.dataPath, "..", "training", "assets", "g1", "ffa_stats_unity.json"));
+            System.IO.File.WriteAllText(path, json); Debug.Log("[DemoDirector] wrote " + path + "\n" + json);
+            statsRounds = 0; foreach (var f in fighters) f.paused = true;
+#if UNITY_EDITOR
+            if (Cli.Exit) UnityEditor.EditorApplication.Exit(0);
+#endif
         }
 
         void Award(int body) { _wins[body]++; if (_seat[body] >= 0 && _seat[body] < _score.Length) _score[_seat[body]]++; }

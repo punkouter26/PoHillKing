@@ -29,6 +29,11 @@ FFA_RUNGS = ("r5ffa",)
 
 
 def load_policy(env, ckpt):
+    ck = torch.load(ckpt, map_location="cuda", weights_only=False)
+    if not ck.get("critic_state_dict"):     # rebuilt from a Unity ONNX (scripts/onnx_to_ckpt.py): actor only, deterministic
+        from koth.actor import Actor
+        actor = Actor(ck["actor_state_dict"]).cuda().eval()
+        return lambda obs: actor(obs["policy"])
     runner = OnPolicyRunner(env, train_cfg(), log_dir=None, device="cuda")
     runner.load(ckpt)
     policy = runner.alg.get_policy(); policy.eval()

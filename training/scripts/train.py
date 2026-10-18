@@ -43,6 +43,10 @@ def warm_start(runner, ckpt_path):
             elif new[k].dim() == v.dim() and new[k].shape[:-1] == v.shape[:-1] and new[k].shape[-1] > v.shape[-1]:
                 if k.endswith("weight"): new[k] = torch.zeros_like(new[k])
                 new[k][..., :v.shape[-1]] = v; padded += 1
+                # a second 9-value combat block (121 inputs) means what the first one means: start its normalizer
+                # statistics from the first block's instead of mean 0 / std 1 frozen at the checkpoint's sample count
+                w = v.shape[-1]
+                if k.startswith("obs_normalizer.") and new[k].shape[-1] - w == 9 and w >= 112: new[k][..., w:w + 9] = v[..., w - 9:w]
             else: raise ValueError(f"cannot warm-start {name}.{k}: {tuple(v.shape)} -> {tuple(new[k].shape)}")
         model.load_state_dict(new); print(f"warm start {name}: {padded} tensors padded")
 
@@ -83,6 +87,25 @@ class Graduation:
                     first_iteration_at_target=self.first_pass_it, updates=self.updates, updates_with_nan_gradients=self.nan_updates, graduated=self.passed)
 
 
+def critic_warmup(runner, updates: int):
+    """For the first `updates` PPO updates only the critic learns: the actor's parameters (and its action std) take no
+    gradient. A policy warm-started from an exported brain has a trained actor but a random value function, and
+    advantages from that critic would otherwise push the actor away from what it already does well."""
+    actor = [p for p in runner.alg._raw_actor.parameters() if p.requires_grad]; update = runner.alg.update; done = [0]
+    def update_(*a, **k):
+        frozen = done[0] < updates; lr = runner.alg.learning_rate
+        for p in actor: p.requires_grad_(not frozen)
+        try: return update(*a, **k)
+        finally:
+            for p in actor: p.requires_grad_(True)
+            if frozen:   # the adaptive schedule would raise the rate while KL is 0; keep it where it was
+                runner.alg.learning_rate = lr
+                for g in runner.alg.optimizer.param_groups: g["lr"] = lr
+            done[0] += 1
+            if done[0] == updates: print(f"critic warm-up over after {updates} updates: the actor learns from now on")
+    runner.alg.update = update_
+
+
 def git_commit() -> dict:
     try:
         sha = subprocess.run(["git", "rev-parse", "HEAD"], cwd=ROOT, capture_output=True, text=True).stdout.strip()
@@ -119,6 +142,7 @@ def main():
     ap.add_argument("--export-name", default=None, help="Unity policy name for a graduated export (default: the run name)")
     ap.add_argument("--export-dir", default=None, help="folder for a graduated export (default: the Unity Models folder)")
     ap.add_argument("--tensorboard", action="store_true", help="start tensorboard --logdir runs")
+    ap.add_argument("--critic-warmup", type=int, default=0, help="freeze the actor (and its std) for this many updates so a fresh critic can fit first (warm starts from ONNX have no critic)")
     a = ap.parse_args()
     t_start = time.time()
     cfg = default_cfg(a.rung)
@@ -152,6 +176,8 @@ def main():
         runner.load(a.resume)
     if a.warm:
         warm_start(runner, a.warm)
+    if a.critic_warmup > 0:
+        critic_warmup(runner, a.critic_warmup)
     env.curriculum_offset_iters = runner.current_learning_iteration      # disturbance curriculum continues on --resume
     grad = Graduation(runner, a.graduate_reward)
     try:
