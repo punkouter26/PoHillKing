@@ -40,6 +40,12 @@ namespace PoKingHill
         void OnEnable()
         {
             _scuffBorn = new float[scuffs.Length];
+            // Drive a runtime copy of the water material: setting the level on the shared asset would rewrite Water.mat on disk.
+            if (water != null && director != null && director.sea != null && director.sea.waterVisual != null && !water.name.EndsWith("(runtime)"))
+            {
+                water = new Material(water) { name = water.name + " (runtime)" };
+                director.sea.waterVisual.GetComponent<Renderer>().sharedMaterial = water;
+            }
             foreach (var s in scuffs) if (s != null) s.fadeFactor = 0;
             _fogCalm = RenderSettings.fogColor;
             if (sun != null) { _sunCalm = sun.color; _sunCalmIntensity = sun.intensity; }
