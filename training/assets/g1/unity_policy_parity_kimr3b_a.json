@@ -1,0 +1,16 @@
+{
+ "rung": "kimr3b", "frames": 250,
+ "replay_max_action_err": 0.0000005, "replay_pass": true,
+ "closed_loop": {"max_obs_err": 5.9213271, "max_action_err": 0.3350848, "max_pelvis_pos_err_m": 0.0246739, "mean_ctrl_rel_diff": 0.1069669, "min_upright": 0.9974684, "min_pelvis_z": 0.7327948, "pass": false},
+ "inference_ms_last": 0.2815,
+ "samples": [
+  {"tick": 0, "obs_err": 0.0000001, "action_err": 0.0000001, "pelvis_pos_err_m": 0, "pelvis_z": 0.744367, "ref_z": 0.744367, "up": 1},
+  {"tick": 1, "obs_err": 0.0000056, "action_err": 0.0000005, "pelvis_pos_err_m": 0, "pelvis_z": 0.7449442, "ref_z": 0.7449442, "up": 0.9999971},
+  {"tick": 10, "obs_err": 0.0000031, "action_err": 0.0000004, "pelvis_pos_err_m": 0, "pelvis_z": 0.7438659, "ref_z": 0.743866, "up": 0.9999273},
+  {"tick": 50, "obs_err": 0.5001247, "action_err": 0.0520786, "pelvis_pos_err_m": 0.0001174, "pelvis_z": 0.7508534, "ref_z": 0.7508965, "up": 0.9982535},
+  {"tick": 100, "obs_err": 5.2221212, "action_err": 0.1599567, "pelvis_pos_err_m": 0.0039326, "pelvis_z": 0.7451021, "ref_z": 0.7453259, "up": 0.9985671},
+  {"tick": 150, "obs_err": 0.1720497, "action_err": 0.1259816, "pelvis_pos_err_m": 0.0168806, "pelvis_z": 0.7425044, "ref_z": 0.7442904, "up": 0.9991612},
+  {"tick": 200, "obs_err": 0.1570717, "action_err": 0.1019767, "pelvis_pos_err_m": 0.0213425, "pelvis_z": 0.7400193, "ref_z": 0.7417794, "up": 0.999102},
+  {"tick": 249, "obs_err": 0.0882018, "action_err": 0.0906751, "pelvis_pos_err_m": 0.018694, "pelvis_z": 0.7413722, "ref_z": 0.7415597, "up": 0.9997706}
+ ]
+}

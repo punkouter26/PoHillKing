@@ -1,0 +1,14 @@
+{
+ "rung": "kimfight", "frames": 150,
+ "replay_max_action_err": 0.0000007, "replay_pass": true,
+ "closed_loop": {"max_obs_err": 14.8842735, "max_action_err": 0.95078, "max_pelvis_pos_err_m": 0.0514286, "mean_ctrl_rel_diff": 0.2325163, "min_upright": 0.9709534, "min_pelvis_z": 0.7395787, "pass": false},
+ "inference_ms_last": 0.3546,
+ "samples": [
+  {"tick": 0, "obs_err": 0.0000001, "action_err": 0.0000001, "pelvis_pos_err_m": 0, "pelvis_z": 0.744367, "ref_z": 0.744367, "up": 1},
+  {"tick": 1, "obs_err": 0.0000092, "action_err": 0.0000009, "pelvis_pos_err_m": 0, "pelvis_z": 0.7456223, "ref_z": 0.7456223, "up": 0.9999845},
+  {"tick": 10, "obs_err": 0.1476486, "action_err": 0.0056102, "pelvis_pos_err_m": 0.0001761, "pelvis_z": 0.7527887, "ref_z": 0.7529561, "up": 0.9878961},
+  {"tick": 50, "obs_err": 0.7879982, "action_err": 0.1178009, "pelvis_pos_err_m": 0.0028652, "pelvis_z": 0.746882, "ref_z": 0.7460967, "up": 0.9778172},
+  {"tick": 100, "obs_err": 3.1549406, "action_err": 0.3292688, "pelvis_pos_err_m": 0.0134276, "pelvis_z": 0.7423622, "ref_z": 0.7418647, "up": 0.9903722},
+  {"tick": 149, "obs_err": 6.03016, "action_err": 0.727693, "pelvis_pos_err_m": 0.0489936, "pelvis_z": 0.7528756, "ref_z": 0.7520704, "up": 0.9876116}
+ ]
+}
