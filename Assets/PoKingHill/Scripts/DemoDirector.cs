@@ -533,7 +533,7 @@ namespace PoKingHill
             string json = $"{{\n \"rounds\": {n}, \"wins_a\": {_winsA}, \"wins_b\": {_winsB}, \"ties\": {_draws}, \"decided\": {F((double)(_winsA + _winsB) / n)},\n" +
                           $" \"median_time_s\": {F(Q(0.5))}, \"mean_time_s\": {F(mean)}, \"p25_time_s\": {F(Q(0.25))}, \"p75_time_s\": {F(Q(0.75))}\n}}\n";
             // The player has no training folder beside it: it writes next to the executable, like perf_unity.json.
-            string path = System.IO.Path.GetFullPath(Application.isEditor ? System.IO.Path.Combine(Application.dataPath, "..", "training", "assets", "g1", "duel_stats_unity.json")
+            string path = System.IO.Path.GetFullPath(Application.isEditor ? System.IO.Path.Combine(Application.dataPath, "..", "training", "assets", fighters[0].body, "duel_stats_unity.json")
                                                                           : System.IO.Path.Combine(Application.dataPath, "..", "duel_stats_unity.json"));
             System.IO.File.WriteAllText(path, json); Debug.Log("[DemoDirector] wrote " + path + "\n" + json);
             statsRounds = 0; fighters[0].paused = fighters[1].paused = true;      // seats A and B: the pair the two-fighter gate measures

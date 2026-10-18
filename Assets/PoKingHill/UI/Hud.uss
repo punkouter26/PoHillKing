@@ -43,7 +43,7 @@ Label { color: var(--ink); -unity-font-style: normal; font-size: 34px; margin: 0
 .badge { flex-direction: row; align-items: center; background-color: var(--glass); border-radius: 30px; padding: 6px 16px 6px 10px; margin: 5px; border-width: 2px; border-color: var(--line); }
 .badge.out { opacity: 0.45; }
 .badge.you { border-color: var(--accent); }
-.dot { width: 26px; height: 26px; border-radius: 13px; margin-right: 10px; }
+.dot { width: 26px; height: 26px; border-radius: 13px; margin-right: 10px; flex-shrink: 0; }
 .badge Label { font-size: 28px; }
 .badge .wins { -unity-font-style: bold; margin-left: 10px; }
 

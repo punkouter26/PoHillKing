@@ -195,13 +195,17 @@ namespace PoKingHill.EditorTools
         /// parity gates the scene the brains were trained in (koth_2p, saved as Gate_duel_2p.unity). The menu seats the
         /// ticked agents on the bodies, everyone starts on the summit and the sea rises as the round clock. Presentation
         /// (HUD, cameras, effects) comes from GameSceneBuilder. No PhysX components are created.</summary>
-        public static void BuildDuelDemo(string tag, string savePath = DemoScene)
+        public static void BuildDuelDemo(string tag, string savePath = DemoScene, string robot = "g1")
         {
             AssetDatabase.Refresh();
-            var scene = EditorSceneManager.OpenScene(SceneOf("g1", tag), OpenSceneMode.Single);
+            var scene = EditorSceneManager.OpenScene(SceneOf(robot, tag), OpenSceneMode.Single);
             var attacker = AssetDatabase.LoadAssetAtPath<Unity.InferenceEngine.ModelAsset>($"{ModelDir}/attacker_policy.onnx");
             if (attacker == null) throw new Exception("attacker_policy.onnx missing in " + ModelDir);
             var runners = UnityEngine.Object.FindObjectsByType<PolicyRunner>(FindObjectsInactive.Include).OrderBy(r => r.robotPrefix).ToArray();
+            // Body kinds from the model dump: testbeds imported before PolicyRunner had a body field say "g1" for Kim too.
+            var dumpAsset = AssetDatabase.LoadAssetAtPath<TextAsset>($"{ModelsOf(robot)}/model_dump_{tag}.json");
+            if (dumpAsset != null)
+                foreach (var entry in RobotsOf(dumpAsset, tag, robot)) { var r = runners.FirstOrDefault(x => x.robotPrefix == entry.prefix); if (r != null) r.body = entry.body; }
             var a = runners[0]; var b = runners[1];
             // Kim fights with her walking brain and the goal law (walk at the nearest opponent); she is locked in the
             // menu until that brain exists (scripts/export_policy.py --name kim/walker).
@@ -345,13 +349,22 @@ namespace PoKingHill.EditorTools
 
         /// <summary>Statistical parity gate for the combat rungs: play N fast rounds of the duel demo without the sea
         /// (fixed 25 s bell, as in training evaluation) and write duel_stats_unity.json.</summary>
-        public static void RunDuelStats()
+        public static void RunDuelStats() => RunDuelStats("g1", int.Parse(Cli.Arg("-kothRounds", "200")), int.Parse(Cli.Arg("-kothA", "0")), int.Parse(Cli.Arg("-kothB", "0")));
+
+        /// <summary>Kim's duel gate: her fighting brain against itself on her two-body testbed (compare with
+        /// KOTH_ROBOT=kim scripts/duel_stats.py --policy fighter).</summary>
+        public static void RunKimDuelStats() => RunDuelStats("kim", int.Parse(Cli.Arg("-kothRounds", "200")), -1, -1);
+
+        /// <summary>The statistics gate on a robot's two-body testbed; agent index -1 = that robot's own roster entry.</summary>
+        public static void RunDuelStats(string robot, int rounds, int a, int b)
         {
-            BuildDuelDemo("koth_2p", GateScene);
-            EditorSceneManager.OpenScene(GateScene, OpenSceneMode.Single);
+            string gate = robot == "g1" ? GateScene : $"{SceneDir}/Gate_duel_{robot}_2p.unity";
+            BuildDuelDemo("koth_2p", gate, robot);
+            EditorSceneManager.OpenScene(gate, OpenSceneMode.Single);
             foreach (var sea in UnityEngine.Object.FindObjectsByType<Sea>(FindObjectsInactive.Include)) UnityEngine.Object.DestroyImmediate(sea);
             var dd = UnityEngine.Object.FindAnyObjectByType<DemoDirector>(); dd.sea = null; dd.roundSeconds = 25f;
-            dd.statsRounds = int.Parse(Cli.Arg("-kothRounds", "200")); dd.selectedA = int.Parse(Cli.Arg("-kothA", "0")); dd.selectedB = int.Parse(Cli.Arg("-kothB", "0"));
+            int own = Array.FindIndex(dd.roster, f => f.body == robot && f.available);
+            dd.statsRounds = rounds; dd.selectedA = a < 0 ? own : a; dd.selectedB = b < 0 ? own : b;
             EditorApplication.EnterPlaymode();
         }
 
