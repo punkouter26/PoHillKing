@@ -11,7 +11,8 @@ namespace PoKingHill.EditorTools
     /// <summary>
     /// Writes the HUD's build version, YYMMDD of the last git commit (today's date when git is unavailable), to
     /// Assets/PoKingHill/Resources/build_version.txt (git-ignored) on every editor load and before every player build,
-    /// and sets PlayerSettings.bundleVersion to the same string.
+    /// and, for a build only, sets PlayerSettings.bundleVersion to the same string (doing it on every load would rewrite
+    /// ProjectSettings.asset each day).
     /// </summary>
     [InitializeOnLoad]
     public class BuildVersion : IPreprocessBuildWithReport
@@ -25,9 +26,9 @@ namespace PoKingHill.EditorTools
         static void Write(bool forBuild)
         {
             string v = CommitDate() ?? DateTime.Now.ToString("yyMMdd");
-            if (File.Exists(FilePath) && File.ReadAllText(FilePath).Trim() == v && PlayerSettings.bundleVersion == v) return;
+            if (forBuild) PlayerSettings.bundleVersion = v;
+            if (File.Exists(FilePath) && File.ReadAllText(FilePath).Trim() == v) return;
             Directory.CreateDirectory(Dir); File.WriteAllText(FilePath, v + "\n");
-            PlayerSettings.bundleVersion = v;
             if (!forBuild) AssetDatabase.ImportAsset(FilePath);
             UnityEngine.Debug.Log("[BuildVersion] " + v);
         }
