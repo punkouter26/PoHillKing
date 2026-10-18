@@ -18,6 +18,8 @@ done
 paths+=(Assets/_Recovery Assets/_Recovery.meta Assets/TutorialInfo Assets/TutorialInfo.meta
         Assets/Readme.asset Assets/Readme.asset.meta Assets/Scenes Assets/Scenes.meta)
 
+# keep only paths git tracks (an import folder can exist on disk without ever having been committed)
+tracked=(); for p in "${paths[@]}"; do [ -n "$(git ls-files -- "$p" | head -1)" ] && tracked+=("$p"); done; paths=("${tracked[@]}")
 files=$(git ls-files -- "${paths[@]}" | wc -l)
 mb=$(du -smc "${paths[@]}" 2>/dev/null | tail -1 | cut -f1)
 echo "$files tracked files, about ${mb} MB:"
