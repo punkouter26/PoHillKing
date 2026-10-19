@@ -1,0 +1,56 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Sixth Fighter HUD</title>
+<style>
+  :root { --bg: #f6f6f4; --ink: #1d1d1f; --dim: #5d5d63; --card: #ffffff; --line: #ddd; --bad: #c0392b; --good: #1e8449; }
+  @media (prefers-color-scheme: dark) { :root { --bg: #151517; --ink: #ececef; --dim: #a0a0a8; --card: #1f1f23; --line: #333; --bad: #ff6b5b; --good: #4cd18a; } }
+  body { margin: 0; padding: 24px 16px 48px; background: var(--bg); color: var(--ink); font: 16px/1.5 system-ui, sans-serif; }
+  main { max-width: 980px; margin: 0 auto; }
+  h1 { font-size: 26px; margin: 0 0 4px; } h2 { font-size: 20px; margin: 36px 0 8px; }
+  p.sub { color: var(--dim); margin: 0 0 24px; }
+  .pair { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 16px; }
+  figure { margin: 0; background: var(--card); border: 1px solid var(--line); border-radius: 12px; padding: 12px; }
+  figure img { width: 100%; height: auto; border-radius: 8px; display: block; }
+  figcaption { font-size: 14px; color: var(--dim); margin-top: 8px; }
+  .tag { font-weight: 600; } .bad { color: var(--bad); } .good { color: var(--good); }
+  code { font-size: 14px; }
+</style>
+</head>
+<body>
+<main>
+  <h1>Sixth fighter in the HUD</h1>
+  <p class="sub">Trump joins as a third body kind (261018–261019): six fighters on the summit, seven agents in the menu. Before = the five-fighter game from day 2.</p>
+
+  <h2>1. Scoreboard, win odds and round: six fighters</h2>
+  <p>A sixth seat colour (cyan) in <code>DemoDirector.SeatColors</code>; the scoreboard wraps to two rows of three, the win-odds bar gets a sixth segment, and the caption names the human fighters.</p>
+  <div class="pair">
+    <figure><img src="../day2/ffa5_late.png" alt="Five fighters: five badges and a five-segment odds bar"><figcaption><span class="tag bad">Before</span>: five badges, five odds segments.</figcaption></figure>
+    <figure><img src="six_way_fight.png" alt="Six fighters: six badges in two rows, Trump on the summit next to a G1"><figcaption><span class="tag good">After</span>: six badges (Trump cyan), Trump on the summit at 5.4 s.</figcaption></figure>
+  </div>
+
+  <h2>2. Results sheet: six rows</h2>
+  <p>No layout change was needed: the 64 px rows fit six fighters above the buttons on a 9:16 screen.</p>
+  <div class="pair">
+    <figure><img src="../day2/ffa5_result_fixed.png" alt="Results sheet with five rows"><figcaption><span class="tag bad">Before</span>: five rows.</figcaption></figure>
+    <figure><img src="six_way_result.png" alt="Results sheet with six rows, Trump out at 12.6 s"><figcaption><span class="tag good">After</span>: six rows; Trump second, out at 12.6 s, top speed 1.0 m/s.</figcaption></figure>
+  </div>
+
+  <h2>3. Agents tab: seven avatars, no repeated colour</h2>
+  <p>Avatars took <code>SeatColors[i % 6]</code>, so the seventh agent (Trump) repeated the All-rounder's red. With more agents than seat colours the avatars now take evenly spaced hues (<code>HudView</code>).</p>
+  <div class="pair">
+    <figure><img src="menu_agents_before_crop.png" alt="Agents grid: Trump's TR avatar is the same red as All-rounder's AR"><figcaption><span class="tag bad">Before</span>: TR and AR both red.</figcaption></figure>
+    <figure><img src="menu_agents_after_crop.png" alt="Agents grid: seven distinct avatar colours"><figcaption><span class="tag good">After</span>: seven distinct colours.</figcaption></figure>
+  </div>
+
+  <h2>4. Trump's mesh on his physics body</h2>
+  <p>The rigged GLB follows the MuJoCo bodies through <code>SkinFollower</code>, scaled to 1.90 m; rest pose matches the physics zero pose within 0.1 mm.</p>
+  <div class="pair">
+    <figure><img src="testbed_rest_pose.png" alt="Trump standing in his testbed scene"><figcaption>Testbed (flat ground), standing pose.</figcaption></figure>
+    <figure><img src="menu_agents_after.png" alt="Full menu with the Agents tab open"><figcaption>Full frame of the Agents tab after the fix.</figcaption></figure>
+  </div>
+</main>
+</body>
+</html>

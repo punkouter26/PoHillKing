@@ -214,7 +214,9 @@ namespace PoKingHill
                 var f = director.roster[i]; int idx = i;
                 var card = El("agent", grid); if (f.available && f.inGame) card.AddToClassList("on"); if (!f.available) card.AddToClassList("locked");
                 var topRow = El("agent-top", card);
-                var av = El("avatar", topRow); av.style.backgroundColor = DemoDirector.SeatColors[i % DemoDirector.SeatColors.Length];
+                // the seat palette while it is long enough; with more agents than colours (seven since Trump) evenly spaced hues, so none repeat
+                int n = director.roster.Length;
+                var av = El("avatar", topRow); av.style.backgroundColor = n <= DemoDirector.SeatColors.Length ? DemoDirector.SeatColors[i] : Color.HSVToRGB((float)i / n, 0.62f, 0.95f);
                 Text(Initials(f.Badge), "", av);
                 Text(f.Badge, "name", topRow);
                 string meta = f.available ? $"Elo {Ladder.Rating(f.name):0} · {Ladder.Rounds(f.name)} rounds · {director.Wins(i)} wins" : "Locked: " + f.note;
