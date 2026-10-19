@@ -32,7 +32,9 @@ namespace PoKingHill.EditorTools
             rig.AddComponent<Commentator>().director = director;
             var hazards = rig.AddComponent<Hazards>(); hazards.director = director; hazards.pool = pool;
             var chat = rig.AddComponent<ChatVotes>(); chat.hazards = hazards;
-            rig.AddComponent<BodyLook>().director = director;
+            var look = rig.AddComponent<BodyLook>(); look.director = director;
+            look.lineMaterial = AssetDatabase.LoadAssetAtPath<Material>(FxDir + "/IntentLine.mat");
+            if (look.lineMaterial == null) { look.lineMaterial = new Material(Shader.Find("Universal Render Pipeline/Unlit")); AssetDatabase.CreateAsset(look.lineMaterial, FxDir + "/IntentLine.mat"); }
 
             BuildHud(director, odds, replay, log, hazards, chat);
             BuildCameraRig(rig, director, cam, classic);

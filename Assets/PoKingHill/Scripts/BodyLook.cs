@@ -18,6 +18,8 @@ namespace PoKingHill
     public unsafe class BodyLook : MonoBehaviour
     {
         public DemoDirector director;
+        [Tooltip("Material for the intent lines (URP Unlit, FX/IntentLine.mat). A player build strips shaders no asset references, so Shader.Find alone returned null there and Init never finished: no team paint in builds.")]
+        public Material lineMaterial;
         public float overlayHz = 15f, fatigueTau = 4f;
 
         class Part { public Renderer r; public int body, robot; public Color baseColor; public bool accent; }
@@ -74,7 +76,8 @@ namespace PoKingHill
         {
             var go = new GameObject(name); go.transform.SetParent(transform, false);
             var lr = go.AddComponent<LineRenderer>(); lr.positionCount = 2; lr.widthMultiplier = width; lr.useWorldSpace = true;
-            lr.material = new Material(Shader.Find("Universal Render Pipeline/Unlit")); lr.shadowCastingMode = ShadowCastingMode.Off; lr.enabled = false;
+            lr.material = lineMaterial != null ? new Material(lineMaterial) : new Material(Shader.Find("Universal Render Pipeline/Unlit") ?? Shader.Find("Hidden/Internal-Colored"));
+            lr.shadowCastingMode = ShadowCastingMode.Off; lr.enabled = false;
             return lr;
         }
 
