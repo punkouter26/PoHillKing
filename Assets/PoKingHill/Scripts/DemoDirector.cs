@@ -494,7 +494,7 @@ namespace PoKingHill
             string F(double v) => v.ToString("0.####", System.Globalization.CultureInfo.InvariantCulture);
             string json = $"{{\n \"candidate\": \"{NameOf(statsCandidate, "?")}\", \"rounds\": {n}, \"last_one_in\": {F((double)_ffaWin / n)}, \"out\": {F((double)_ffaLoss / n)}, " +
                           $"\"undecided\": {F((double)_ffaTie / n)}, \"median_win_time_s\": {F(median)}\n}}\n";
-            string path = System.IO.Path.GetFullPath(System.IO.Path.Combine(Application.dataPath, "..", "training", "assets", "g1", "ffa_stats_unity.json"));
+            string path = System.IO.Path.GetFullPath(System.IO.Path.Combine(Application.dataPath, "..", "training", "assets", fighters[0].body, "ffa_stats_unity.json"));
             System.IO.File.WriteAllText(path, json); Debug.Log("[DemoDirector] wrote " + path + "\n" + json);
             foreach (var f in fighters) f.paused = true;
             StatsDone();

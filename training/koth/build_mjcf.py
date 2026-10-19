@@ -359,6 +359,37 @@ def build_mixed(n_extra: int = 1):
                   bodies={e[0]: e[2] for e in extras})
 
 
+def build_mix(bodies: list[str]):
+    """A training scene with mixed bodies (cross-body training, env rungs <learner>_vs_<other> and <learner>_ffa):
+    bodies[i] sits at PREFIXES[i] on the arena, two facing each other or a ring of more. Built on the G1 scene (so the
+    G1's meshes are at hand) with every non-G1 robot swapped for that human's body at the same place and collision
+    bit; written to assets/g1 as scene_koth_<n>p_<body>_<body>..._train.xml. Run with ROBOT g1."""
+    global PD_GAINS
+    assert ROBOT == "g1", "build mixed scenes with KOTH_ROBOT=g1 (the G1's meshes live in assets/g1)"
+    n = len(bodies); scene = build_scene(ET.parse(SRC).getroot(), True, True, players=n if n > 2 else None)
+    mask = sum(ROBOT_BITS[:n]); wb, acts, contact = scene.find("worldbody"), scene.find("actuator"), scene.find("contact")
+    merged = set()
+    for i, body in enumerate(bodies):
+        if body == "g1": continue
+        prefix, bit = PREFIXES[i], ROBOT_BITS[i]
+        g1 = wb.find(f"body[@name='{prefix}pelvis']"); at = list(wb).index(g1)
+        x, y, _ = (float(v) for v in g1.get("pos").split()); quat = tuple(float(v) for v in g1.get("quat").split()); wb.remove(g1)
+        for a in [a for a in acts if a.get("name", "").startswith(prefix)]: acts.remove(a)
+        for e in [e for e in contact if e.get("body1", "").startswith(prefix)]: contact.remove(e)
+        P = human(body); src = ET.parse(os.path.join(P.ASSETS, f"{body}_mjx.xml")).getroot()
+        if body not in merged:
+            g1_gains, PD_GAINS = PD_GAINS, P.PD_GAINS
+            for cls in apply_pd_gains(copy.deepcopy(src.find("default"))): scene.find("default").append(cls)
+            PD_GAINS = g1_gains; merged.add(body)
+        pelvis, h_acts, excl = make_robot(src, prefix, bit, (x, y, P.SPAWN_Z), quat, others=mask - bit)
+        for g in pelvis.iter("geom"):
+            if g.get("conaffinity"): g.set("conaffinity", str(int(g.get("conaffinity")) | 8))      # thrown boxes
+        wb.insert(at, pelvis); acts.extend(h_acts); contact.extend(excl)
+    tag = f"koth_{n}p_" + "_".join(bodies)
+    return finish(scene, tag, PREFIXES[:n], {PREFIXES[i]: human(b).DEFAULT_POSE for i, b in enumerate(bodies) if b != "g1"},
+                  bodies={PREFIXES[i]: b for i, b in enumerate(bodies)})
+
+
 def finish(scene: ET.Element, tag: str, prefixes: list[str], poses: dict | None = None, bodies: dict | None = None):
     """bodies: prefix -> body kind ("g1" / "kim" / "trump") for robots that are not this module's ROBOT (written to the dump)."""
     ET.indent(scene)
@@ -399,6 +430,8 @@ def finish(scene: ET.Element, tag: str, prefixes: list[str], poses: dict | None 
 
 if __name__ == "__main__":
     import sys
+    if sys.argv[1:2] == ["mix"]:              # cross-body training scenes: python -m koth.build_mjcf mix trump g1 [g1 g1]
+        build_mix(sys.argv[2:]); sys.exit(0)
     if sys.argv[1:] in (["4p"], ["5p"], ["6p"]):      # a Unity-only scene; leaves every training asset untouched
         import shutil
         tag = "koth_" + sys.argv[1]

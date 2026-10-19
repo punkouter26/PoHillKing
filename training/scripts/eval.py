@@ -41,9 +41,11 @@ def load_policy(env, ckpt):
 
 
 def base_rung(rung: str) -> str:
-    """kim_r0b -> r0, trump_r4bull -> r4league: the bar a human body's rung is judged on."""
+    """kim_r0b -> r0, trump_r4bull -> r4league, trump_vs_g1 -> r4league, kim_ffa -> r5ffa: the bar a rung is judged on."""
+    if "_vs_" in rung: return "r4league"
     body, _, rest = rung.partition("_")
     if body not in HUMANS: return rung
+    if rest == "ffa": return "r5ffa"
     return {"r4bull": "r4league", "bull": "r4league"}.get(rest, rest[:2])
 
 
@@ -150,9 +152,9 @@ def eval_cfg(rung, shove=False, rim_brake=None, slope=False, opponent=None, leg_
     if decimation: cfg["decimation"] = decimation
     if fatigue != "off": cfg["fatigue"].update(enabled=True, obs=fatigue == "obs")
     duel = base in DUEL_RUNGS
-    cfg["shove"] = shove
+    cfg["shove"] = shove; cfg["style_ramp_iters"] = 0          # judged with the full style
     if style_pose: cfg["style_pose"] = style_pose
-    if duel or rung in FFA_RUNGS: cfg["max_radius"] = OUT_RADIUS
+    if duel or base in FFA_RUNGS: cfg["max_radius"] = OUT_RADIUS
     if rung in ("r4probe", "r4att"): cfg["spawn"].update(r=[[0.0, 0.5], [1.25, 1.35]])
     if rim_brake: cfg["goal_cmd"]["rim_brake"] = tuple(rim_brake)
     if rung == "r2" and slope: cfg["spawn"].update(r=[0.0, 2.6])
@@ -192,8 +194,8 @@ def main():
     steps = int(a.seconds / env.ctrl_dt); rows = []
     for seed in range(a.seeds):
         torch.manual_seed(1000 + seed)
-        if duel: row = eval_duel(env, policy, steps, league=a.rung == "r4league")
-        elif a.rung in FFA_RUNGS: row = eval_ffa(env, policy, steps)
+        if duel: row = eval_duel(env, policy, steps, league=base == "r4league")
+        elif base in FFA_RUNGS: row = eval_ffa(env, policy, steps)
         else: row = (eval_flat if base in ("r0", "r1") else eval_arena)(env, policy, base, steps)
         row = dict(seed=seed, **row); rows.append(row); print(json.dumps(row), flush=True)
     ok = all(r["pass"] for r in rows)

@@ -71,6 +71,7 @@ def default_cfg(rung: str = "r0") -> dict:
         gait_free=False,           # True: within reach of the opponent, the gait-clock rewards are off (feet may plant)
         shove=False,               # True: the learner fights in the shove style (see SHOVE_*); frozen opponents opt in with ":shove"
         style_pose="shove",        # the styled rest pose: "shove" (arms forward, the G1's) or "bull" (Trump's charge), obs.STYLE_POSES
+        style_ramp_iters=0,        # > 0 (training only): the styled pose and smoothing ease in from 0 to full over this many PPO iterations
         frozen_opponent=None,      # checkpoint path(s): robots b_.. are driven by these policies and only robot a_ learns
         frozen_stochastic=False,   # True while training: frozen opponents sample actions like the learner does
         # ---- opt-in staging options (all off by default; see STAGED_TRAINING.md) ----
@@ -147,8 +148,18 @@ def default_cfg(rung: str = "r0") -> dict:
     elif rung.split("_", 1)[0] in HUMANS and rung.split("_", 1)[1] in ("r0b", "r1b"):   # a human body's walking recipe (KOTH_ROBOT=<body>)
         cfg.update(default_cfg(rung.split("_", 1)[1][:2]))
         human_overrides(cfg, rung.split("_", 1)[0])
+    elif "_vs_" in rung:                  # cross-body duel: learner a_ (KOTH_ROBOT) against frozen b_ of another body (build_mjcf mix)
+        me, other = rung.split("_vs_")
+        cfg.update(default_cfg("trump_r4bull" if me == "trump" else "r4league"))
+        cfg.update(scene=mix_scene([me, other]), terminate_on_leg_contact=False)
+    elif rung.endswith("_ffa") and rung[:-4] in HUMANS:   # a human's four-way free-for-all against three G1 (build_mjcf mix)
+        me = rung[:-4]
+        cfg.update(default_cfg("r5ffa")); cfg.update(scene=mix_scene([me, "g1", "g1", "g1"]))
+        if me == "trump": cfg["reward"].update(push_out=1.0, belly_push=4.0, arm_contact=-1.0); cfg["goal_cmd"].update(vmax=0.7)
     elif rung == "trump_bull":            # Trump's bull charge: trump_r4bull with the styled action path (obs.BULL_POSE)
-        cfg.update(default_cfg("trump_r4bull"), shove=True, style_pose="bull")
+        # trump_bull1 switched the pose on at once and learned to stay out of contact (11 % wins vs a standing Trump):
+        # ease it in over 300 iterations from fight1's plain stance instead.
+        cfg.update(default_cfg("trump_r4bull"), shove=True, style_pose="bull", style_ramp_iters=300)
     elif rung == "trump_r4bull":          # Trump's fighting style (KOTH_ROBOT=trump), see the note below
         cfg.update(default_cfg("r4league"))
         # "Bulldozer": he wins by walking his 102 kg into the opponent and shoving with his chest and belly, arms
@@ -162,6 +173,20 @@ def default_cfg(rung: str = "r0") -> dict:
 
 
 HUMANS = ("kim", "trump")         # human bodies (koth/build_<body>.py) with the G1's 29 joints
+
+
+def mix_scene(bodies: list) -> str:
+    """Path, relative to this robot's assets, of the mixed-body training scene build_mjcf mix writes to assets/g1."""
+    return os.path.relpath(os.path.join(os.path.dirname(ASSETS), "g1", f"scene_koth_{len(bodies)}p_{'_'.join(bodies)}_train.xml"), ASSETS)
+
+
+def scene_bodies(scene_path: str, prefixes: list) -> list:
+    """Body kind of each robot of a scene, from the "robots" list build_mjcf writes into model_dump_<tag>.json next to
+    it (mixed scenes); every robot is this module's ROBOT when the dump has no list."""
+    base = os.path.basename(scene_path); tag = base[len("scene_"):-len("_train.xml")] if base.endswith("_train.xml") else ""
+    dump = os.path.join(os.path.dirname(scene_path), f"model_dump_{tag}.json")
+    listed = {r["prefix"]: r["body"] for r in json.load(open(dump)).get("robots", [])} if tag and os.path.exists(dump) else {}
+    return [listed.get(p, ROBOT) for p in prefixes]
 
 
 def human_overrides(cfg: dict, body: str) -> dict:
@@ -298,8 +323,11 @@ class KothEnv:
         self.rq7 = self.rq[:, None] + torch.arange(7, device=device); self.rd6 = self.rd[:, None] + torch.arange(6, device=device)
         self.feet_body = T([[bid(p + "left_ankle_roll_link"), bid(p + "right_ankle_roll_link")] for p in prefixes])
         bname = lambda b: mujoco.mj_id2name(mjm, B, b) or ""; gname = lambda g: mujoco.mj_id2name(mjm, G, g) or ""
-        self.robot_bodies = T([[b for b in range(mjm.nbody) if bname(b).startswith(p)] for p in prefixes])
-        self.robot_geoms = T([[g for g in range(mjm.ngeom) if gname(g).startswith(p) and mjm.geom_contype[g]] for p in prefixes])
+        # Mixed bodies have different counts: pad each robot's list with its own last index (a repeated index in the
+        # randomisation writes the same value twice).
+        pad = lambda rows: [r + [r[-1]] * (max(map(len, rows)) - len(r)) for r in rows]
+        self.robot_bodies = T(pad([[b for b in range(mjm.nbody) if bname(b).startswith(p)] for p in prefixes]))
+        self.robot_geoms = T(pad([[g for g in range(mjm.ngeom) if gname(g).startswith(p) and mjm.geom_contype[g]] for p in prefixes]))
         # geom lookup: owner robot (-1 none) and kind (0 other, 1 ground, 2 left foot, 3 right foot, 4 shin, 5 trunk, 6 arm)
         owner = np.full(mjm.ngeom, -1); kind = np.zeros(mjm.ngeom, dtype=np.int64)
         for n in ("floor", "arena"):
@@ -329,14 +357,21 @@ class KothEnv:
         self.upper_idx = T([i for i, j in enumerate(self.joints) if any(k in j for k in ("waist", "shoulder", "elbow", "wrist"))])
         self.hand_body = T([[bid(p + "left_wrist_yaw_link"), bid(p + "right_wrist_yaw_link")] for p in prefixes])
         assert self.hand_body.min() >= 0, "hand bodies missing"
-        self.shove_offset = T([next((v - spec["default_pose"][i] for k, v in STYLE_POSES[cfg.get("style_pose", "shove")].items() if k in j), 0.0)
-                               for i, j in enumerate(self.joints)], torch.float32)
-        self.default_pose = T(spec["default_pose"], torch.float32)
+        # Per-robot body data, (A, 29) / (A,) and repeated per row (M, ...): a mixed scene (cross-body training) holds
+        # robots of different bodies, each with its own standing pose, ranges and heights. Same-body scenes are unchanged.
+        self.bodies = scene_bodies(os.path.join(ASSETS, cfg["scene"]), prefixes)
+        specs = {b: spec if b == ROBOT else json.load(open(os.path.join(os.path.dirname(ASSETS), b, "joint_map.json"))) for b in set(self.bodies)}
+        dp = np.array([specs[b]["default_pose"] for b in self.bodies]); rows = lambda x: x.repeat(N, *([1] * (x.dim() - 1)))
+        style = STYLE_POSES[cfg.get("style_pose", "shove")]
+        self.shove_offset = rows(T([[next((v - dp[a][i] for k, v in style.items() if k in j), 0.0) for i, j in enumerate(self.joints)] for a in range(A)], torch.float32))
+        self.default_pose = rows(T(dp, torch.float32))
         self.key_qpos = T(mjm.key_qpos[0], torch.float32); self.key_ctrl = T(mjm.key_ctrl[0], torch.float32)
-        self.key_root_z = float(spec["key_root_z"])
-        self.jnt_lo = T(mjm.jnt_range[js[0], 0], torch.float32); self.jnt_hi = T(mjm.jnt_range[js[0], 1], torch.float32)
-        self.ctrl_lo = T(mjm.actuator_ctrlrange[aid[0], 0], torch.float32); self.ctrl_hi = T(mjm.actuator_ctrlrange[aid[0], 1], torch.float32)
-        f0 = int(self.feet_body[0, 0]); self.foot_rest_z = float(mjd.xpos[f0][2] - (0.0 if not self.arena else float(terrain_height(torch.tensor(mjd.xpos[f0][:2], dtype=torch.float32), True))))
+        self.key_root_z = T([float(specs[b]["key_root_z"]) for b in self.bodies], torch.float32)
+        self.jnt_lo_a = T(mjm.jnt_range[js, 0], torch.float32); self.jnt_hi_a = T(mjm.jnt_range[js, 1], torch.float32)      # (A, 29), for resets
+        self.jnt_lo, self.jnt_hi = rows(self.jnt_lo_a), rows(self.jnt_hi_a)
+        self.ctrl_lo = rows(T(mjm.actuator_ctrlrange[aid, 0], torch.float32)); self.ctrl_hi = rows(T(mjm.actuator_ctrlrange[aid, 1], torch.float32))
+        rest = lambda f: float(mjd.xpos[f][2] - (0.0 if not self.arena else float(terrain_height(torch.tensor(mjd.xpos[f][:2], dtype=torch.float32), True))))
+        self.foot_rest_z = rows(T([rest(int(self.feet_body[a, 0])) for a in range(A)], torch.float32))[:, None]
 
         # ---- zero-copy torch views ----
         self.qpos = wp.to_torch(self.d.qpos); self.qvel = wp.to_torch(self.d.qvel); self.ctrl = wp.to_torch(self.d.ctrl)
@@ -501,7 +536,7 @@ class KothEnv:
         n = len(ids); A = self.A; rn = self.cfg["reset_noise"]; rows = self._rows(ids)
         q = self.key_qpos.expand(n, -1).clone(); v = torch.zeros(n, self.qvel.shape[1], device=self.device)
         jq = q[:, self.qadr] + (torch.rand(n, A, 29, device=self.device) * 2 - 1) * rn["joint_pos"]
-        q[:, self.qadr] = torch.clamp(jq, self.jnt_lo, self.jnt_hi)
+        q[:, self.qadr] = torch.clamp(jq, self.jnt_lo_a, self.jnt_hi_a)
         v[:, self.dadr] = (torch.rand(n, A, 29, device=self.device) * 2 - 1) * rn["joint_vel"]
         yaw = self._rand((n, A), -rn["yaw"], rn["yaw"])
         xy = self._spawn_xy(n)
@@ -512,7 +547,7 @@ class KothEnv:
         q[:, self.rq + 3] = torch.cos(yaw / 2); q[:, self.rq + 4] = 0; q[:, self.rq + 5] = 0; q[:, self.rq + 6] = torch.sin(yaw / 2)
         q[:, self.box_qcols] = self.box_qpark                   # park the pool
         self.qpos[ids] = q; self.qvel[ids] = v; self.box_life[ids] = 0
-        self.ctrl[ids] = self.key_ctrl; self.pending_ctrl[rows] = self.key_ctrl[self.aid[0]]
+        self.ctrl[ids] = self.key_ctrl; self.pending_ctrl[rows] = self.key_ctrl[self.aid].repeat(n, 1)
         self.last_action[rows] = 0; self.act_f[rows] = 0; self.pose_offset[rows] = 0; self.phase[rows] = 0; self.yaw_target[rows] = yaw.reshape(-1)
         self.feet_air_time[rows] = 0; self.feet_contact[rows] = True
         self.out[rows] = False; self.stale_t[rows] = 0; self.push_out_sum[rows] = 0; self.fatigue[rows] = 0
@@ -607,10 +642,13 @@ class KothEnv:
         if self.cfg["shove"] or (self.frozen is not None and self.frozen.any_shove):
             self.style[:] = self.cfg["shove"]
             if self.frozen is not None: self.style[self.orows] = self.frozen.shoves[self.frozen.choice]
-            self.act_f = torch.where(self.style[:, None], SHOVE_SMOOTH * self.act_f + (1 - SHOVE_SMOOTH) * self.action, self.action)
+            ramp_it = self.cfg.get("style_ramp_iters", 0)
+            ramp = min(1.0, self.common_step / 24 / ramp_it) if ramp_it else 1.0      # 24 env steps per PPO iteration
+            k = SHOVE_SMOOTH * ramp
+            self.act_f = torch.where(self.style[:, None], k * self.act_f + (1 - k) * self.action, self.action)
             act = self.act_f
             p = self._root()[0]; dist = (self._opp(p)[:, :2] - p[:, :2]).norm(dim=1)
-            self.pose_offset = (((SHOVE_FAR - dist) / (SHOVE_FAR - SHOVE_NEAR)).clamp(0, 1) * self.style.float())[:, None] * self.shove_offset
+            self.pose_offset = (((SHOVE_FAR - dist) / (SHOVE_FAR - SHOVE_NEAR)).clamp(0, 1) * self.style.float() * ramp)[:, None] * self.shove_offset
         target = torch.clamp(self.default_pose + self.pose_offset + self.action_scale * act, self.ctrl_lo, self.ctrl_hi)
         if A > 2: target = torch.where(self.out[:, None], 0.0, target)   # eliminated: limp, as Unity's paused runner (ctrl 0)
         # one-step actuation latency on a random subset of robots (DR)

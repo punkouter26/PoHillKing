@@ -239,16 +239,19 @@ namespace PoKingHill.EditorTools
             // A human is offered only when this scene has its body (koth_6p: Kim e_, Trump f_) and a brain of theirs exists:
             // the fighting brain (Models/<body>/fighter_policy.onnx, 112 inputs) when exported, else the walker that
             // walks at the nearest opponent. vmax: the walking speed the fighter was trained with (Trump's style: 0.7).
-            // style: a brain trained with a styled action path (Models/<body>/<style>_policy.onnx, env.py style_pose),
-            // preferred over the plain fighter when it exists. Trump's is "bull": torso forward, arms back, knees low.
+            // The newest brain of a human that exists wins: ffa (four-way, 121 inputs, trained against G1), the styled
+            // brain (style), xg1 (duels against G1), fighter, walker. A brain trained with a styled action path
+            // (env.py style_pose) has <file>_style.txt beside it naming the pose; the style brain itself is styled.
             Fighter Human(string body, string name, string badge, float fighterVmax, string style = null)
             {
                 Unity.InferenceEngine.ModelAsset Own(string file) => AssetDatabase.LoadAssetAtPath<Unity.InferenceEngine.ModelAsset>($"{ModelsOf(body)}/{file}.onnx");
-                string file = style != null && Own(style + "_policy") != null ? style : Own("fighter_policy") != null ? "fighter" : "walker";
+                string file = new[] { "ffa", style, "xg1", "fighter", "walker" }.FirstOrDefault(f => f != null && Own(f + "_policy") != null) ?? "walker";
+                var sidecar = AssetDatabase.LoadAssetAtPath<TextAsset>($"{ModelsOf(body)}/{file}_style.txt");
+                string pose = sidecar != null ? sidecar.text.Trim() : file == style ? style : null;
                 var policy = Own(file + "_policy"); bool fights = file != "walker", hasBody = runners.Any(r => r.body == body);
                 return new Fighter { name = name, shortName = badge, body = body, policy = policy, obsDim = policy != null ? InputsOf(policy) : 103, goal = GoalMode.Opponent, stopDist = 0f,
                                      vmax = fights ? fighterVmax : 0.8f, available = policy != null && hasBody, inGame = policy != null && hasBody,
-                                     shove = file == style, stylePose = file == style ? style : "shove", value = Own(file + "_value"),
+                                     shove = pose != null, stylePose = pose ?? "shove", value = Own(file + "_value"),
                                      note = !hasBody ? $"no {badge} body in this scene" : policy == null ? "no brain yet" : fights ? "" : "walks at you, never trained to fight" };
             }
             roster.Add(Human("kim", "Kim", "Kim", 1f));
@@ -380,21 +383,29 @@ namespace PoKingHill.EditorTools
             EditorApplication.EnterPlaymode();
         }
 
-        const string GateFfaScene = SceneDir + "/Gate_ffa_4p.unity";
+        const string GateFfaScene = SceneDir + "/Gate_ffa_4p.unity", GateFfaMixedScene = SceneDir + "/Gate_ffa_6p.unity";
 
         /// <summary>Free-for-all statistics gate: the candidate (-kothCandidate short name, default the Free-for-all brain,
         /// else the All-rounder) on body A against three opponents drawn every round from the pool eval.py --rung r5ffa uses
         /// (All-rounder twice, Duelist, Rammer, standing Walker), four G1 bodies, no sea, 20 s bell, -kothRounds N (default
         /// 200). Writes training/assets/g1/ffa_stats_unity.json: share of rounds the candidate is last one in / out first /
         /// undecided, to compare with eval.py's learner_last_one_in / learner_out / undecided.</summary>
-        public static void RunFfaStats()
+        public static void RunFfaStats() => RunFfaStats(Cli.Arg("-kothCandidate", ""));
+
+        /// <summary>The free-for-all gate for any candidate (roster badge; "" = the G1 Free-for-all brain, else the
+        /// All-rounder). A human candidate (Kim, Trump) plays in the six-body scene (koth_6p, Gate_ffa_6p.unity) against
+        /// three G1 drawn from the same pool, the other human body parked: the Python reference is eval.py --rung
+        /// &lt;body&gt;_ffa with that pool. Writes training/assets/&lt;candidate body&gt;/ffa_stats_unity.json.</summary>
+        public static void RunFfaStats(string candidate)
         {
-            BuildDuelDemo("koth_4p", GateFfaScene);
-            EditorSceneManager.OpenScene(GateFfaScene, OpenSceneMode.Single);
+            bool human = candidate == "Kim" || candidate == "Trump";
+            string gate = human ? GateFfaMixedScene : GateFfaScene;
+            BuildDuelDemo(human ? "koth_6p" : "koth_4p", gate);
+            EditorSceneManager.OpenScene(gate, OpenSceneMode.Single);
             foreach (var sea in UnityEngine.Object.FindObjectsByType<Sea>(FindObjectsInactive.Include)) UnityEngine.Object.DestroyImmediate(sea);
             var dd = UnityEngine.Object.FindAnyObjectByType<DemoDirector>(); dd.sea = null; dd.roundSeconds = 20f;
             int Find(string badge) => Array.FindIndex(dd.roster, f => f.Badge == badge && f.available);
-            string want = Cli.Arg("-kothCandidate", Find("Free-for-all") >= 0 ? "Free-for-all" : "All-rounder");
+            string want = candidate != "" ? candidate : Find("Free-for-all") >= 0 ? "Free-for-all" : "All-rounder";
             dd.statsCandidate = Find(want);
             if (dd.statsCandidate < 0) { Debug.LogError("[ParityBatch] no available roster agent named " + want); if (Cli.Exit) EditorApplication.Exit(3); return; }
             dd.statsPool = new[] { Find("All-rounder"), Find("All-rounder"), Find("Duelist"), Find("Rammer"), Find("Walker") }.Where(i => i >= 0).ToArray();
