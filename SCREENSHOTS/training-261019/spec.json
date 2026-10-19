@@ -9,15 +9,52 @@
         "child": "He stays up after 94 % of kicks scaled to his weight and walks within 0.11 m/s of the speed he is asked for; he always reaches his opponent.",
         "adult": "Kim's recipe b (equal-impulse kicks x0.33, 300-iteration disturbance curriculum, halved pose penalties, swing 0.10 m) with tracking_lin_vel 1.5 from the start. 600 + 1000 iterations at 4096 envs, 132 min."
       },
-      "runs": [{"label": "trump_r0b (stand)", "dir": "trump_r0b/trump_r0b"}, {"label": "trump_r1b (walk)", "dir": "trump_r1b/trump_r1b"}],
+      "runs": [
+        {
+          "label": "trump_r0b (stand)",
+          "dir": "trump_r0b/trump_r0b"
+        },
+        {
+          "label": "trump_r1b (walk)",
+          "dir": "trump_r1b/trump_r1b"
+        }
+      ],
       "metrics": [
-        {"tag": "Train/mean_episode_length", "label": "Episode length (s)", "scale": 0.02},
-        {"tag": "rew/tracking_lin_vel", "label": "Speed tracking reward per step", "scale": 1.0},
-        {"tag": "ep/fallen", "label": "Falls per step", "scale": 1.0}
+        {
+          "tag": "Train/mean_episode_length",
+          "label": "Episode length (s)",
+          "scale": 0.02
+        },
+        {
+          "tag": "rew/tracking_lin_vel",
+          "label": "Speed tracking reward per step",
+          "scale": 1.0
+        },
+        {
+          "tag": "ep/fallen",
+          "label": "Falls per step",
+          "scale": 1.0
+        }
       ],
       "evals": [
-        {"label": "trump_r0b", "values": {"Kicks survived (his impulse)": "93.6 %", "Kicks survived (G1's 2 m/s)": "36 %", "Bar": ">= 90 %", "Verdict": "pass"}},
-        {"label": "trump_r1b", "values": {"Kicks survived (his impulse)": "96.5 %", "Speed error": "0.107 m/s (bar 0.15)", "Meets opponent (R3)": "100 %", "Verdict": "pass"}}
+        {
+          "label": "trump_r0b",
+          "values": {
+            "Kicks survived (his impulse)": "93.6 %",
+            "Kicks survived (G1's 2 m/s)": "36 %",
+            "Bar": ">= 90 %",
+            "Verdict": "pass"
+          }
+        },
+        {
+          "label": "trump_r1b",
+          "values": {
+            "Kicks survived (his impulse)": "96.5 %",
+            "Speed error": "0.107 m/s (bar 0.15)",
+            "Meets opponent (R3)": "100 %",
+            "Verdict": "pass"
+          }
+        }
       ],
       "verdict": "Shipped: Models/trump/walker_policy.onnx."
     },
@@ -28,20 +65,87 @@
         "child": "fight1 pushes a standing Trump off 97.5 % of the time. A chest-only reward and a leaning 'bull charge' (switched on at once, then eased in) all made him weaker or made him avoid contact.",
         "adult": "fight1 = r4att (400 it) then trump_r4bull (300 it): belly_push 4, arm_contact -1, push_out 1, vmax 0.7. fight2 = belly_push 8, arm_contact -4, push_out 0. bull1/bull2 = styled action path with obs.BULL_POSE (torso 0.3 rad forward, arms back), bull2 with style_ramp_iters 300."
       },
-      "runs": [{"label": "fight1", "dir": "trump_r4bull/trump_fight1"}, {"label": "fight2", "dir": "trump_r4bull/trump_fight2"},
-               {"label": "bull1", "dir": "trump_bull/trump_bull1"}, {"label": "bull2", "dir": "trump_bull/trump_bull2"}],
+      "runs": [
+        {
+          "label": "fight1",
+          "dir": "trump_r4bull/trump_fight1"
+        },
+        {
+          "label": "fight2",
+          "dir": "trump_r4bull/trump_fight2"
+        },
+        {
+          "label": "bull1",
+          "dir": "trump_bull/trump_bull1"
+        },
+        {
+          "label": "bull2",
+          "dir": "trump_bull/trump_bull2"
+        }
+      ],
       "baseline": "fight1",
       "metrics": [
-        {"tag": "rew/win", "label": "Win reward per step", "scale": 1.0},
-        {"tag": "rew/belly_push", "label": "Belly-push reward per step", "scale": 1.0},
-        {"tag": "rew/arm_contact", "label": "Arm-contact penalty per step", "scale": 1.0}
+        {
+          "tag": "rew/win",
+          "label": "Win reward per step",
+          "scale": 1.0
+        },
+        {
+          "tag": "rew/belly_push",
+          "label": "Belly-push reward per step",
+          "scale": 1.0
+        },
+        {
+          "tag": "rew/arm_contact",
+          "label": "Arm-contact penalty per step",
+          "scale": 1.0
+        }
       ],
       "evals": [
-        {"label": "fight1", "values": {"vs standing Trump": "97.5 % wins", "vs fight1": "43 / 44 % (mirror)", "Trunk / arm contact": "33 / 9 %", "Verdict": "shipped"}},
-        {"label": "fight2", "values": {"vs standing Trump": "68 %", "vs fight1": "35 % wins", "Trunk / arm contact": "20 / 19 %", "Verdict": "rejected"}},
-        {"label": "bull1", "values": {"vs standing Trump": "11 % (77 % undecided)", "vs fight1": "9 % wins", "Trunk / arm contact": "1 / 2 %", "Verdict": "rejected"}},
-        {"label": "bull2 (eased in)", "values": {"vs standing Trump": "13 % (71 % undecided)", "vs fight1": "6 % wins", "Trunk / arm contact": "14 / 11 %", "Verdict": "rejected"}},
-        {"label": "Unity duel gate (fight1 vs itself)", "values": {"vs standing Trump": "decided 95 %, median 6.83 s", "vs fight1": "Python 95 %, 6.90 s", "Verdict": "pass"}}
+        {
+          "label": "fight1",
+          "values": {
+            "vs standing Trump": "97.5 % wins",
+            "vs fight1": "43 / 44 % (mirror)",
+            "Trunk / arm contact": "33 / 9 %",
+            "Verdict": "shipped"
+          }
+        },
+        {
+          "label": "fight2",
+          "values": {
+            "vs standing Trump": "68 %",
+            "vs fight1": "35 % wins",
+            "Trunk / arm contact": "20 / 19 %",
+            "Verdict": "rejected"
+          }
+        },
+        {
+          "label": "bull1",
+          "values": {
+            "vs standing Trump": "11 % (77 % undecided)",
+            "vs fight1": "9 % wins",
+            "Trunk / arm contact": "1 / 2 %",
+            "Verdict": "rejected"
+          }
+        },
+        {
+          "label": "bull2 (eased in)",
+          "values": {
+            "vs standing Trump": "13 % (71 % undecided)",
+            "vs fight1": "6 % wins",
+            "Trunk / arm contact": "14 / 11 %",
+            "Verdict": "rejected"
+          }
+        },
+        {
+          "label": "Unity duel gate (fight1 vs itself)",
+          "values": {
+            "vs standing Trump": "decided 95 %, median 6.83 s",
+            "vs fight1": "Python 95 %, 6.90 s",
+            "Verdict": "pass"
+          }
+        }
       ],
       "verdict": "Shipped: fight1 (Models/trump/fighter_policy.onnx). His style is his body: heaviest fighter, slowest walk (0.7 m/s), pushes with his trunk."
     },
@@ -52,16 +156,51 @@
         "child": "In four-way rounds it wins as often as before (51.5 % vs 51 % in Unity), but it wins duels 88 % of the time instead of 79 %, and it wins faster.",
         "adult": "r5ffa, 500 iterations warm from ffa2, pool ffa2 x2, ffa1, careful1, gen7, standing walker; 1536 envs, 2 h 37."
       },
-      "runs": [{"label": "ffa2", "dir": "r5ffa/ffa2"}, {"label": "ffa3", "dir": "r5ffa/ffa3"}],
+      "runs": [
+        {
+          "label": "ffa2",
+          "dir": "r5ffa/ffa2"
+        },
+        {
+          "label": "ffa3",
+          "dir": "r5ffa/ffa3"
+        }
+      ],
       "baseline": "ffa2",
       "metrics": [
-        {"tag": "rew/win", "label": "Win reward per step", "scale": 1.0},
-        {"tag": "ep/fallen", "label": "Falls per step", "scale": 1.0},
-        {"tag": "Train/mean_reward", "label": "Mean episode reward", "scale": 1.0}
+        {
+          "tag": "rew/win",
+          "label": "Win reward per step",
+          "scale": 1.0
+        },
+        {
+          "tag": "ep/fallen",
+          "label": "Falls per step",
+          "scale": 1.0
+        },
+        {
+          "tag": "Train/mean_reward",
+          "label": "Mean episode reward",
+          "scale": 1.0
+        }
       ],
       "evals": [
-        {"label": "ffa2", "values": {"vs pool3 (Python)": "33.9 % last one in", "Two-fighter": "79.2 % wins", "Unity gate (new spawns)": "51 / 42 / 7 %, 8.1 s"}},
-        {"label": "ffa3", "values": {"vs pool3 (Python)": "35.7 % last one in", "Two-fighter": "87.8 % wins", "Unity gate (new spawns)": "51.5 / 40.5 / 8 %, 7.2 s"}}
+        {
+          "label": "ffa2",
+          "values": {
+            "vs pool3 (Python)": "33.9 % last one in",
+            "Two-fighter": "79.2 % wins",
+            "Unity gate (new spawns)": "51 / 42 / 7 %, 8.1 s"
+          }
+        },
+        {
+          "label": "ffa3",
+          "values": {
+            "vs pool3 (Python)": "35.7 % last one in",
+            "Two-fighter": "87.8 % wins",
+            "Unity gate (new spawns)": "51.5 / 40.5 / 8 %, 7.2 s"
+          }
+        }
       ],
       "verdict": "Shipped: Models/ffa_policy.onnx = ffa3."
     },
@@ -69,25 +208,106 @@
       "title": "Cross-body training: Trump and Kim against G1",
       "summary": {
         "toddler": "Trump and Kim had only ever practised against copies of themselves. Practising against the robots has not worked yet.",
-        "child": "Against the G1 robots their brains win about a third of duels. The first try trained against robots that fell over by themselves; the second learned to stall.",
-        "adult": "Mixed scenes (build_mjcf mix), per-robot body data in the env. xg1: stochastic frozen G1 (rebuilt actors std 0.3), no critic warm-up. xg2: deterministic G1, critic warm-up 20; draw = loss = -10. v3: standing-G1 attacker stage, then the league, draw -20 (results below when finished)."
+        "child": "Against the G1 robots their brains win about a third of duels. Three ways of practising against them all made them worse: robots falling over by themselves, stalling, and a league stage they could not win.",
+        "adult": "Mixed scenes (build_mjcf mix), per-robot body data in the env. xg1: stochastic frozen G1 (rebuilt actors std 0.3), no critic warm-up. xg2: deterministic G1, critic warm-up 20; draw = loss = -10. v3: standing-G1 attacker stage, then the league, draw -20: attacker stage works (97.5 / 88 %), league stage drifts below the start."
       },
-      "runs": [{"label": "trump_xg1", "dir": "trump_vs_g1/trump_xg1"}, {"label": "trump_xg2", "dir": "trump_vs_g1/trump_xg2"},
-               {"label": "kim_xg1", "dir": "kim_vs_g1/kim_xg1"}, {"label": "kim_xg2", "dir": "kim_vs_g1/kim_xg2"}],
+      "runs": [
+        {
+          "label": "trump_xg1",
+          "dir": "trump_vs_g1/trump_xg1"
+        },
+        {
+          "label": "trump_xg2",
+          "dir": "trump_vs_g1/trump_xg2"
+        },
+        {
+          "label": "kim_xg1",
+          "dir": "kim_vs_g1/kim_xg1"
+        },
+        {
+          "label": "kim_xg2",
+          "dir": "kim_vs_g1/kim_xg2"
+        },
+        {
+          "label": "trump_xg3",
+          "dir": "trump_vs_g1/trump_xg3"
+        },
+        {
+          "label": "kim_xg3",
+          "dir": "kim_vs_g1/kim_xg3"
+        }
+      ],
       "metrics": [
-        {"tag": "rew/win", "label": "Win reward per step", "scale": 1.0},
-        {"tag": "rew/draw", "label": "Draw penalty per step", "scale": 1.0},
-        {"tag": "ep/decided", "label": "Decided share", "scale": 1.0}
+        {
+          "tag": "rew/win",
+          "label": "Win reward per step",
+          "scale": 1.0
+        },
+        {
+          "tag": "rew/draw",
+          "label": "Draw penalty per step",
+          "scale": 1.0
+        },
+        {
+          "tag": "ep/decided",
+          "label": "Decided share",
+          "scale": 1.0
+        }
       ],
       "evals": [
-        {"label": "Trump fight1 (start)", "values": {"vs G1 league (win / loss / undecided)": "32 / 59 / 9 %"}},
-        {"label": "trump_xg1", "values": {"vs G1 league (win / loss / undecided)": "10 / 69 / 21 %", "vs noisy G1": "64 % (fight1 84 %)"}},
-        {"label": "trump_xg2", "values": {"vs G1 league (win / loss / undecided)": "6 / 29 / 65 % (stalls)"}},
-        {"label": "Kim fight1 (start)", "values": {"vs G1 league (win / loss / undecided)": "32 / 63 / 5 %"}},
-        {"label": "kim_xg1", "values": {"vs G1 league (win / loss / undecided)": "19 / 80 / 1 %"}},
-        {"label": "kim_xg2", "values": {"vs G1 league (win / loss / undecided)": "20 / 53 / 27 %"}}
+        {
+          "label": "Trump fight1 (start)",
+          "values": {
+            "vs G1 league (win / loss / undecided)": "32 / 59 / 9 %"
+          }
+        },
+        {
+          "label": "trump_xg1",
+          "values": {
+            "vs G1 league (win / loss / undecided)": "10 / 69 / 21 %",
+            "vs noisy G1": "64 % (fight1 84 %)"
+          }
+        },
+        {
+          "label": "trump_xg2",
+          "values": {
+            "vs G1 league (win / loss / undecided)": "6 / 29 / 65 % (stalls)"
+          }
+        },
+        {
+          "label": "Kim fight1 (start)",
+          "values": {
+            "vs G1 league (win / loss / undecided)": "32 / 63 / 5 %"
+          }
+        },
+        {
+          "label": "kim_xg1",
+          "values": {
+            "vs G1 league (win / loss / undecided)": "19 / 80 / 1 %"
+          }
+        },
+        {
+          "label": "kim_xg2",
+          "values": {
+            "vs G1 league (win / loss / undecided)": "20 / 53 / 27 %"
+          }
+        },
+        {
+          "label": "trump_att3 / xg3 (v3)",
+          "values": {
+            "vs G1 league (win / loss / undecided)": "21 / 71 / 8 %",
+            "vs standing G1 (attacker stage)": "97.5 %"
+          }
+        },
+        {
+          "label": "kim_att3 / xg3 (v3)",
+          "values": {
+            "vs G1 league (win / loss / undecided)": "15 / 76 / 8 %",
+            "vs standing G1 (attacker stage)": "88 %"
+          }
+        }
       ],
-      "verdict": "Nothing shipped yet."
+      "verdict": "Nothing shipped; cross-body training is parked (Trump and Kim keep fight1)."
     }
   ]
 }
