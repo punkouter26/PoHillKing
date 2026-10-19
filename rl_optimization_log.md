@@ -347,3 +347,11 @@ No `training/runs` on this machine, so the shipped brains were rebuilt from thei
 
 - **Unity free-for-all gate under the new spawn spacing** (neighbours >= 0.9 m apart; ffa2's earlier 47.5 % used 0.5 m): ffa2 51 / 42 / 7 %, median win 8.1 s; ffa3 51.5 / 40.5 / 8 %, median 7.2 s. Equal in four-way play, better in duels: `Models/ffa_policy.onnx` = ffa3.
 - **Cross-body training.** Every brain so far fought only its own body; in mixed scenes Trump's fighter beats the G1 league (careful1 x2, gen7, gen1) 31 % and loses 61 %, Kim's 34 / 60 %. `python -m koth.build_mjcf mix <body> <body> ...` builds mixed scenes (G1 base, humans swapped in at the same place and collision bit) into assets/g1; the env reads each robot's body from the scene's dump and keeps default pose, joint and control ranges, standing height, foot height and style offsets per robot (same-body scenes unchanged). Rungs `<body>_vs_<other>` (duel, frozen opponent of another body) and `<body>_ffa` (a human against three G1, 121 inputs). Unity: `RunFfaStats("Trump"|"Kim")` runs the free-for-all gate in koth_6p; the roster takes a human's newest brain (ffa, xg1, fighter, walker; `<file>_style.txt` names a styled pose).
+- **Cross-body duels, first two tries (both rejected).** Eval against the G1 league (careful1 x2, gen7, gen1, deterministic), win / loss / undecided; starting brains: Trump fight1 32 / 59 / 9 %, Kim fight1 32 / 63 / 5 %.
+
+  | Run | Recipe | Trump | Kim |
+  |---|---|---|---|
+  | `xg1` (400 it) + `ffa1` (300 it, a human vs three G1) | G1 opponents stochastic (rebuilt actors' std 0.3), no critic warm-up | 10 / 69 / 21; four-way 11 % last one in (fight1 17 %) | 19 / 80 / 1; four-way 4 % (fight1 14 %) |
+  | `xg2` (300 it) | deterministic G1 (`train.py --frozen-deterministic`), critic warm-up 20 | 6 / 29 / 65 (stalls) | 20 / 53 / 27 |
+
+  Why xg1 failed: the rebuilt G1 actors acting with std 0.3 mostly fall on their own (fight1 beats them 84 %, the deterministic ones 29 %), so the humans learned to wait; training reported wins 2.4x losses while eval showed the reverse. xg2 stalled because a draw costs the same as a loss (-10) and a long stall against a stronger opponent avoids both the loss and the effort. Next: v3 (scripts/queue_xb3.sh), a standing-G1 attacker stage first (rung `<body>_att_g1`), then the league with draws at -20.

@@ -43,6 +43,7 @@ def load_policy(env, ckpt):
 def base_rung(rung: str) -> str:
     """kim_r0b -> r0, trump_r4bull -> r4league, trump_vs_g1 -> r4league, kim_ffa -> r5ffa: the bar a rung is judged on."""
     if "_vs_" in rung: return "r4league"
+    if "_att_" in rung: return "r4att"
     body, _, rest = rung.partition("_")
     if body not in HUMANS: return rung
     if rest == "ffa": return "r5ffa"
@@ -155,7 +156,7 @@ def eval_cfg(rung, shove=False, rim_brake=None, slope=False, opponent=None, leg_
     cfg["shove"] = shove; cfg["style_ramp_iters"] = 0          # judged with the full style
     if style_pose: cfg["style_pose"] = style_pose
     if duel or base in FFA_RUNGS: cfg["max_radius"] = OUT_RADIUS
-    if rung in ("r4probe", "r4att"): cfg["spawn"].update(r=[[0.0, 0.5], [1.25, 1.35]])
+    if base in ("r4probe", "r4att"): cfg["spawn"].update(r=[[0.0, 0.5], [1.25, 1.35]])
     if rim_brake: cfg["goal_cmd"]["rim_brake"] = tuple(rim_brake)
     if rung == "r2" and slope: cfg["spawn"].update(r=[0.0, 2.6])
     if opponent: cfg["frozen_opponent"] = list(opponent)

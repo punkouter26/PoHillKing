@@ -138,6 +138,7 @@ def main():
     ap.add_argument("--push-out-cap", type=float, default=None, help="at most this much push_out reward per episode")
     ap.add_argument("--fatigue", choices=["off", "on", "obs"], default="off", help="actuator fatigue model (obs: also append the 29 fatigue states)")
     ap.add_argument("--combat2", action="store_true", help="append the second-nearest-opponent combat block (121 inputs)")
+    ap.add_argument("--frozen-deterministic", action="store_true", help="frozen opponents act on their mean action, as in eval and Unity (rebuilt ONNX brains carry an arbitrary std 0.3: cross-body runs learned to wait for noisy G1 to fall)")
     ap.add_argument("--style-pose", default=None, help="the learner fights with this styled action path (bull: Trump's charge), e.g. to continue a styled brain on another rung")
     ap.add_argument("--graduate-reward", type=float, default=None, help="export to Unity if the last-100-episode mean reward reaches this")
     ap.add_argument("--export-name", default=None, help="Unity policy name for a graduated export (default: the run name)")
@@ -153,7 +154,7 @@ def main():
     if a.fatigue != "off": cfg["fatigue"].update(enabled=True, obs=a.fatigue == "obs")
     if a.combat2: cfg["combat2"] = True
     if a.style_pose: cfg.update(shove=True, style_pose=a.style_pose)
-    if a.opponent: cfg["frozen_opponent"] = list(a.opponent); cfg["frozen_stochastic"] = True
+    if a.opponent: cfg["frozen_opponent"] = list(a.opponent); cfg["frozen_stochastic"] = not a.frozen_deterministic
     if a.rim_brake: cfg["goal_cmd"]["rim_brake"] = tuple(a.rim_brake)
     for kv in a.reward:
         k, v = kv.split("="); assert k in cfg["reward"], k; cfg["reward"][k] = float(v)
