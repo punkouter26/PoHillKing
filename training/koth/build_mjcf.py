@@ -5,7 +5,8 @@ Outputs (all under training/assets/):
   g1/scene_flat_1p.xml         one G1 on a plane + projectile pool          (R0/R1 training)
   g1/scene_koth_2p.xml         two G1 on the dome arena + projectile pool   (R2+ training)
   g1/scene_koth_4p.xml         four G1 on the arena (Unity free-for-all only; `python -m koth.build_mjcf 4p`)
-  g1/scene_koth_5p.xml         four G1 (a_..d_) and Kim (e_) on the arena: the game scene (`python -m koth.build_mjcf 5p`)
+  g1/scene_koth_5p.xml         four G1 (a_..d_) and Kim (e_) on the arena (`python -m koth.build_mjcf 5p`)
+  g1/scene_koth_6p.xml         four G1, Kim (e_) and Trump (f_): the game scene (`python -m koth.build_mjcf 6p`)
   g1/scene_*_train.xml         MuJoCo-resolved canonical model + keyframe (what training loads)
   g1/scene_*_unity.xml         same text minus keyframe/sensor (what the Unity importer loads)
   g1/model_dump_<tag>.json     parity reference per scene (nq/nv/nu, masses, ranges, gains, options)
@@ -13,7 +14,7 @@ Outputs (all under training/assets/):
 
 Design constraints (from the org.mujoco 3.15 plugin audit): no <contact><pair>, no keyframes, no sensors,
 timestep/gravity come from Unity settings, no ls_iterations/eulerdamp knobs -> implicitfast + MuJoCo defaults.
-Collision bitmasks:  1=robot A  2=robot B  4=arena  8=box  16=foot/shin extra  32=robot C  64=robot D  128=Kim (e_)
+Collision bitmasks:  1=robot A  2=robot B  4=arena  8=box  16=foot/shin extra  32=robot C  64=robot D  128=Kim (e_)  256=Trump (f_)
 """
 from __future__ import annotations
 import copy, json, os, struct, xml.etree.ElementTree as ET
@@ -21,7 +22,7 @@ import numpy as np
 import mujoco
 
 HERE = os.path.dirname(os.path.abspath(__file__))
-ROBOT = os.environ.get("KOTH_ROBOT", "g1")          # which fighter's body to build: g1 (default) or kim
+ROBOT = os.environ.get("KOTH_ROBOT", "g1")          # which fighter's body to build: g1 (default), kim or trump
 ASSETS = os.path.normpath(os.path.join(HERE, "..", "assets", ROBOT))
 SRC = os.path.join(ASSETS, f"{ROBOT}_mjx.xml")
 UNITY_MODELS = os.path.normpath(os.path.join(HERE, "..", "..", "Assets", "PoKingHill", "Models", *([] if ROBOT == "g1" else [ROBOT])))
@@ -64,8 +65,14 @@ PD_GAINS = {"g1": (0, 0), "hip": (200, 5), "knee": (300, 5), "ankle": (60, 3), "
             "shoulder": (60, 3), "elbow": (60, 3), "wrist": (40, 2)}
 
 
-if ROBOT == "kim":       # same 29 joints, her own pose, gains and height (koth/build_kim.py)
-    from koth.build_kim import DEFAULT_POSE, PD_GAINS, SPAWN_Z
+def human(robot: str):
+    """Profile module of a human body (koth/build_kim.py, koth/build_trump.py): same 29 joints, own pose, gains, height."""
+    import importlib
+    return importlib.import_module(f"koth.build_{robot}")
+
+
+if ROBOT != "g1":
+    DEFAULT_POSE, PD_GAINS, SPAWN_Z = human(ROBOT).DEFAULT_POSE, human(ROBOT).PD_GAINS, human(ROBOT).SPAWN_Z
 
 
 def apply_pd_gains(default: ET.Element) -> ET.Element:
@@ -325,25 +332,35 @@ def build(two_player: bool, arena: bool | None = None, players: int | None = Non
     return finish(scene, tag, PREFIXES[:n])
 
 
-def build_mixed():
-    """The game scene: four G1 and Kim on the arena. Kim's body comes from assets/kim/kim_mjx.xml with her own
-    default classes and gains; nothing here is used for training."""
+# Human bodies added to the four G1 for the game scenes: prefix, collision bit, body kind, authoring position (x, y).
+EXTRAS = [("e_", 128, "kim", (0.0, 0.0)), ("f_", 256, "trump", (0.5, 0.5))]
+
+
+def build_mixed(n_extra: int = 1):
+    """A game scene: four G1 and the first n_extra humans of EXTRAS (koth_5p: Kim; koth_6p: Kim and Trump). Each
+    human's body comes from assets/<robot>/<robot>_mjx.xml with its own default classes and gains; nothing here is
+    used for training. Every robot collides with every other one and with the thrown boxes."""
     global PD_GAINS
-    from koth import build_kim
     scene = build_scene(ET.parse(SRC).getroot(), True, True, players=4)
-    kim = ET.parse(os.path.join(build_kim.ASSETS, "kim_mjx.xml")).getroot()
-    g1_gains, PD_GAINS = PD_GAINS, build_kim.PD_GAINS
-    for cls in apply_pd_gains(copy.deepcopy(kim.find("default"))): scene.find("default").append(cls)
-    PD_GAINS = g1_gains
-    # A fifth place on the ring. Her geoms accept every G1 bit, which is enough for the pair to collide.
-    pelvis, acts, excl = make_robot(kim, "e_", 128, (0.0, 0.0, build_kim.SPAWN_Z), (1, 0, 0, 0), others=sum(ROBOT_BITS))
-    wb = scene.find("worldbody"); wb.insert(list(wb).index(wb.find("body[@name='box0']")), pelvis)
-    scene.find("actuator").extend(acts); scene.find("contact").extend(excl)
-    return finish(scene, "koth_5p", PREFIXES + ["e_"], {"e_": build_kim.DEFAULT_POSE}, bodies={"e_": "kim"})
+    extras = EXTRAS[:n_extra]; bits = sum(ROBOT_BITS) + sum(e[1] for e in extras)
+    wb = scene.find("worldbody")
+    for prefix, bit, robot, (x, y) in extras:
+        P = human(robot); src = ET.parse(os.path.join(P.ASSETS, f"{robot}_mjx.xml")).getroot()
+        g1_gains, PD_GAINS = PD_GAINS, P.PD_GAINS
+        for cls in apply_pd_gains(copy.deepcopy(src.find("default"))): scene.find("default").append(cls)
+        PD_GAINS = g1_gains
+        pelvis, acts, excl = make_robot(src, prefix, bit, (x, y, P.SPAWN_Z), (1, 0, 0, 0), others=bits - bit)
+        for g in pelvis.iter("geom"):          # and the boxes (the pool's mask covers the four G1 only)
+            if g.get("conaffinity"): g.set("conaffinity", str(int(g.get("conaffinity")) | 8))
+        wb.insert(list(wb).index(wb.find("body[@name='box0']")), pelvis)
+        scene.find("actuator").extend(acts); scene.find("contact").extend(excl)
+    tag = f"koth_{4 + n_extra}p"
+    return finish(scene, tag, PREFIXES + [e[0] for e in extras], {e[0]: human(e[2]).DEFAULT_POSE for e in extras},
+                  bodies={e[0]: e[2] for e in extras})
 
 
 def finish(scene: ET.Element, tag: str, prefixes: list[str], poses: dict | None = None, bodies: dict | None = None):
-    """bodies: prefix -> body kind ("g1" / "kim") for robots that are not this module's ROBOT (written to the dump)."""
+    """bodies: prefix -> body kind ("g1" / "kim" / "trump") for robots that are not this module's ROBOT (written to the dump)."""
     ET.indent(scene)
     authoring = os.path.join(ASSETS, f"scene_{tag}.xml")
     ET.ElementTree(scene).write(authoring, encoding="unicode")
@@ -382,17 +399,16 @@ def finish(scene: ET.Element, tag: str, prefixes: list[str], poses: dict | None 
 
 if __name__ == "__main__":
     import sys
-    if sys.argv[1:] in (["4p"], ["5p"]):      # a Unity-only scene; leaves every training asset untouched
+    if sys.argv[1:] in (["4p"], ["5p"], ["6p"]):      # a Unity-only scene; leaves every training asset untouched
         import shutil
         tag = "koth_" + sys.argv[1]
-        if tag == "koth_5p": build_mixed()
+        if tag in ("koth_5p", "koth_6p"): build_mixed(int(sys.argv[1][0]) - 4)
         else: build(two_player=True, players=4)
         os.makedirs(UNITY_MODELS, exist_ok=True)
         shutil.copyfile(os.path.join(ASSETS, f"model_dump_{tag}.json"), os.path.join(UNITY_MODELS, f"model_dump_{tag}.json"))
         sys.exit(0)
-    if ROBOT == "kim":
-        from koth.build_kim import build as build_kim_body
-        build_kim_body()
+    if ROBOT != "g1":
+        human(ROBOT).build()
     os.makedirs(os.path.join(ASSETS, "assets"), exist_ok=True)
     print("arena:", write_arena())
     build(two_player=False)

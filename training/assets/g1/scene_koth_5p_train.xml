@@ -982,7 +982,7 @@
     </body>
     <body name="e_pelvis" childclass="kim" pos="0 0 0.78">
       <joint name="e_floating_base_joint" type="free" solreflimit="0.02" solimplimit="0.9 0.95 0.001" damping="0" frictionloss="0" />
-      <geom name="e_pelvis_collision" class="kim_collision" size="0.12 0.02" pos="0 0 -0.0226" quat="0.707107 0.707107 0 0" contype="128" conaffinity="103" condim="3" friction="0.8" mass="6.9832" />
+      <geom name="e_pelvis_collision" class="kim_collision" size="0.12 0.02" pos="0 0 -0.0226" quat="0.707107 0.707107 0 0" contype="128" conaffinity="111" condim="3" friction="0.8" mass="6.9832" />
       <body name="e_left_hip_pitch_link" pos="0 0.07405 -0.0452">
         <inertial pos="0 0 0" mass="0.4" diaginertia="0.00036 0.00036 0.00036" />
         <joint name="e_left_hip_pitch_joint" class="kim_hip_pitch" />
@@ -991,20 +991,20 @@
           <joint name="e_left_hip_roll_joint" class="kim_hip_roll" range="-0.4 0.8" />
           <body name="e_left_hip_yaw_link">
             <joint name="e_left_hip_yaw_joint" class="kim_hip_yaw" />
-            <geom name="e_left_thigh_collision" class="kim_collision" size="0.085 0.113931" pos="0.002175 -0.004225 -0.135549" quat="0.999847 -0.0155776 -0.00801925 0" contype="128" conaffinity="103" condim="3" friction="0.8" mass="7.4768" />
+            <geom name="e_left_thigh_collision" class="kim_collision" size="0.085 0.113931" pos="0.002175 -0.004225 -0.135549" quat="0.999847 -0.0155776 -0.00801925 0" contype="128" conaffinity="111" condim="3" friction="0.8" mass="7.4768" />
             <body name="e_left_knee_link" pos="0.00435 -0.00845 -0.2711">
               <joint name="e_left_knee_joint" class="kim_knee" />
-              <geom name="e_left_shin_collision" class="kim_collision" size="0.05379 0.0848592" pos="-0.002475 -0.00522 -0.101667" quat="0.999597 -0.025641 0.0121574 0" contype="128" conaffinity="119" condim="3" friction="0.8" mass="1.7508" />
-              <geom name="e_left_linkage_brace_collision" class="kim_collision" size="0.03912 0.0594007" pos="-0.00639375 -0.013485 -0.262645" quat="0.999597 -0.0256414 0.0121575 0" contype="128" conaffinity="119" condim="3" friction="0.8" mass="0.94276" />
+              <geom name="e_left_shin_collision" class="kim_collision" size="0.05379 0.0848592" pos="-0.002475 -0.00522 -0.101667" quat="0.999597 -0.025641 0.0121574 0" contype="128" conaffinity="127" condim="3" friction="0.8" mass="1.7508" />
+              <geom name="e_left_linkage_brace_collision" class="kim_collision" size="0.03912 0.0594007" pos="-0.00639375 -0.013485 -0.262645" quat="0.999597 -0.0256414 0.0121575 0" contype="128" conaffinity="127" condim="3" friction="0.8" mass="0.94276" />
               <body name="e_left_ankle_pitch_link" pos="-0.00825 -0.0174 -0.3389">
                 <inertial pos="0 0 0" mass="0.15" diaginertia="0.000135 0.000135 0.000135" />
                 <joint name="e_left_ankle_pitch_joint" class="kim_ankle_pitch" />
                 <body name="e_left_ankle_roll_link">
                   <joint name="e_left_ankle_roll_joint" class="kim_ankle_roll" />
-                  <geom name="e_left_foot_box_collision" class="kim_foot_box" size="0.1341 0.04995 0.012" pos="0.071 0 -0.0859" contype="144" conaffinity="119" condim="3" friction="0.6" mass="0.5124" />
-                  <geom name="e_left_foot1_collision" class="kim_foot_capsule" size="0.012 0.0275" pos="0.1626 -0.034965 -0.0839" quat="0.707107 0 -0.707107 0" contype="144" conaffinity="119" condim="3" friction="0.6" mass="0.02" />
-                  <geom name="e_left_foot3_collision" class="kim_foot_capsule" size="0.012 0.0275" pos="0.1626 0.034965 -0.0839" quat="0.707107 0 -0.707107 0" contype="144" conaffinity="119" condim="3" friction="0.6" mass="0.02" />
-                  <geom name="e_left_foot2_collision" class="kim_foot_capsule" size="0.022 0.1091" pos="0.071 0 -0.0739" quat="0.707107 0 -0.707107 0" contype="144" conaffinity="119" condim="3" friction="0.6" mass="0.02" />
+                  <geom name="e_left_foot_box_collision" class="kim_foot_box" size="0.1341 0.04995 0.012" pos="0.071 0 -0.0859" contype="144" conaffinity="127" condim="3" friction="0.6" mass="0.5124" />
+                  <geom name="e_left_foot1_collision" class="kim_foot_capsule" size="0.012 0.0275" pos="0.1626 -0.034965 -0.0839" quat="0.707107 0 -0.707107 0" contype="144" conaffinity="127" condim="3" friction="0.6" mass="0.02" />
+                  <geom name="e_left_foot3_collision" class="kim_foot_capsule" size="0.012 0.0275" pos="0.1626 0.034965 -0.0839" quat="0.707107 0 -0.707107 0" contype="144" conaffinity="127" condim="3" friction="0.6" mass="0.02" />
+                  <geom name="e_left_foot2_collision" class="kim_foot_capsule" size="0.022 0.1091" pos="0.071 0 -0.0739" quat="0.707107 0 -0.707107 0" contype="144" conaffinity="127" condim="3" friction="0.6" mass="0.02" />
                   <site name="e_left_foot" pos="0.071 0 -0.0979" />
                 </body>
               </body>
@@ -1020,20 +1020,20 @@
           <joint name="e_right_hip_roll_joint" class="kim_hip_roll" range="-0.8 0.4" />
           <body name="e_right_hip_yaw_link">
             <joint name="e_right_hip_yaw_joint" class="kim_hip_yaw" />
-            <geom name="e_right_thigh_collision" class="kim_collision" size="0.085 0.113931" pos="0.002175 0.004225 -0.135549" quat="0.999847 0.0155776 -0.00801925 0" contype="128" conaffinity="103" condim="3" friction="0.8" mass="7.4768" />
+            <geom name="e_right_thigh_collision" class="kim_collision" size="0.085 0.113931" pos="0.002175 0.004225 -0.135549" quat="0.999847 0.0155776 -0.00801925 0" contype="128" conaffinity="111" condim="3" friction="0.8" mass="7.4768" />
             <body name="e_right_knee_link" pos="0.00435 0.00845 -0.2711">
               <joint name="e_right_knee_joint" class="kim_knee" />
-              <geom name="e_right_shin_collision" class="kim_collision" size="0.05379 0.0848592" pos="-0.002475 0.00522 -0.101667" quat="0.999597 0.025641 0.0121574 0" contype="128" conaffinity="119" condim="3" friction="0.8" mass="1.7508" />
-              <geom name="e_right_linkage_brace_collision" class="kim_collision" size="0.03912 0.0594007" pos="-0.00639375 0.013485 -0.262645" quat="0.999597 0.0256414 0.0121575 0" contype="128" conaffinity="119" condim="3" friction="0.8" mass="0.94276" />
+              <geom name="e_right_shin_collision" class="kim_collision" size="0.05379 0.0848592" pos="-0.002475 0.00522 -0.101667" quat="0.999597 0.025641 0.0121574 0" contype="128" conaffinity="127" condim="3" friction="0.8" mass="1.7508" />
+              <geom name="e_right_linkage_brace_collision" class="kim_collision" size="0.03912 0.0594007" pos="-0.00639375 0.013485 -0.262645" quat="0.999597 0.0256414 0.0121575 0" contype="128" conaffinity="127" condim="3" friction="0.8" mass="0.94276" />
               <body name="e_right_ankle_pitch_link" pos="-0.00825 0.0174 -0.3389">
                 <inertial pos="0 0 0" mass="0.15" diaginertia="0.000135 0.000135 0.000135" />
                 <joint name="e_right_ankle_pitch_joint" class="kim_ankle_pitch" />
                 <body name="e_right_ankle_roll_link">
                   <joint name="e_right_ankle_roll_joint" class="kim_ankle_roll" />
-                  <geom name="e_right_foot_box_collision" class="kim_foot_box" size="0.1341 0.04995 0.012" pos="0.071 0 -0.0859" contype="144" conaffinity="119" condim="3" friction="0.6" mass="0.5124" />
-                  <geom name="e_right_foot1_collision" class="kim_foot_capsule" size="0.012 0.0275" pos="0.1626 -0.034965 -0.0839" quat="0.707107 0 -0.707107 0" contype="144" conaffinity="119" condim="3" friction="0.6" mass="0.02" />
-                  <geom name="e_right_foot3_collision" class="kim_foot_capsule" size="0.012 0.0275" pos="0.1626 0.034965 -0.0839" quat="0.707107 0 -0.707107 0" contype="144" conaffinity="119" condim="3" friction="0.6" mass="0.02" />
-                  <geom name="e_right_foot2_collision" class="kim_foot_capsule" size="0.022 0.1091" pos="0.071 0 -0.0739" quat="0.707107 0 -0.707107 0" contype="144" conaffinity="119" condim="3" friction="0.6" mass="0.02" />
+                  <geom name="e_right_foot_box_collision" class="kim_foot_box" size="0.1341 0.04995 0.012" pos="0.071 0 -0.0859" contype="144" conaffinity="127" condim="3" friction="0.6" mass="0.5124" />
+                  <geom name="e_right_foot1_collision" class="kim_foot_capsule" size="0.012 0.0275" pos="0.1626 -0.034965 -0.0839" quat="0.707107 0 -0.707107 0" contype="144" conaffinity="127" condim="3" friction="0.6" mass="0.02" />
+                  <geom name="e_right_foot3_collision" class="kim_foot_capsule" size="0.012 0.0275" pos="0.1626 0.034965 -0.0839" quat="0.707107 0 -0.707107 0" contype="144" conaffinity="127" condim="3" friction="0.6" mass="0.02" />
+                  <geom name="e_right_foot2_collision" class="kim_foot_capsule" size="0.022 0.1091" pos="0.071 0 -0.0739" quat="0.707107 0 -0.707107 0" contype="144" conaffinity="127" condim="3" friction="0.6" mass="0.02" />
                   <site name="e_right_foot" pos="0.071 0 -0.0979" />
                 </body>
               </body>
@@ -1049,9 +1049,9 @@
           <joint name="e_waist_roll_joint" class="kim_waist_roll" />
           <body name="e_torso_link">
             <joint name="e_waist_pitch_joint" class="kim_waist_pitch" />
-            <geom name="e_abdomen_collision" class="kim_collision" size="0.11 0.0732" pos="0.00855 0 0.0904" quat="0.707107 0.707107 0 0" contype="128" conaffinity="103" condim="3" friction="0.8" mass="7.204" />
-            <geom name="e_chest_collision" class="kim_collision" size="0.11 0.1159" pos="0.01265 0 0.27385" quat="0.707107 0.707107 0 0" contype="128" conaffinity="103" condim="3" friction="0.8" mass="8.652" />
-            <geom name="e_head_collision" class="kim_collision" size="0.1072" pos="-0.0162 0 0.6193" type="sphere" contype="128" conaffinity="103" condim="3" friction="0.8" mass="3.7408" />
+            <geom name="e_abdomen_collision" class="kim_collision" size="0.11 0.0732" pos="0.00855 0 0.0904" quat="0.707107 0.707107 0 0" contype="128" conaffinity="111" condim="3" friction="0.8" mass="7.204" />
+            <geom name="e_chest_collision" class="kim_collision" size="0.11 0.1159" pos="0.01265 0 0.27385" quat="0.707107 0.707107 0 0" contype="128" conaffinity="111" condim="3" friction="0.8" mass="8.652" />
+            <geom name="e_head_collision" class="kim_collision" size="0.1072" pos="-0.0162 0 0.6193" type="sphere" contype="128" conaffinity="111" condim="3" friction="0.8" mass="3.7408" />
             <body name="e_left_shoulder_pitch_link" pos="-0.0198 0.2259 0.3669">
               <inertial pos="0 0 0" mass="0.2" diaginertia="0.00018 0.00018 0.00018" />
               <joint name="e_left_shoulder_pitch_joint" class="kim_shoulder_pitch" />
@@ -1060,10 +1060,10 @@
                 <joint name="e_left_shoulder_roll_joint" class="kim_shoulder_roll" range="-0.3 2.8" />
                 <body name="e_left_shoulder_yaw_link">
                   <joint name="e_left_shoulder_yaw_joint" class="kim_shoulder_yaw" />
-                  <geom name="e_left_upper_arm_collision" class="kim_collision" size="0.045 0.08564" pos="0 0 -0.10705" contype="128" conaffinity="103" condim="3" friction="0.8" mass="1.028" />
+                  <geom name="e_left_upper_arm_collision" class="kim_collision" size="0.045 0.08564" pos="0 0 -0.10705" contype="128" conaffinity="111" condim="3" friction="0.8" mass="1.028" />
                   <body name="e_left_elbow_link" pos="0 0 -0.2141">
                     <joint name="e_left_elbow_joint" class="kim_elbow" />
-                    <geom name="e_left_forearm_collision" class="kim_collision" size="0.0358 0.08449" pos="0 0 -0.10437" contype="128" conaffinity="103" condim="3" friction="0.8" mass="0.6728" />
+                    <geom name="e_left_forearm_collision" class="kim_collision" size="0.0358 0.08449" pos="0 0 -0.10437" contype="128" conaffinity="111" condim="3" friction="0.8" mass="0.6728" />
                     <body name="e_left_wrist_roll_link" pos="0 0 -0.1988">
                       <inertial pos="0 0 0" mass="0.05" diaginertia="4.5e-05 4.5e-05 4.5e-05" />
                       <joint name="e_left_wrist_roll_joint" class="kim_wrist_roll" />
@@ -1072,7 +1072,7 @@
                         <joint name="e_left_wrist_pitch_joint" class="kim_wrist_pitch" />
                         <body name="e_left_wrist_yaw_link">
                           <joint name="e_left_wrist_yaw_joint" class="kim_wrist_yaw" />
-                          <geom name="e_left_hand_collision" class="kim_collision" size="0.03 0.07436" pos="0 0 -0.09436" contype="128" conaffinity="103" condim="3" friction="0.8" mass="0.3136" />
+                          <geom name="e_left_hand_collision" class="kim_collision" size="0.03 0.07436" pos="0 0 -0.09436" contype="128" conaffinity="111" condim="3" friction="0.8" mass="0.3136" />
                         </body>
                       </body>
                     </body>
@@ -1088,10 +1088,10 @@
                 <joint name="e_right_shoulder_roll_joint" class="kim_shoulder_roll" range="-2.8 0.3" />
                 <body name="e_right_shoulder_yaw_link">
                   <joint name="e_right_shoulder_yaw_joint" class="kim_shoulder_yaw" />
-                  <geom name="e_right_upper_arm_collision" class="kim_collision" size="0.045 0.08564" pos="0 0 -0.10705" contype="128" conaffinity="103" condim="3" friction="0.8" mass="1.028" />
+                  <geom name="e_right_upper_arm_collision" class="kim_collision" size="0.045 0.08564" pos="0 0 -0.10705" contype="128" conaffinity="111" condim="3" friction="0.8" mass="1.028" />
                   <body name="e_right_elbow_link" pos="0 0 -0.2141">
                     <joint name="e_right_elbow_joint" class="kim_elbow" />
-                    <geom name="e_right_forearm_collision" class="kim_collision" size="0.0358 0.08449" pos="0 0 -0.10437" contype="128" conaffinity="103" condim="3" friction="0.8" mass="0.6728" />
+                    <geom name="e_right_forearm_collision" class="kim_collision" size="0.0358 0.08449" pos="0 0 -0.10437" contype="128" conaffinity="111" condim="3" friction="0.8" mass="0.6728" />
                     <body name="e_right_wrist_roll_link" pos="0 0 -0.1988">
                       <inertial pos="0 0 0" mass="0.05" diaginertia="4.5e-05 4.5e-05 4.5e-05" />
                       <joint name="e_right_wrist_roll_joint" class="kim_wrist_roll" />
@@ -1100,7 +1100,7 @@
                         <joint name="e_right_wrist_pitch_joint" class="kim_wrist_pitch" />
                         <body name="e_right_wrist_yaw_link">
                           <joint name="e_right_wrist_yaw_joint" class="kim_wrist_yaw" />
-                          <geom name="e_right_hand_collision" class="kim_collision" size="0.03 0.07436" pos="0 0 -0.09436" contype="128" conaffinity="103" condim="3" friction="0.8" mass="0.3136" />
+                          <geom name="e_right_hand_collision" class="kim_collision" size="0.03 0.07436" pos="0 0 -0.09436" contype="128" conaffinity="111" condim="3" friction="0.8" mass="0.3136" />
                         </body>
                       </body>
                     </body>

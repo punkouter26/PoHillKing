@@ -1,3 +1,4 @@
+using System.Collections.Generic;
 using Mujoco;
 using Unity.InferenceEngine;
 using UnityEngine;
@@ -28,7 +29,15 @@ namespace PoKingHill
         public bool paused;
         [Tooltip("Shove style (mirror of SHOVE_* in training/koth/env.py): the arm rest pose moves to hands-forward as the opponent closes from 1.6 m to 1.0 m, and the action is low-passed before it becomes a joint target.")]
         public bool shoveStyle;
-        const float ShoveFar = 1.6f, ShoveNear = 1.0f, ShoveSmooth = 0.5f, ShoveShoulderPitch = -1.0f, ShoveElbow = 0.5f;
+        [Tooltip("The styled rest pose (mirror of STYLE_POSES in training/koth/obs.py): shove = arms forward (G1), bull = Trump's charge.")]
+        public string stylePose = "shove";
+        const float ShoveFar = 1.6f, ShoveNear = 1.0f, ShoveSmooth = 0.5f;
+        // joint-name substring -> target angle; the first key a joint's name contains wins, as in Python's dict order
+        static readonly Dictionary<string, (string key, float target)[]> StylePoses = new()
+        {
+            ["shove"] = new[] { ("shoulder_pitch", -1.0f), ("elbow", 0.5f) },
+            ["bull"] = new[] { ("waist_pitch", 0.30f), ("shoulder_pitch", 0.35f), ("elbow", 0.60f), ("knee", 0.40f), ("hip_pitch", -0.30f), ("ankle_pitch", -0.10f) },
+        };
 
         public JointMap Map { get; private set; }
         public JointMapSpec Spec => _spec;
@@ -57,9 +66,7 @@ namespace PoKingHill
             LastAction = new float[_spec.joints.Length];
             RawAction = new float[_spec.joints.Length]; Ctrl = new double[_spec.joints.Length];
             _actF = new float[_spec.joints.Length]; _shoveOffset = new float[_spec.joints.Length];
-            for (int i = 0; i < _spec.joints.Length; i++)
-                _shoveOffset[i] = _spec.joints[i].Contains("shoulder_pitch") ? ShoveShoulderPitch - _spec.default_pose[i]
-                                : _spec.joints[i].Contains("elbow") ? ShoveElbow - _spec.default_pose[i] : 0f;
+            SetStyleOffsets();
             LoadBrain();
             MjScene.Instance.postInitEvent += OnSceneInit;
             MjScene.Instance.preUpdateEvent += OnPreStep;
@@ -182,11 +189,24 @@ namespace PoKingHill
         }
 
         /// <summary>Swap the brain at runtime (menu fighter selection). policy = null gives the passive stance.</summary>
-        public void SetBrain(ModelAsset newPolicy, int obsDim, GoalMode newGoal, float stopDist, float vmax, bool shove = false)
+        public void SetBrain(ModelAsset newPolicy, int obsDim, GoalMode newGoal, float stopDist, float vmax, bool shove = false, string pose = "shove")
         {
             _worker?.Dispose(); _input?.Dispose(); _worker = null; _input = null;
             policy = newPolicy; policyObsDim = obsDim; goal = newGoal; goalStopDist = stopDist; goalVmax = vmax; command = Vector3.zero; shoveStyle = shove;
+            if (pose != stylePose) { stylePose = pose; SetStyleOffsets(); }
             LoadBrain(); ResetClock();
+        }
+
+        /// <summary>Offset of each joint's styled rest pose from its default (target - default, 0 for joints the pose leaves alone).</summary>
+        void SetStyleOffsets()
+        {
+            var pose = StylePoses.TryGetValue(stylePose ?? "", out var p) ? p : StylePoses["shove"];
+            for (int i = 0; i < _spec.joints.Length; i++)
+            {
+                _shoveOffset[i] = 0f;
+                foreach (var (key, target) in pose)
+                    if (_spec.joints[i].Contains(key)) { _shoveOffset[i] = target - _spec.default_pose[i]; break; }
+            }
         }
 
         /// <summary>Keyframe pose at a chosen spot on the summit (MuJoCo frame x, y in metres, yaw in radians).</summary>

@@ -20,7 +20,7 @@ import argparse, json, os, sys
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 import torch
 from rsl_rl.runners import OnPolicyRunner
-from koth.env import KothEnv, default_cfg
+from koth.env import HUMANS, KothEnv, default_cfg
 from koth.rules import OUT_RADIUS, PLATEAU_R
 from scripts.train import train_cfg
 
@@ -41,8 +41,10 @@ def load_policy(env, ckpt):
 
 
 def base_rung(rung: str) -> str:
-    """kim_r0b -> r0: the bar a staged variant is judged on."""
-    return rung[4:6] if rung.startswith("kim_") else rung
+    """kim_r0b -> r0, trump_r4bull -> r4league: the bar a human body's rung is judged on."""
+    body, _, rest = rung.partition("_")
+    if body not in HUMANS: return rung
+    return {"r4bull": "r4league", "bull": "r4league"}.get(rest, rest[:2])
 
 
 def eval_flat(env, policy, rung, steps):
@@ -141,21 +143,22 @@ def eval_ffa(env, policy, steps):
 
 
 def eval_cfg(rung, shove=False, rim_brake=None, slope=False, opponent=None, leg_contact_rule="train", push_vel=None, noise=True,
-             combat2=False, decimation=None, fatigue="off"):
+             combat2=False, decimation=None, fatigue="off", style_pose=None):
     """The environment configuration eval.py judges a rung with (also used by contact_style.py)."""
     cfg = default_cfg(rung); base = base_rung(rung)
     if combat2: cfg["combat2"] = True
     if decimation: cfg["decimation"] = decimation
     if fatigue != "off": cfg["fatigue"].update(enabled=True, obs=fatigue == "obs")
-    duel = rung in DUEL_RUNGS
+    duel = base in DUEL_RUNGS
     cfg["shove"] = shove
+    if style_pose: cfg["style_pose"] = style_pose
     if duel or rung in FFA_RUNGS: cfg["max_radius"] = OUT_RADIUS
     if rung in ("r4probe", "r4att"): cfg["spawn"].update(r=[[0.0, 0.5], [1.25, 1.35]])
     if rim_brake: cfg["goal_cmd"]["rim_brake"] = tuple(rim_brake)
     if rung == "r2" and slope: cfg["spawn"].update(r=[0.0, 2.6])
     if opponent: cfg["frozen_opponent"] = list(opponent)
     if base in ("r0", "r1"):
-        v = 2.0 * cfg.get("kim_mass_ratio", 1.0) if push_vel is None else push_vel
+        v = 2.0 * cfg.get("mass_ratio", 1.0) if push_vel is None else push_vel
         cfg["push"] = dict(interval_s=[5.0, 5.0], vel=[v, v]); cfg["projectile"].update(speed=[6.0, 6.0])
     else:
         cfg["push"] = dict(interval_s=[1e6, 1e6], vel=[0.0, 0.0]); cfg["projectile"]["enabled"] = False
@@ -170,6 +173,7 @@ def main():
     ap.add_argument("--seeds", type=int, default=10); ap.add_argument("--num-envs", type=int, default=256)
     ap.add_argument("--seconds", type=float, default=20.0)
     ap.add_argument("--shove", action="store_true", help="the tested policy fights in the shove style (arm pose + action smoothing)")
+    ap.add_argument("--style-pose", default=None, help="with --shove: the styled rest pose (bull: Trump's charge; default the rung's)")
     ap.add_argument("--rim-brake", type=float, nargs=3, default=None, help="rim gain vmin for the goal command")
     ap.add_argument("--slope", action="store_true", help="r2 only: also spawn robots on the slope (retired objective)")
     ap.add_argument("--opponent", default=None, nargs="+", help="frozen checkpoint(s) driving robot b_ (duel rungs) or b_..d_ (r5ffa)")
@@ -181,8 +185,8 @@ def main():
     ap.add_argument("--fatigue", choices=["off", "on", "obs"], default="off", help="as the brain was trained")
     a = ap.parse_args()
     cfg = eval_cfg(a.rung, a.shove, a.rim_brake, a.slope, a.opponent, a.leg_contact_rule, a.push_vel, combat2=a.combat2,
-                   decimation=a.decimation, fatigue=a.fatigue)
-    duel = a.rung in DUEL_RUNGS; base = base_rung(a.rung)
+                   decimation=a.decimation, fatigue=a.fatigue, style_pose=a.style_pose)
+    base = base_rung(a.rung); duel = base in DUEL_RUNGS
     env = KothEnv(cfg, a.num_envs, seed=0)
     policy = load_policy(env, a.ckpt)
     steps = int(a.seconds / env.ctrl_dt); rows = []

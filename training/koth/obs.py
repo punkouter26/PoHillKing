@@ -19,6 +19,12 @@ GAIT_FREQ_HZ = 1.5
 # Shove style constants (used by env.py, duel_stats.py and mirrored in Unity's PolicyRunner).
 SHOVE_POSE = {"shoulder_pitch": -1.0, "elbow": 0.5}      # hand 0.34 m ahead of the torso, 0.24 m above its origin
 SHOVE_FAR, SHOVE_NEAR, SHOVE_SMOOTH = 1.6, 1.0, 0.5
+# Trump's bull charge: the same mechanism with another target pose. Torso pitched 0.3 rad forward, arms swept back with
+# the elbows tucked, knees lower (hip and ankle keep the feet flat): he leads with his chest and belly. Held with no
+# brain on his body it stands with the torso 21 degrees forward (the hips and ankles also sit him back over his heels;
+# hip -0.22 / ankle -0.18 fell forward).
+BULL_POSE = {"waist_pitch": 0.30, "shoulder_pitch": 0.35, "elbow": 0.60, "knee": 0.40, "hip_pitch": -0.30, "ankle_pitch": -0.10}
+STYLE_POSES = {"shove": SHOVE_POSE, "bull": BULL_POSE}
 
 
 def quat_rotate_inverse(q: torch.Tensor, v: torch.Tensor) -> torch.Tensor:

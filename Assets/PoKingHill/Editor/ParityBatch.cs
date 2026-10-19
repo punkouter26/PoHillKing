@@ -23,7 +23,7 @@ namespace PoKingHill.EditorTools
         const string ModelDir = "Assets/PoKingHill/Models";
         const string DemoScene = SceneDir + "/Demo_duel.unity";
 
-        // Which fighter's body a testbed scene holds: -kothRobot g1 (default) or kim. Kim's files sit in kim subfolders.
+        // Which fighter's body a testbed scene holds: -kothRobot g1 (default), kim or trump. Human bodies' files sit in subfolders.
         static string Robot => Cli.Arg("-kothRobot", "g1");
         static string ModelsOf(string robot) => robot == "g1" ? ModelDir : $"{ModelDir}/{robot}";
         static string SceneOf(string robot, string tag) => $"{SceneDir}/Testbed_{(robot == "g1" ? "" : robot + "_")}{tag}.unity";
@@ -71,14 +71,14 @@ namespace PoKingHill.EditorTools
             if (jointMap == null || dump == null) throw new Exception("joint_map.json / model_dump json missing under " + models + " (run koth.build_mjcf)");
 
             var rig = new GameObject("KothRig");
-            // One runner per robot the model holds, as listed by build_mjcf in the dump (koth_5p: four G1 and Kim as e_).
+            // One runner per robot the model holds, as listed by build_mjcf in the dump (koth_6p: four G1, Kim as e_ and Trump as f_).
             // Each body uses its own kind's joint map, and every Kim body wears her scanned mesh.
             foreach (var r in RobotsOf(dump, tag, robot))
             {
                 var go = new GameObject("Policy_" + r.prefix); go.transform.SetParent(rig.transform);
                 var pr = go.AddComponent<PolicyRunner>(); pr.robotPrefix = r.prefix; pr.body = r.body;
                 pr.jointMapJson = r.body == robot ? jointMap : AssetDatabase.LoadAssetAtPath<TextAsset>($"{ModelsOf(r.body)}/joint_map.json");
-                if (r.body == "kim") AddKimSkin(r.prefix, rig);
+                if (r.body != "g1") AddSkin(r.prefix, r.body, rig);
             }
             rig.AddComponent<ProjectilePool>().jointMapJson = jointMap;
             rig.AddComponent<ModelDumpCheck>().modelDumpJson = dump;
@@ -108,7 +108,7 @@ namespace PoKingHill.EditorTools
             }
             AssertNoPhysX("after import");
 
-            if (robot == "kim") { cam.transform.position = new Vector3(2.6f, 1.25f, -2.4f); cam.transform.LookAt(new Vector3(0f, 0.85f, 0f)); }   // she faces +X
+            if (robot != "g1") { cam.transform.position = new Vector3(2.6f, 1.25f, -2.4f); cam.transform.LookAt(new Vector3(0f, 0.85f, 0f)); }   // humans face +X
             string path = SceneOf(robot, tag);
             EditorSceneManager.SaveScene(scene, path);
             Debug.Log($"[ParityBatch] imported {tag}: {UnityEngine.Object.FindObjectsByType<MjBody>(FindObjectsInactive.Include).Length} MjBody, " +
@@ -132,25 +132,31 @@ namespace PoKingHill.EditorTools
             return Enumerable.Range(0, n).Select(i => new RobotEntry { prefix = (char)('a' + i) + "_", body = tag.EndsWith("5p") && i == 4 ? "kim" : robot }).ToArray();
         }
 
-        const string KimDir = "Assets/PoKingHill/Fighters/Kim";
+        /// <summary>Fighters/&lt;Body&gt;: a human body's mesh folder (Kim, Trump).</summary>
+        static string SkinDir(string body) => $"Assets/PoKingHill/Fighters/{char.ToUpperInvariant(body[0])}{body.Substring(1)}";
 
-        /// <summary>Dress one fighter of a Kim scene in her scanned mesh (kim.fbx from tools/make_kim.py): the mesh
+        /// <summary>Dress one human fighter in its mesh: kim.fbx (tools/make_kim.py, with a URP material built from her
+        /// textures) or &lt;body&gt;.glb (tools/make_glb_fighter.py, imported by glTFast with its own materials). The mesh
         /// follows the MuJoCo bodies through SkinFollower and the collision shapes stop being drawn.</summary>
-        static void AddKimSkin(string prefix, GameObject rig)
+        static void AddSkin(string prefix, string body, GameObject rig)
         {
-            var prefab = AssetDatabase.LoadAssetAtPath<GameObject>($"{KimDir}/kim.fbx");
-            var table = AssetDatabase.LoadAssetAtPath<TextAsset>($"{ModelsOf("kim")}/kim_skin.json");
-            if (prefab == null || table == null) throw new Exception("kim.fbx or kim_skin.json missing (run tools/make_kim.py in Blender, then koth.build_mjcf with KOTH_ROBOT=kim)");
-            var skin = (GameObject)PrefabUtility.InstantiatePrefab(prefab); skin.name = "KimSkin_" + prefix;
-            var mat = AssetDatabase.LoadAssetAtPath<Material>($"{KimDir}/Kim.mat");
-            if (mat == null)
+            string dir = SkinDir(body);
+            var prefab = AssetDatabase.LoadAssetAtPath<GameObject>($"{dir}/{body}.fbx") ?? AssetDatabase.LoadAssetAtPath<GameObject>($"{dir}/{body}.glb");
+            var table = AssetDatabase.LoadAssetAtPath<TextAsset>($"{ModelsOf(body)}/{body}_skin.json");
+            if (prefab == null || table == null) throw new Exception($"{dir}/{body}.fbx|.glb or {body}_skin.json missing (tools/make_kim.py or tools/make_glb_fighter.py, then koth.build_mjcf with KOTH_ROBOT={body})");
+            var skin = (GameObject)PrefabUtility.InstantiatePrefab(prefab); skin.name = $"{char.ToUpperInvariant(body[0])}{body.Substring(1)}Skin_{prefix}";
+            if (body == "kim")
             {
-                mat = new Material(Shader.Find("Universal Render Pipeline/Lit")); mat.SetFloat("_Smoothness", 0.2f);
-                mat.SetTexture("_BaseMap", MapTexture("kim_albedo", false, true, KimDir));
-                mat.SetTexture("_BumpMap", MapTexture("kim_normal", true, false, KimDir)); mat.EnableKeyword("_NORMALMAP");
-                AssetDatabase.CreateAsset(mat, $"{KimDir}/Kim.mat");
+                var mat = AssetDatabase.LoadAssetAtPath<Material>($"{dir}/Kim.mat");
+                if (mat == null)
+                {
+                    mat = new Material(Shader.Find("Universal Render Pipeline/Lit")); mat.SetFloat("_Smoothness", 0.2f);
+                    mat.SetTexture("_BaseMap", MapTexture("kim_albedo", false, true, dir));
+                    mat.SetTexture("_BumpMap", MapTexture("kim_normal", true, false, dir)); mat.EnableKeyword("_NORMALMAP");
+                    AssetDatabase.CreateAsset(mat, $"{dir}/Kim.mat");
+                }
+                foreach (var r in skin.GetComponentsInChildren<SkinnedMeshRenderer>()) r.sharedMaterial = mat;
             }
-            foreach (var r in skin.GetComponentsInChildren<SkinnedMeshRenderer>()) r.sharedMaterial = mat;
             var follow = rig.AddComponent<SkinFollower>(); follow.skinJson = table; follow.robotPrefix = prefix; follow.skinRoot = skin.transform;
             var pelvis = GameObject.Find(prefix + "pelvis"); if (pelvis == null) throw new Exception("no body " + prefix + "pelvis in the imported scene");
             foreach (var r in pelvis.GetComponentsInChildren<MeshRenderer>()) r.enabled = false;
@@ -185,13 +191,13 @@ namespace PoKingHill.EditorTools
         }
 
         [MenuItem("PoKingHill/Build duel demo scene")]
-        public static void BuildDuelDemo() => BuildDuelDemo("koth_5p");
+        public static void BuildDuelDemo() => BuildDuelDemo("koth_6p");
 
         /// <summary>The two-fighter gates' scene (git-ignored), so a gate run never overwrites the game scene.</summary>
         const string GateScene = SceneDir + "/Gate_duel_2p.unity";
 
         /// <summary>Builds the game scene from an imported arena scene and saves it to <paramref name="savePath"/>
-        /// (Demo_duel.unity by default): the game uses the one with four G1 and Kim (koth_5p, default), the two-fighter
+        /// (Demo_duel.unity by default): the game uses the one with four G1, Kim and Trump (koth_6p, default), the two-fighter
         /// parity gates the scene the brains were trained in (koth_2p, saved as Gate_duel_2p.unity). The menu seats the
         /// ticked agents on the bodies, everyone starts on the summit and the sea rises as the round clock. Presentation
         /// (HUD, cameras, effects) comes from GameSceneBuilder. No PhysX components are created.</summary>
@@ -207,10 +213,6 @@ namespace PoKingHill.EditorTools
             if (dumpAsset != null)
                 foreach (var entry in RobotsOf(dumpAsset, tag, robot)) { var r = runners.FirstOrDefault(x => x.robotPrefix == entry.prefix); if (r != null) r.body = entry.body; }
             var a = runners[0]; var b = runners[1];
-            // Kim fights with her walking brain and the goal law (walk at the nearest opponent); she is locked in the
-            // menu until that brain exists (scripts/export_policy.py --name kim/walker).
-            var kimBrain = AssetDatabase.LoadAssetAtPath<Unity.InferenceEngine.ModelAsset>($"{ModelsOf("kim")}/walker_policy.onnx");
-            bool kimBody = runners.Any(r => r.body == "kim");
             foreach (var r in runners) r.opponent = r == a ? b : a;      // brains and opponents are assigned at launch by DemoDirector
             foreach (var probe in UnityEngine.Object.FindObjectsByType<ParityProbe>(FindObjectsInactive.Include)) UnityEngine.Object.DestroyImmediate(probe);
             var rig = a.transform.parent.gameObject;
@@ -234,14 +236,23 @@ namespace PoKingHill.EditorTools
             // The free-for-all brain (scripts/train.py --rung r5ffa) joins when it has been exported; its input size comes from the file.
             var ffa = Onnx("ffa_policy");
             if (ffa != null) roster.Insert(1, new Fighter { name = "G1 Free-for-all (trained 4-way)", shortName = "Free-for-all", obsDim = InputsOf(ffa), goal = GoalMode.Opponent, policy = ffa, value = Onnx("ffa_value") });
-            // Kim is offered only when this scene has a Kim body (koth_5p: e_) and a brain of hers exists: her fighting brain
-            // (Models/kim/fighter_policy.onnx, 112 inputs) when exported, else the walker that walks at the nearest opponent.
-            var kimFighter = AssetDatabase.LoadAssetAtPath<Unity.InferenceEngine.ModelAsset>($"{ModelsOf("kim")}/fighter_policy.onnx");
-            var kimPolicy = kimFighter != null ? kimFighter : kimBrain;
-            roster.Add(new Fighter { name = "Kim", shortName = "Kim", body = "kim", policy = kimPolicy, obsDim = kimPolicy != null ? InputsOf(kimPolicy) : 103, goal = GoalMode.Opponent, stopDist = 0f,
-                                     vmax = kimFighter != null ? 1f : 0.8f, available = kimPolicy != null && kimBody, inGame = kimPolicy != null && kimBody,
-                                     value = AssetDatabase.LoadAssetAtPath<Unity.InferenceEngine.ModelAsset>($"{ModelsOf("kim")}/{(kimFighter != null ? "fighter" : "walker")}_value.onnx"),
-                                     note = !kimBody ? "no Kim body in this scene" : kimPolicy == null ? "no brain yet" : kimFighter != null ? "" : "walks at you, never trained to fight" });
+            // A human is offered only when this scene has its body (koth_6p: Kim e_, Trump f_) and a brain of theirs exists:
+            // the fighting brain (Models/<body>/fighter_policy.onnx, 112 inputs) when exported, else the walker that
+            // walks at the nearest opponent. vmax: the walking speed the fighter was trained with (Trump's style: 0.7).
+            // style: a brain trained with a styled action path (Models/<body>/<style>_policy.onnx, env.py style_pose),
+            // preferred over the plain fighter when it exists. Trump's is "bull": torso forward, arms back, knees low.
+            Fighter Human(string body, string name, string badge, float fighterVmax, string style = null)
+            {
+                Unity.InferenceEngine.ModelAsset Own(string file) => AssetDatabase.LoadAssetAtPath<Unity.InferenceEngine.ModelAsset>($"{ModelsOf(body)}/{file}.onnx");
+                string file = style != null && Own(style + "_policy") != null ? style : Own("fighter_policy") != null ? "fighter" : "walker";
+                var policy = Own(file + "_policy"); bool fights = file != "walker", hasBody = runners.Any(r => r.body == body);
+                return new Fighter { name = name, shortName = badge, body = body, policy = policy, obsDim = policy != null ? InputsOf(policy) : 103, goal = GoalMode.Opponent, stopDist = 0f,
+                                     vmax = fights ? fighterVmax : 0.8f, available = policy != null && hasBody, inGame = policy != null && hasBody,
+                                     shove = file == style, stylePose = file == style ? style : "shove", value = Own(file + "_value"),
+                                     note = !hasBody ? $"no {badge} body in this scene" : policy == null ? "no brain yet" : fights ? "" : "walks at you, never trained to fight" };
+            }
+            roster.Add(Human("kim", "Kim", "Kim", 1f));
+            roster.Add(Human("trump", "Trump (Bulldozer: 102 kg, slow, shoves with his body)", "Trump", 0.7f, "bull"));
             director.roster = roster.ToArray();
             if (director.roster.Any(f => f.available && f.policy == null)) throw new Exception("a roster policy is missing in " + ModelDir);
             director.maps = new[] { "Mountain top", "Summit (baseline)" };
@@ -354,6 +365,7 @@ namespace PoKingHill.EditorTools
         /// <summary>Kim's duel gate: her fighting brain against itself on her two-body testbed (compare with
         /// KOTH_ROBOT=kim scripts/duel_stats.py --policy fighter).</summary>
         public static void RunKimDuelStats() => RunDuelStats("kim", int.Parse(Cli.Arg("-kothRounds", "200")), -1, -1);
+        public static void RunTrumpDuelStats() => RunDuelStats("trump", int.Parse(Cli.Arg("-kothRounds", "200")), -1, -1);
 
         /// <summary>The statistics gate on a robot's two-body testbed; agent index -1 = that robot's own roster entry.</summary>
         public static void RunDuelStats(string robot, int rounds, int a, int b)

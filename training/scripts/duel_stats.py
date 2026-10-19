@@ -7,21 +7,23 @@ Writes training/assets/<robot>/duel_stats_python.json (policies from Assets/PoKi
 import argparse, json, os, sys
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 import numpy as np, torch, mujoco, onnxruntime as ort
-from koth.obs import goal_command, GAIT_FREQ_HZ, SHOVE_POSE, SHOVE_FAR, SHOVE_NEAR, SHOVE_SMOOTH
+from koth.obs import goal_command, GAIT_FREQ_HZ, STYLE_POSES, SHOVE_FAR, SHOVE_NEAR, SHOVE_SMOOTH
 from koth.build_mjcf import ASSETS, UNITY_MODELS
 from koth.rules import is_out
 from koth import cpu_sim
 
 ap = argparse.ArgumentParser(); ap.add_argument("--policy", default="attacker"); ap.add_argument("--rounds", type=int, default=200)
 ap.add_argument("--seconds", type=float, default=25.0); ap.add_argument("--seed", type=int, default=0)
-ap.add_argument("--shove", action="store_true", help="both robots use the shove style (arm pose + action smoothing), as in koth/env.py"); a = ap.parse_args()
+ap.add_argument("--shove", action="store_true", help="both robots use the shove style (arm pose + action smoothing), as in koth/env.py")
+ap.add_argument("--style-pose", default="shove", choices=list(STYLE_POSES), help="the styled rest pose with --shove (bull: Trump's charge)")
+ap.add_argument("--vmax", type=float, default=1.0, help="goal-law walking speed, as the roster entry (Trump: 0.7)"); a = ap.parse_args()
 spec = json.load(open(os.path.join(ASSETS, "joint_map.json")))
 sess = ort.InferenceSession(os.path.join(UNITY_MODELS, f"{a.policy}_policy.onnx"), providers=["CPUExecutionProvider"])
 m = mujoco.MjModel.from_xml_path(os.path.join(ASSETS, "scene_koth_2p_train.xml")); d = mujoco.MjData(m)
 R = cpu_sim.robots(m, spec["joints"], ("a_", "b_"))
 pool = cpu_sim.pool(m, spec["pool_bodies"])
 default = np.array(spec["default_pose"])
-shove_offset = np.array([next((v - default[i] for k, v in SHOVE_POSE.items() if k in j), 0.0) for i, j in enumerate(spec["joints"])])
+shove_offset = np.array([next((v - default[i] for k, v in STYLE_POSES[a.style_pose].items() if k in j), 0.0) for i, j in enumerate(spec["joints"])])
 rng = np.random.default_rng(a.seed)
 T = cpu_sim.T
 wins = [0, 0]; ties = 0; times = []
@@ -37,7 +39,7 @@ for rnd in range(a.rounds):
     for tick in range(int(a.seconds / spec["ctrl_dt"])):
         for i, s in enumerate(R):
             o = R[1 - i]; rq = s["rq"]; quat = d.qpos[rq + 3:rq + 7]
-            cmd = goal_command(T(quat), T([d.qpos[o["rq"]] - d.qpos[rq], d.qpos[o["rq"] + 1] - d.qpos[rq + 1]]), 0.0, 1.0)[0].numpy()
+            cmd = goal_command(T(quat), T([d.qpos[o["rq"]] - d.qpos[rq], d.qpos[o["rq"] + 1] - d.qpos[rq + 1]]), 0.0, a.vmax)[0].numpy()
             obs = cpu_sim.observe(d, s, default, cmd, s["phase"], other=o)[0].numpy().astype(np.float32)
             act = np.clip(sess.run(None, {"obs": obs[None]})[0][0], -1, 1).astype(np.float32)
             f = act.astype(np.float64); off = 0.0

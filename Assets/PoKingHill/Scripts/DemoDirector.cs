@@ -11,13 +11,14 @@ namespace PoKingHill
     {
         public string name = "Fighter";
         [Tooltip("What fits on a badge, e.g. All-rounder")] public string shortName = "";
-        [Tooltip("The kind of body this brain drives (g1, kim)")] public string body = "g1";
+        [Tooltip("The kind of body this brain drives (g1, kim, trump)")] public string body = "g1";
         public ModelAsset policy;
         [Tooltip("Optional critic exported by export_policy.py --value: drives the win-odds bar")] public ModelAsset value;
         [Tooltip("103 = locomotion inputs, 112 = with opponent/ring inputs")] public int obsDim = 112;
         public GoalMode goal = GoalMode.Opponent;
         public float stopDist = 0f, vmax = 1f;
-        [Tooltip("Trained in the shove style (arm pose + action smoothing)")] public bool shove;
+        [Tooltip("Trained in a styled action path (rest pose + action smoothing)")] public bool shove;
+        [Tooltip("Which styled rest pose with shove: shove (arms forward) or bull (Trump's charge)")] public string stylePose = "shove";
         [Tooltip("A walking brain that follows velocity commands: the player can steer it")] public bool steerable;
         [Tooltip("Ticked in the menu: this agent takes part in matches")] public bool inGame = true;
         [Tooltip("False = listed in the menu but cannot be ticked yet; note says why")] public bool available = true;
@@ -47,6 +48,7 @@ namespace PoKingHill
         public GameObject[] mapVisuals = Array.Empty<GameObject>();
         public int selectedMap;
         public Vector2 spawnRadiusA = new(0.5f, 1.2f), spawnRadiusB = new(0.5f, 1.2f);
+        const float MinSpawnGap = 0.9f;     // metres between neighbouring pelvises at the start of a round with more than two
         public float roundSeconds = 25f, outRadius = 1.7f;
         [Tooltip("How long the winner panel stays up before the next round or the menu")] public float pauseBetweenRounds = 5f;
         [Tooltip("Rounds per launch before returning to the menu. 0 = keep fighting. GameSettings overrides it at launch.")] public int roundsPerMatch = 1;
@@ -59,7 +61,8 @@ namespace PoKingHill
 
         /// <summary>Colour of each body's badge and team trim, in fighters[] order after seating.</summary>
         public static readonly Color[] SeatColors =
-            { new(0.95f, 0.36f, 0.30f), new(0.27f, 0.62f, 0.98f), new(0.98f, 0.78f, 0.25f), new(0.45f, 0.85f, 0.45f), new(0.80f, 0.50f, 0.95f) };
+            { new(0.95f, 0.36f, 0.30f), new(0.27f, 0.62f, 0.98f), new(0.98f, 0.78f, 0.25f), new(0.45f, 0.85f, 0.45f), new(0.80f, 0.50f, 0.95f),
+              new(0.30f, 0.85f, 0.85f) };
 
         public static DemoDirector Instance { get; private set; }
         public MatchState State { get; private set; } = MatchState.Booting;
@@ -309,7 +312,7 @@ namespace PoKingHill
                     if (i >= _playing) { fighters[i].SetBrain(null, ObsBuilder.ObsDim, GoalMode.None, 0.3f, 0.8f); continue; }
                     var f = roster[seats[i]]; _seat[i] = seats[i];
                     bool steered = puppet && steer >= 0 && i == 0;
-                    fighters[i].SetBrain(f.policy, f.obsDim, steered ? GoalMode.None : f.goal, f.stopDist, f.vmax, f.shove);
+                    fighters[i].SetBrain(f.policy, f.obsDim, steered ? GoalMode.None : f.goal, f.stopDist, f.vmax, f.shove, f.stylePose);
                 }
                 if (puppet && steer >= 0) PuppetBody = 0;
             }
@@ -330,11 +333,14 @@ namespace PoKingHill
         void Place()
         {
             // Everyone starts on the summit, evenly spread around it (two fighters: opposite sides). Yaw is random,
-            // as in training and duel_stats.py.
+            // as in training and duel_stats.py. With more than two, neighbours start at least MinSpawnGap apart: six
+            // on the 0.5 m ring are 0.5 m apart, less than Trump is wide, and overlapping bodies burst off the summit.
             float bearing = UnityEngine.Random.Range(0f, 2f * Mathf.PI);
+            float rMin = _playing > 2 ? MinSpawnGap / (2f * Mathf.Sin(Mathf.PI / _playing)) : 0f;
             for (int i = 0; i < _playing; i++)
             {
-                var band = i == 1 ? spawnRadiusB : spawnRadiusA; float r = UnityEngine.Random.Range(band.x, band.y), a = bearing + 2f * Mathf.PI * i / _playing;
+                var band = i == 1 ? spawnRadiusB : spawnRadiusA; float lo = Mathf.Min(Mathf.Max(band.x, rMin), band.y);
+                float r = UnityEngine.Random.Range(lo, band.y), a = bearing + 2f * Mathf.PI * i / _playing;
                 fighters[i].ResetPose(r * Mathf.Cos(a), r * Mathf.Sin(a), UnityEngine.Random.Range(-Mathf.PI, Mathf.PI));
             }
         }

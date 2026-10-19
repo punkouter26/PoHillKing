@@ -16,7 +16,7 @@ from __future__ import annotations
 import json, math, os
 import numpy as np, torch, mujoco, warp as wp, mujoco_warp as mjw
 from tensordict import TensorDict
-from koth.obs import build_obs, build_combat, quat_rotate_inverse, goal_command, down_like, OBS_DIM, COMBAT_DIM, GAIT_FREQ_HZ, SHOVE_POSE, SHOVE_FAR, SHOVE_NEAR, SHOVE_SMOOTH
+from koth.obs import build_obs, build_combat, quat_rotate_inverse, goal_command, down_like, OBS_DIM, COMBAT_DIM, GAIT_FREQ_HZ, STYLE_POSES, SHOVE_FAR, SHOVE_NEAR, SHOVE_SMOOTH
 from koth.actor import Actor
 from koth.rules import PLATEAU_R, SLOPE_K, OUT_RADIUS, FALL_HEIGHT, TRAIN_TIP_UP
 
@@ -65,11 +65,12 @@ def default_cfg(rung: str = "r0") -> dict:
                     lin_vel_z=-0.5, feet_air_time=2.0, feet_slip=-0.1, feet_phase=1.0, pose=-0.1, joint_deviation_hip=-0.25,
                     joint_deviation_knee=-0.1, dof_pos_limits=-1.0, action_rate=-0.01, joint_vel=-2e-4, stand_still=-0.1,
                     tracking_heading=1.0, plateau=0.0, off_rim=0.0, ring_advantage=0.0, opp_radius=0.0, self_edge=0.0, push_out=0.0, hand_push=0.0, win=0.0, draw=0.0, termination=-1.0,
-                    stalemate=0.0),
+                    stalemate=0.0, belly_push=0.0, arm_contact=0.0),
         tracking_sigma=0.25, swing_height=0.12, terminate_on_leg_contact=True, max_radius=8.0, combat=False,
         contact_free=False,        # True: within reach of the opponent, arms/waist are exempt from the pose penalty
         gait_free=False,           # True: within reach of the opponent, the gait-clock rewards are off (feet may plant)
         shove=False,               # True: the learner fights in the shove style (see SHOVE_*); frozen opponents opt in with ":shove"
+        style_pose="shove",        # the styled rest pose: "shove" (arms forward, the G1's) or "bull" (Trump's charge), obs.STYLE_POSES
         frozen_opponent=None,      # checkpoint path(s): robots b_.. are driven by these policies and only robot a_ learns
         frozen_stochastic=False,   # True while training: frozen opponents sample actions like the learner does
         # ---- opt-in staging options (all off by default; see STAGED_TRAINING.md) ----
@@ -143,14 +144,29 @@ def default_cfg(rung: str = "r0") -> dict:
         cfg.update(scene="scene_koth_4p_train.xml", robots=["a_", "b_", "c_", "d_"], combat2=True, episode_length_s=20.0,
                    terminate_on_leg_contact=False)          # Unity's rule (no own-leg-contact ending)
         cfg["spawn"].update(r=[0.7, 1.2])
-    elif rung in ("kim_r0b", "kim_r1b"):  # staged: Kim's second recipe (KOTH_ROBOT=kim), see KIM_OVERRIDES below
-        cfg.update(default_cfg(rung[4:6]))
-        kim_overrides(cfg)
+    elif rung.split("_", 1)[0] in HUMANS and rung.split("_", 1)[1] in ("r0b", "r1b"):   # a human body's walking recipe (KOTH_ROBOT=<body>)
+        cfg.update(default_cfg(rung.split("_", 1)[1][:2]))
+        human_overrides(cfg, rung.split("_", 1)[0])
+    elif rung == "trump_bull":            # Trump's bull charge: trump_r4bull with the styled action path (obs.BULL_POSE)
+        cfg.update(default_cfg("trump_r4bull"), shove=True, style_pose="bull")
+    elif rung == "trump_r4bull":          # Trump's fighting style (KOTH_ROBOT=trump), see the note below
+        cfg.update(default_cfg("r4league"))
+        # "Bulldozer": he wins by walking his 102 kg into the opponent and shoving with his chest and belly, arms
+        # down. push_out is paid mostly through belly_push (the opponent's outward speed while one of his trunk
+        # capsules touches it), arms touching the opponent cost (arm_contact), and he walks in slower than the G1
+        # brains (vmax 0.7). The pose penalty on the arms stays on (no contact_free), so the arms hang.
+        cfg["reward"].update(push_out=1.0, belly_push=4.0, arm_contact=-1.0, hand_push=0.0)
+        cfg["goal_cmd"].update(vmax=0.7)
+        cfg["terminate_on_leg_contact"] = False
     return cfg
 
 
-def kim_overrides(cfg: dict) -> dict:
-    """Kim's recipe 'b' (staged). Her first r0 run used the G1's settings and failed (log 2026-10-09).
+HUMANS = ("kim", "trump")         # human bodies (koth/build_<body>.py) with the G1's 29 joints
+
+
+def human_overrides(cfg: dict, body: str) -> dict:
+    """A human body's walking recipe 'b' (staged), first written for Kim: her first r0 run used the G1's settings and
+    failed (log 2026-10-09). Trump uses the same recipe with his own mass ratio and swing height.
     - Kicks are a velocity change (qvel += dv), i.e. an impulse of m * dv: scale dv by m_G1 / m_Kim so a kick carries
       the same impulse as on the G1 (33.3 kg vs 56.0 kg -> x 0.60, 2 m/s -> 1.19 m/s). Boxes are real bodies and
       already transfer the right momentum, so their speed is left alone.
@@ -164,14 +180,14 @@ def kim_overrides(cfg: dict) -> dict:
     - terminate_on_leg_contact off: her short thighs and narrow stance make foot-shin touches common, and Unity's
       round rule does not end on them either."""
     try:
-        ratio = robot_mass("g1") / robot_mass("kim")
+        ratio = robot_mass("g1") / robot_mass(body)
     except OSError:
-        ratio = 33.341 / 55.994
+        ratio = 33.341 / {"kim": 55.994, "trump": 102.0}[body]
     cfg["push"].update(vel=[v * ratio for v in cfg["push"]["vel"]], curriculum_iters=300, curriculum_start=0.25, steps_per_iter=24)
-    cfg["swing_height"] = 0.09
+    cfg["swing_height"] = {"kim": 0.09, "trump": 0.10}[body]     # Trump: long legs but an older man's shuffle
     cfg["reward"].update(pose=-0.05, joint_deviation_hip=-0.15, joint_deviation_knee=-0.05)
     cfg["terminate_on_leg_contact"] = False
-    cfg["kim_mass_ratio"] = ratio
+    cfg["mass_ratio"] = ratio
     return cfg
 
 
@@ -284,7 +300,7 @@ class KothEnv:
         bname = lambda b: mujoco.mj_id2name(mjm, B, b) or ""; gname = lambda g: mujoco.mj_id2name(mjm, G, g) or ""
         self.robot_bodies = T([[b for b in range(mjm.nbody) if bname(b).startswith(p)] for p in prefixes])
         self.robot_geoms = T([[g for g in range(mjm.ngeom) if gname(g).startswith(p) and mjm.geom_contype[g]] for p in prefixes])
-        # geom lookup: owner robot (-1 none) and kind (0 other, 1 ground, 2 left foot, 3 right foot, 4 shin)
+        # geom lookup: owner robot (-1 none) and kind (0 other, 1 ground, 2 left foot, 3 right foot, 4 shin, 5 trunk, 6 arm)
         owner = np.full(mjm.ngeom, -1); kind = np.zeros(mjm.ngeom, dtype=np.int64)
         for n in ("floor", "arena"):
             if gid(n) >= 0: kind[gid(n)] = 1
@@ -294,6 +310,10 @@ class KothEnv:
             for k, s in ((2, "left"), (3, "right")):
                 for n in ("foot_box_collision", "foot1_collision", "foot2_collision", "foot3_collision"): kind[gid(f"{p}{s}_{n}")] = k
                 for n in ("shin_collision", "linkage_brace_collision"): kind[gid(f"{p}{s}_{n}")] = 4
+                for n in ("upper_arm_collision", "forearm_collision", "hand_collision"):      # human bodies' names
+                    if gid(f"{p}{s}_{n}") >= 0: kind[gid(f"{p}{s}_{n}")] = 6
+            for n in ("pelvis_collision", "abdomen_collision", "chest_collision"):
+                if gid(p + n) >= 0: kind[gid(p + n)] = 5
         self.geom_owner = T(owner); self.geom_kind = T(kind)
         box_q = [int(mjm.jnt_qposadr[jid(f"{b}_free")]) for b in spec["pool_bodies"]]; box_d = [int(mjm.jnt_dofadr[jid(f"{b}_free")]) for b in spec["pool_bodies"]]
         self.box_q = T(box_q); self.box_d = T(box_d)
@@ -309,7 +329,8 @@ class KothEnv:
         self.upper_idx = T([i for i, j in enumerate(self.joints) if any(k in j for k in ("waist", "shoulder", "elbow", "wrist"))])
         self.hand_body = T([[bid(p + "left_wrist_yaw_link"), bid(p + "right_wrist_yaw_link")] for p in prefixes])
         assert self.hand_body.min() >= 0, "hand bodies missing"
-        self.shove_offset = T([next((v - spec["default_pose"][i] for k, v in SHOVE_POSE.items() if k in j), 0.0) for i, j in enumerate(self.joints)], torch.float32)
+        self.shove_offset = T([next((v - spec["default_pose"][i] for k, v in STYLE_POSES[cfg.get("style_pose", "shove")].items() if k in j), 0.0)
+                               for i, j in enumerate(self.joints)], torch.float32)
         self.default_pose = T(spec["default_pose"], torch.float32)
         self.key_qpos = T(mjm.key_qpos[0], torch.float32); self.key_ctrl = T(mjm.key_ctrl[0], torch.float32)
         self.key_root_z = float(spec["key_root_z"])
@@ -405,6 +426,13 @@ class KothEnv:
         leg = torch.zeros(self.M + 1, dtype=torch.bool, device=self.device)
         hit = active & (o1 == o2) & (o1 >= 0) & ((f1 & (f2 | (k2 == 4))) | (f2 & (f1 | (k1 == 4))))
         leg[torch.where(hit, w * self.A + o1, self.M)] = True
+        # touching another robot with my trunk (5) or arms (6); read by belly_push / arm_contact
+        other = active & (o1 >= 0) & (o2 >= 0) & (o1 != o2)
+        trunk = torch.zeros(self.M + 1, dtype=torch.bool, device=self.device); arm = torch.zeros_like(trunk)
+        for k, flag in ((5, trunk), (6, arm)):
+            flag[torch.where(other & (k1 == k), w * self.A + o1, self.M)] = True
+            flag[torch.where(other & (k2 == k), w * self.A + o2, self.M)] = True
+        self._trunk_touch, self._arm_touch = trunk[:self.M], arm[:self.M]
         return feet[:M2].view(self.M, 2), leg[:self.M]
 
     # ------------------------------------------------------------------ commands
@@ -600,6 +628,9 @@ class KothEnv:
         if self.fatigue_on: self._update_fatigue(self._joints()[1])
         gz = grav[:, 2]
         nan = (torch.isnan(self.qpos).any(1) | torch.isnan(self.qvel).any(1)).repeat_interleave(A)
+        # A world whose simulation blew up (rare; trump_bull1 hit one in its first 40 iterations) ends as a fall below,
+        # but its rewards were computed from the NaN state: zero them so they never reach PPO.
+        rew = torch.where(nan, torch.zeros_like(rew), rew)
         radius = pos[:, :2].norm(dim=1)
         tipped = gz > -TRAIN_TIP_UP; low = pos[:, 2] - terrain_height(pos[:, :2], self.arena) < FALL_HEIGHT
         fallen = tipped | low | nan
@@ -707,6 +738,8 @@ class KothEnv:
             t["opp_radius"] = orad.clamp(max=OUT_RADIUS) / OUT_RADIUS                  # how far out the opponent is
             t["self_edge"] = (radius - 1.2).clamp(min=0.0)                             # my own margin to the rim
             t["push_out"] = ((ovel[:, :2] * opos[:, :2]).sum(1) / orad.clamp(min=0.1)).clamp(-1.0, 2.0) * near   # its outward speed while I am on it
+            t["belly_push"] = t["push_out"] * self._trunk_touch.float()                 # ... while my trunk touches someone
+            t["arm_contact"] = self._arm_touch.float()                                 # my arms touch someone
             # Arms: how far each hand reaches from my pelvis toward the opponent (0 with the arms hanging, about 0.35 m
             # with shoulders pitched forward), averaged over both hands, once the opponent is within 1.3 m.
             # ponytail: a pose-shaping term, not a contact force; kept small (0.5/s at most) so that standing in a clinch

@@ -8,12 +8,13 @@ namespace PoKingHill
     /// Drives a skinned character from the MuJoCo bodies of one fighter: every bone of the scan follows one body.
     /// Render only. The character's rest pose is the physics model's zero pose (tools/make_kim.py bakes that into
     /// the mesh), so a bone keeps the offset it has from its body in that pose. The table of bone, body and their
-    /// zero-pose positions (MuJoCo coordinates) comes from koth/build_kim.py as kim_skin.json.
+    /// zero-pose positions (MuJoCo coordinates) comes from koth/build_human.py as &lt;robot&gt;_skin.json (a GLB
+    /// character such as Trump's is used in its own rest pose and scaled by the table's "scale").
     /// </summary>
     public class SkinFollower : MonoBehaviour
     {
         [Serializable] class Row { public string bone, body; public float[] bone_pos, body_pos; }
-        [Serializable] class Table { public Row[] bones; }
+        [Serializable] class Table { public float scale; public Row[] bones; }   // scale: GLB characters keep their source size (tools/make_glb_fighter.py)
 
         public TextAsset skinJson;
         public string robotPrefix = "a_";
@@ -25,7 +26,8 @@ namespace PoKingHill
 
         void Start()
         {
-            var rows = JsonUtility.FromJson<Table>(skinJson.text).bones;
+            var table = JsonUtility.FromJson<Table>(skinJson.text); var rows = table.bones;
+            skinRoot.localScale = Vector3.one * (table.scale > 0f ? table.scale : 1f);
             var byName = new Dictionary<string, Transform>();
             foreach (var t in skinRoot.GetComponentsInChildren<Transform>(true)) byName[t.name] = t;
             // The importer may leave the character turned about the vertical: take the quarter turn whose rest pose
