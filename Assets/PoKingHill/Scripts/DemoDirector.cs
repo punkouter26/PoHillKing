@@ -310,6 +310,7 @@ namespace PoKingHill
         // ------------------------------------------------------------------ flow
         public void EnterMenu()
         {
+            ReplaySystem.StopActive();          // a replay restores its saved state when it ends: end it before placing anyone
             _bracket.Clear(); PuppetBody = -1;
             _resultUntil = 0; _roundsThisMatch = 0;
             foreach (var f in fighters) f.SetBrain(null, ObsBuilder.ObsDim, GoalMode.None, 0.3f, 0.8f);      // passive stance while the menu is up
@@ -375,6 +376,7 @@ namespace PoKingHill
 
         void StartMatch(List<int> agents, bool puppet)
         {
+            ReplaySystem.StopActive();
             PuppetBody = -1;
             if (roster.Length > 0)
             {
@@ -471,6 +473,7 @@ namespace PoKingHill
         /// <summary>Start the next round of the current match (also the HUD's Reset).</summary>
         public void NewRound()
         {
+            ReplaySystem.StopActive();
             Place(); ClearOut(); _knockout = false;
             _roundStart = MjScene.Instance.Data->time; OutRadiusNow = outRadius; _resultUntil = 0;
             if (sea != null) { sea.pace = statsRounds > 0 ? 1f : GameSettings.SeaPace; sea.Restart(); }

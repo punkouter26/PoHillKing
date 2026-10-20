@@ -19,8 +19,15 @@ namespace PoKingHill
         public static bool Active { get; private set; }
         /// <summary>The fighter whose fall is being replayed (the camera frames it).</summary>
         public static PolicyRunner Focus { get; private set; }
-        public bool Available => _koTime >= 0 && _count > 10 && director != null && director.State == MatchState.Result;
+        // a knock-out "in the future" means mjData was reset since (MuJoCo resets after a NaN): nothing left to replay
+        public bool Available => _koTime >= 0 && _count > 10 && director != null && director.State == MatchState.Result && MjScene.InstanceExists && _koTime <= MjScene.Instance.Data->time;
         public float Progress => Active ? (float)((_playT - _from) / Math.Max(1e-6, _to - _from)) : 0f;
+        /// <summary>The HUD's scrubber holds the playhead while a finger is on it: no advance, no end.</summary>
+        public bool Hold { get; set; }
+
+        static ReplaySystem _live;
+        /// <summary>Ends a running replay (restoring the live state). The director calls it before it places bodies.</summary>
+        public static void StopActive() { if (Active && _live != null) _live.Stop(); }
 
         double[] _frames, _times; int _nq, _head, _count, _tick;
         double _koTime = -1, _from, _to, _playT; PolicyRunner _koRunner; float _autoAt = -1;
@@ -29,6 +36,7 @@ namespace PoKingHill
 
         void OnEnable()
         {
+            _live = this;
             MatchEvents.Knockout += OnKo; MatchEvents.RoundStarted += OnStart; MatchEvents.RoundEnded += OnEnd;
             if (MjScene.InstanceExists) { MjScene.Instance.postInitEvent += OnInit; MjScene.Instance.postUpdateEvent += Post; if (MjScene.Instance.Model != null) OnInit(null, null); }
         }
@@ -83,7 +91,15 @@ namespace PoKingHill
             Restore(_warm, d->qacc_warmstart); Restore(_xfrc, d->xfrc_applied); d->time = _time;
             MujocoLib.mj_forward(m, d); MjScene.Instance.SyncUnityToMjState();
             MjScene.Instance.enabled = true;
-            Active = false; Focus = null; director.EndReplay();
+            Active = false; Focus = null; Hold = false; director.EndReplay();
+        }
+
+        /// <summary>Moves the playhead to a fraction of the replayed window (the HUD's scrubber).</summary>
+        public void Seek(float t01)
+        {
+            if (!Active) return;
+            _playT = _from + (_to - _from) * Mathf.Clamp(t01, 0f, 0.999f);
+            ShowFrame();
         }
 
         void Update()
@@ -91,8 +107,13 @@ namespace PoKingHill
             if (_autoAt > 0 && Time.unscaledTime >= _autoAt) { _autoAt = -1; Play(); }
             if (!Active) return;
             if (director.State != MatchState.Replay) { Stop(); return; }
-            _playT += Time.unscaledDeltaTime * speed;
-            if (_playT >= _to) { Stop(); return; }
+            if (!Hold) _playT += Time.unscaledDeltaTime * speed;
+            if (_playT >= _to && !Hold) { Stop(); return; }
+            ShowFrame();
+        }
+
+        void ShowFrame()
+        {
             // nearest recorded frame at or before the playhead
             int n = _times.Length, best = -1;
             for (int k = 0; k < _count; k++) { int i = (_head - 1 - k + n) % n; if (_times[i] <= _playT) { best = i; break; } }
