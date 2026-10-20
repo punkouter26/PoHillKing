@@ -37,18 +37,24 @@ namespace PoKingHill.Tests
                 var hud = One<HudView>(scene); Assert.NotNull(hud, "HudView");
                 Assert.NotNull(hud.style, "HUD stylesheet"); Assert.NotNull(hud.director); Assert.NotNull(hud.odds); Assert.NotNull(hud.replay);
                 Assert.NotNull(hud.log); Assert.NotNull(hud.hazards); Assert.NotNull(hud.chat);
+                Assert.NotNull(hud.bio); Assert.NotNull(hud.ledger); Assert.NotNull(hud.stamina); Assert.NotNull(hud.tactician); Assert.NotNull(hud.weather);
+                Assert.NotNull(d.ledger, "director.ledger (Grudge/Vulture)"); Assert.NotNull(d.bio, "director.bio (Vulture)");
+                foreach (var f in d.roster.Where(f => f.available && f.goal == GoalMode.Opponent && f.policy != null))
+                    Assert.NotNull(f.mlp, f.name + " has no _mlp.bytes for the Tactician (training/scripts/export_mlp.py)");
                 var doc = hud.GetComponent<UIDocument>(); Assert.NotNull(doc.panelSettings, "panel settings");
                 Assert.AreEqual(PanelScaleMode.ScaleWithScreenSize, doc.panelSettings.scaleMode);
 
                 var bc = One<BroadcastCamera>(scene); Assert.NotNull(bc, "BroadcastCamera");
-                foreach (var cam in new[] { bc.summit, bc.faller, bc.winner, bc.replay, bc.menu }) Assert.NotNull(cam, "broadcast shot camera");
+                foreach (var cam in new[] { bc.summit, bc.faller, bc.winner, bc.replay, bc.menu, bc.crane, bc.intro }) Assert.NotNull(cam, "broadcast shot camera");
+                Assert.NotNull(bc.crane.GetComponent<CinemachineSplineDolly>()?.Spline, "intro crane spline");
                 Assert.NotNull(bc.brain); Assert.NotNull(bc.classic); Assert.NotNull(bc.group); Assert.NotNull(bc.impulse);
 
                 var fx = One<MatchFx>(scene); Assert.NotNull(fx, "MatchFx");
                 foreach (var ps in new[] { fx.dust, fx.sparks, fx.splash, fx.ripple, fx.confetti }) Assert.NotNull(ps, "particle system");
-                Assert.NotNull(fx.hitVolume); Assert.NotNull(fx.sun); Assert.NotNull(fx.kingSpot);
+                Assert.NotNull(fx.hitVolume); Assert.NotNull(fx.sun); Assert.NotNull(fx.kingSpot); Assert.NotNull(fx.steam); Assert.NotNull(fx.stamina); Assert.NotNull(fx.weather);
 
-                foreach (var c in new System.Type[] { typeof(MatchLog), typeof(ReplaySystem), typeof(PuppetControl), typeof(WinOdds), typeof(Commentator), typeof(Hazards), typeof(ChatVotes), typeof(BodyLook) })
+                foreach (var c in new System.Type[] { typeof(MatchLog), typeof(ReplaySystem), typeof(PuppetControl), typeof(WinOdds), typeof(Commentator), typeof(Hazards), typeof(ChatVotes), typeof(BodyLook),
+                                                      typeof(ContactLedger), typeof(Biometrics), typeof(Stamina), typeof(Tactician), typeof(WeatherFeed), typeof(VoiceCaster) })
                     Assert.IsTrue(scene.GetRootGameObjects().Any(r => r.GetComponentInChildren(c, true) != null), c.Name + " missing");
             }
             finally { EditorSceneManager.CloseScene(scene, true); }

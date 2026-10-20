@@ -356,3 +356,42 @@ No `training/runs` on this machine, so the shipped brains were rebuilt from thei
 
   Why xg1 failed: the rebuilt G1 actors acting with std 0.3 mostly fall on their own (fight1 beats them 84 %, the deterministic ones 29 %), so the humans learned to wait; training reported wins 2.4x losses while eval showed the reverse. xg2 stalled because a draw costs the same as a loss (-10) and a long stall against a stronger opponent avoids both the loss and the effort. Next: v3 (scripts/queue_xb3.sh), a standing-G1 attacker stage first (rung `<body>_att_g1`), then the league with draws at -20.
 - **Cross-body v3 (rejected).** Standing-G1 attacker stage (`<body>_att_g1`, 250 it, deterministic, critic warm-up 20, draw -20), then the league (`<body>_vs_g1`, 300 it, G1 league + standing walker, draw -20). The attacker stage works: Trump pushes a standing G1 off 97.5 %, Kim 88 %. The league stage again ends below the start: vs the G1 league Trump 21 / 71 / 8 %, Kim 15 / 76 / 8 % (both fight1 32 %); vs a standing own body Trump 45 % (fight1 97.5 %), Kim 70 %. Three recipes, six runs, the same drift: against the deterministic G1 league a win is rare, and every league stage settles below where it started. Cross-body training is parked; the humans keep fight1. Ideas for later: keep own-body opponents in the pool so wins stay common, or train the G1 side against the humans instead.
+
+## 2026-10-19 — broadcast features: get-up brain, Tactician A/B gate (RTX 2060 machine)
+
+Seven features from the feature list (tale of the tape, vitals HUD, knock-out credit + feed + voice, Tactician, pack
+targeting, get-up rule, stamina) went into the game; two needed training or a gate.
+
+**Get-up brain (rung `getup`, STAGED_TRAINING.md section 7).** One robot on the flat floor, 85 % of episodes start from a
+0.85 m drop in a random orientation, nothing but a NaN ends an episode; 4096 envs, about 3.8 s per iteration on the 2060
+(8 s while the Unity editor plays a six-way match: leave play mode during training).
+
+| Run | Recipe | Result | Verdict |
+|---|---|---|---|
+| `getup1` | height 2.0, upright^2 1.0, standing pose 1.0, drift -0.2; 2000 it planned, stopped at 900 | settled by iteration 400 into sitting: from drops, pelvis at 26 % of the standing height, up-axis 0.65, standing 1 % (eval without noise, 256 drops, 8 s) | rejected |
+| `getup2` | warm from getup1 900; pelvis pull 0.8 x body weight while low, fading over 900 it; + upward-speed reward 0.5 | standing share stayed 16 % (the standing starts) up to iteration 450 with the pull still 0.4-0.8: the sitting habit (action std 0.25) did not move | rejected, stopped at 450 |
+| `getup3` | fresh; pull 1.0 x body weight at any height, fading to 0 over iterations 0-1000 (HoST-style), 1600 it, 115 min | standing share 5 % (it 50) -> 53 % (200) -> 86 % (450, pull 0.55) -> 84 % (800, pull 0.2) -> 88 % (1600, no pull; the 15 % standing starts and the first ~1.5 s of every drop count as not standing). Unaided eval (256 drops, DR on): at 600 4 % (leaning on the pull), at 1000 85 % standing by 2 s / 100 % by 4 s, final 98 % by 2 s / 100 % by 4 s. Graduated: last-100 mean reward 28.7 (bar 18), 0 NaN updates | **shipped** `Models/getup_policy.onnx` |
+
+- **Get-up gates (final brain).** Drops, 200, training recipe: CPU MuJoCo `getup_stats.py` 100 % up within the 5 s count, median 1.52 s (1.40 / 1.60); Unity `RunGetupStats` 99.5 % (one drop never stood in 8 s), 1.47 s (1.38 / 1.60): pass. The game rule in duels (champion vs itself, 200 rounds, `--getup` / `RunGetupDuelStats`): Python 99.5 % decided (105 / 94 / 1), median 8.40 s (5.71 / 12.17); Unity 99 % (103 / 94 / 3), 7.98 s (5.75 / 11.81): pass, the same Unity-ends-sooner offset as the plain-rule gate (8.05 vs 8.40 s). Get-ups are rare in duels (most rounds end on a ring-out): the rule changes the Python median by 0.0-0.14 s. Kim and Trump have no get-up brain yet (same rung with `KOTH_ROBOT`). PlayMode 3/3 (new: intro into the first round).
+
+**Tactician A/B gate** (`ParityBatch.RunTacticianStats`: Gate_duel_2p, champion vs champion, 200 rounds, 25 s bell, seat
+A plans with rollouts on 4 worker threads and the physics waits for them; wins A - B):
+
+| Variant | A - B (ties) | Press chosen |
+|---|---|---|
+| Press only (sanity: the hook path) | 97 - 100 (3) | 100 % |
+| 0.6 s horizon, no prior | 27 - 171 (2), again 27 - 173 | 39 % |
+| 1.2 s, Press prior 0.5 | 64 - 133 (3) | |
+| 2.0 s, prior 0.3 | 65 - 128 (7) | 59 % |
+| 1.2 s, prior 1.0 (now the default) | 76 - 120 (4) | 87 % |
+| 1.2 s, prior 0.3, 3 averaged rollouts with +-0.05 m/s nudges | 74 - 125 (1) | 69 % |
+
+Every planning variant loses to plain Press, even when it deviates in only 13 % of decisions. The brains were trained on
+one goal law (straight at the opponent), and contact fights diverge too fast for 0.6-2 s rollouts to tell a good
+deviation from a lucky one. The Tactician stays as an experimental show option (off by default, "Tactician
+(experimental)"); not a gameplay improvement. A real tactical layer would need brains trained with varied goal points.
+
+**Other measurements.** MlpNet (C#, worker threads) vs Sentis on the same ONNX: max error below 2e-4 x output scale on
+four brains (EditMode `FeatureTests`). New components cost nothing measurable on the physics tick: six-way match, editor,
+tick 1.0-1.15 ms with ContactLedger, Biometrics, Stamina on or off. Stamina keeps the servo scale inside 0.85-1.15
+(trained kp randomisation +-20 %); off in every gate. EditMode tests 40/40.

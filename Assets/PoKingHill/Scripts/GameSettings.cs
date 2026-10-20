@@ -4,7 +4,10 @@ using UnityEngine;
 namespace PoKingHill
 {
     public enum CameraStyle { Broadcast, Classic }
-    public enum Targeting { Nearest, Opportunist }
+    /// <summary>Who each brain is pointed at in a free-for-all (brains were trained 1v1): Nearest (as trained), Opportunist
+    /// (easiest to push off), Dogpile (everyone at the king, the one nearest the centre), Grudge (whoever pushed me last),
+    /// Vulture (hang back while two others fight, then go for the weakest).</summary>
+    public enum Targeting { Nearest, Opportunist, Dogpile, Grudge, Vulture }
     public enum Overlay { Off, Strain, Fatigue, Colliders }
 
     /// <summary>
@@ -21,6 +24,15 @@ namespace PoKingHill
         public static float SeaPace { get => F("seaPace", 1f); set => Set("seaPace", Mathf.Clamp(value, 0.5f, 2f)); }
         public static Targeting Targeting { get => (Targeting)I("targeting", (int)Targeting.Opportunist); set => Set("targeting", (int)value); }
         public static bool Hazards { get => B("hazards", false); set => Set("hazards", value); }
+        /// <summary>Tale of the tape before a match's first round: a crane shot, then a card per fighter.</summary>
+        public static bool Intro { get => B("intro", true); set => Set("intro", value); }
+        /// <summary>Fighters tire with the work their joints do (PD stiffness down to 85 %, inside the 80-120 % the
+        /// brains were randomised over); adrenaline from chat or a badge tap gives a short boost.</summary>
+        public static bool Stamina { get => B("stamina", false); set => Set("stamina", value); }
+        /// <summary>A fighter that falls on the plateau gets a count to stand up again with its get-up brain.</summary>
+        public static bool GetUp { get => B("getup", false); set => Set("getup", value); }
+        /// <summary>Fighters with a lookahead planner choose press / flank / regroup from simulated futures.</summary>
+        public static bool Tactician { get => B("tactician", false); set => Set("tactician", value); }
 
         // Presentation
         public static CameraStyle Camera { get => (CameraStyle)I("camera", (int)CameraStyle.Broadcast); set => Set("camera", (int)value); }
@@ -41,9 +53,13 @@ namespace PoKingHill
         public static string TwitchChannel { get => S("twitch", ""); set => Set("twitch", (value ?? "").Trim().TrimStart('#').ToLowerInvariant()); }
         public static bool ClaudeCommentary { get => B("claude", false); set => Set("claude", value); }
         public static bool UploadTelemetry { get => B("azure", false); set => Set("azure", value); }
+        /// <summary>Read the commentary aloud (Azure Speech with AZURE_SPEECH_KEY + AZURE_SPEECH_REGION, or ElevenLabs with ELEVENLABS_API_KEY).</summary>
+        public static bool Voice { get => B("voice", false); set => Set("voice", value); }
+        /// <summary>City whose live weather (Open-Meteo, no key) sets the summit's sky and how often gusts come; "" = off.</summary>
+        public static string WeatherCity { get => S("weather", ""); set => Set("weather", (value ?? "").Trim()); }
 
-        static readonly string[] Keys = { "rounds", "seaPace", "targeting", "hazards", "camera", "cutaways", "replays", "effects", "volume", "winOdds",
-                                          "commentary", "telemetryHud", "overlay", "intent", "twitch", "claude", "azure" };
+        static readonly string[] Keys = { "rounds", "seaPace", "targeting", "hazards", "intro", "stamina", "getup", "tactician", "camera", "cutaways", "replays",
+                                          "effects", "volume", "winOdds", "commentary", "telemetryHud", "overlay", "intent", "twitch", "claude", "azure", "voice", "weather" };
         /// <summary>Back to the defaults: deletes only this game's keys, never other PlayerPrefs.</summary>
         public static void ResetAll() { foreach (var k in Keys) PlayerPrefs.DeleteKey("koth." + k); PlayerPrefs.Save(); Changed?.Invoke(); }
 

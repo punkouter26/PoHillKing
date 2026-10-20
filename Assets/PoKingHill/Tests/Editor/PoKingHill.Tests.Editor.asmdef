@@ -10,7 +10,8 @@
         "Unity.Cinemachine",
         "Unity.InferenceEngine",
         "Unity.RenderPipelines.Core.Runtime",
-        "Unity.RenderPipelines.Universal.Runtime"
+        "Unity.RenderPipelines.Universal.Runtime",
+        "Unity.Splines"
     ],
     "includePlatforms": [
         "Editor"

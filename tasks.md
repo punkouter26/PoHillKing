@@ -121,5 +121,16 @@ Per-rung procedure: train → TensorBoard → viewer spot-check → `record_refe
 
 > **Phase D status (2026-10-09):** D.1-D.5 exist in `Demo_duel.unity` (IMGUI menu and HUD, `DemoDirector`, `MatchCamera`, `ImpactSynth`, `Sea`) and were checked from captured frames in `SCREENSHOTS/archive`. The audio waveform is unheard. D.6 is done (Windows player: 60 FPS, 500 steps/s, 0.23 ms physics tick, no managed allocation in the tick; numbers in rl_optimization_log.md). D.7 is done: R0-R5 training bars and R0-R3 editor gates re-run, release player built and checked for combat parity and performance, tagged `v1.0` (details in rl_optimization_log.md). The scene is built by an editor menu command from the imported MJCF, not hand-authored.
 
+## Phase E — Broadcast features (2026-10-19)
+
+- [x] E.1 Tale of the tape: match state `Intro` (crane on a Splines path, per-fighter orbit and card: mass, strongest joint, Elo, record, KOs, brain; optional live weather line). Skippable; gates and auto runs skip it.
+- [x] E.2 Vitals strip on every badge (`Biometrics`: capture point vs planted feet, capture point vs rim = EDGE tag, 3 s strain sparkline).
+- [x] E.3 Knock-out credit (`ContactLedger`, pairwise contact impulse), feed with assists, KO column, ladder record/KOs/assists, commentary names the pusher, voice (`VoiceCaster`: Azure Speech / ElevenLabs, untested without keys).
+- [x] E.4 Tactician (rollout planner on worker threads, `MlpNet` weights from `export_mlp.py`). A/B gate: loses to plain Press in all six variants (best 76-120): shipped as an experimental option, off by default.
+- [x] E.5 Pack targeting: Dogpile, Grudge, Vulture (lurk via `Tactic.Lurk`) beside Nearest / Opportunist.
+- [x] E.6 Get-up rule: rung `getup` (getup3, HoST-style fading assist), `DemoDirector.OutWithGetUp`, Python mirror `duel_stats.py --getup`. Gates: drops 99.5 % (Unity) / 100 % (CPU) up within the 5 s count; duel statistics pass. G1 only.
+- [x] E.7 Stamina + hype: kp/bias scale 0.85-1.15 from joint power (inside the trained ±20 %), badge tap / chat `!hype`, steam FX, critic sees the kp scale.
+- [x] E.8 Settings split into Settings + Connect (fixes the overflowing sheet); weather city (Open-Meteo). UI report `SCREENSHOTS/ui-261019/report.html`; training report `SCREENSHOTS/training-261019-getup/index.html`.
+
 ## Deferred (out of scope this build)
 Unitree H1; custom skinned rigs; external map meshes; R6 victory dance (DeepMimic tracking); AMP motion prior; Android performance target.

@@ -126,6 +126,23 @@ pelvis height above ground (1), feet contact flags (2), DR params (mass scale 1,
 use `sigmoid((V_a - V_b) / 10)` or similar as a bar. Checked on a synthetic rsl_rl checkpoint: ONNX vs torch max
 error 2.2e-6 (policy 2.9e-6), opset 17, batch 1.
 
+## 7. Get-up brain (rung `getup`, added 2026-10-19 for the game's get-up rule)
+
+One brain per body kind that takes over while a fighter is down (`DemoDirector.OutWithGetUp`, `PolicyRunner.SetGetUp`):
+103 inputs, zero command, `ctrl = default + 0.5 action`, no style path. Flat floor, one robot.
+
+| setting | value | reason |
+|---|---|---|
+| starts | 85 % drops from 0.85 m in a uniformly random orientation, joints default +- 0.6 rad; 15 % standing | it must get up from anything a fight ends in, and stay up once up |
+| ending | only a NaN state; 8 s episodes | lying down is the task, not a failure |
+| rewards (per s) | height share 2.0, uprightness^2 1.0, once standing (h > 0.85 x standing, up > 0.9) default pose 1.0 and no drift -0.2, upward speed 0.5 until standing; action rate -0.01, joint speed -2e-4, joint limits -1 | dense progress toward standing, then a familiar stance for the fight brain |
+| assist | vertical pull on the pelvis, 1.0 x body weight, fading to 0 over iterations 0-1000 (`assist`, `assist_iters`, `assist_low_only`) | without it the policy settles into sitting (getup1); a pull applied only while low, from a sitting policy, did not move it (getup2). After HoST (2025) |
+| disturbances | no kicks, no boxes; DR as every rung | |
+
+Gates: `scripts/getup_stats.py` (CPU, 200 drops: success within the game's 5 s count, time-to-stand quartiles) vs
+`ParityBatch.RunGetupStats` (Unity, Testbed_flat_1p, `GetupProbe`); then the game rule: `duel_stats.py --getup` vs
+`ParityBatch.RunGetupDuelStats`. Runs and numbers: rl_optimization_log.md (2026-10-19).
+
 ## New JSON keys for the Unity side (read with fallbacks)
 
 - `joint_map.json` (`training/assets/{g1,kim}/`, `Assets/PoKingHill/Models/`, `Models/kim/`), last key:

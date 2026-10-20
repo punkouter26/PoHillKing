@@ -27,11 +27,15 @@ namespace PoKingHill
         [Tooltip("Network input size: 103 = locomotion state, 112 = state + 9 opponent/ring values (combat policies).")]
         public int policyObsDim = ObsBuilder.ObsDim;
         public bool paused;
+        [Tooltip("Where a fighting brain (GoalMode.Opponent) walks: Press = straight at the opponent, as trained. Set by Tactician and Vulture targeting.")]
+        public Tactic tactic = Tactic.Press;
+        [Tooltip("Optional get-up brain (103 inputs, zero command; training rung getup) that takes over while the fighter is down")]
+        public ModelAsset getupPolicy;
         [Tooltip("Shove style (mirror of SHOVE_* in training/koth/env.py): the arm rest pose moves to hands-forward as the opponent closes from 1.6 m to 1.0 m, and the action is low-passed before it becomes a joint target.")]
         public bool shoveStyle;
         [Tooltip("The styled rest pose (mirror of STYLE_POSES in training/koth/obs.py): shove = arms forward (G1), bull = Trump's charge.")]
         public string stylePose = "shove";
-        const float ShoveFar = 1.6f, ShoveNear = 1.0f, ShoveSmooth = 0.5f;
+        public const float ShoveFar = 1.6f, ShoveNear = 1.0f, ShoveSmooth = 0.5f;
         // joint-name substring -> target angle; the first key a joint's name contains wins, as in Python's dict order
         static readonly Dictionary<string, (string key, float target)[]> StylePoses = new()
         {
@@ -50,10 +54,18 @@ namespace PoKingHill
         public double[] Ctrl { get; private set; }        // held position targets, canonical order
         public event System.Action<PolicyRunner> OnPolicyStep;
         public double LastInferenceMs { get; private set; }
+        /// <summary>The get-up brain is driving (SetGetUp).</summary>
+        public bool GettingUp => _getup;
+        /// <summary>Per-joint shove/style rest-pose offset (target - default), for rollouts that mirror PolicyTick.</summary>
+        public float[] StyleOffsets => _shoveOffset;
+        public float GaitPhase => _phase;
+        /// <summary>The shove style's low-passed action (rollouts copy it to continue the filter).</summary>
+        public float[] FilteredAction => _actF;
 
         JointMapSpec _spec;
-        Worker _worker;
-        Tensor<float> _input;
+        Worker _worker, _getupWorker;
+        Tensor<float> _input, _getupInput; float[] _getupObs; bool _getup;
+        static readonly float[] ZeroCommand = new float[3];
         int _substep;
         float _phase;
         readonly float[] _cmd = new float[3];
@@ -80,7 +92,7 @@ namespace PoKingHill
                 MjScene.Instance.postInitEvent -= OnSceneInit;
                 MjScene.Instance.preUpdateEvent -= OnPreStep;
             }
-            _worker?.Dispose(); _input?.Dispose();
+            _worker?.Dispose(); _input?.Dispose(); _getupWorker?.Dispose(); _getupInput?.Dispose(); _getupWorker = null; _getupInput = null;
         }
 
         void OnSceneInit(object sender, MjStepArgs args)
@@ -105,6 +117,7 @@ namespace PoKingHill
 
         void PolicyTick(MujocoLib.mjData_* d)
         {
+            if (_getup && _getupWorker != null) { GetUpTick(d); return; }
             if (_worker == null)
             {
                 for (int i = 0; i < Map.N; i++) Ctrl[i] = _spec.hold_ctrl[i];
@@ -113,12 +126,13 @@ namespace PoKingHill
             _cmd[0] = command.x; _cmd[1] = command.y; _cmd[2] = command.z;
             if (goal != GoalMode.None)
             {
-                double* q = d->qpos + Map.RootQposAdr; double gx = -q[0], gy = -q[1];
+                double* q = d->qpos + Map.RootQposAdr; double gx = -q[0], gy = -q[1]; float stop = goalStopDist;
                 if (goal == GoalMode.Opponent && opponent != null && opponent.Map != null)
                 {
                     double* o = d->qpos + opponent.Map.RootQposAdr; gx = o[0] - q[0]; gy = o[1] - q[1];
+                    if (tactic != Tactic.Press) Tactics.Goal(tactic, q, o, goalStopDist, out gx, out gy, out stop);
                 }
-                GoalCommand.Compute(q + 3, gx, gy, goalStopDist, goalVmax, _cmd);
+                GoalCommand.Compute(q + 3, gx, gy, stop, goalVmax, _cmd);
                 command = new Vector3(_cmd[0], _cmd[1], _cmd[2]);
             }
             ObsBuilder.Fill(Obs, d, Map, _cmd, LastAction, _phase);
@@ -158,10 +172,46 @@ namespace PoKingHill
             OnPolicyStep?.Invoke(this);
         }
 
+        // The get-up brain: the 103 locomotion inputs with a zero command, ctrl = default + scale * action (no style
+        // path), as the getup rung trains it (koth/env.py). Shares the last action and the gait clock with the fight
+        // brain, so the hand-over in either direction is continuous.
+        void GetUpTick(MujocoLib.mjData_* d)
+        {
+            command = Vector3.zero;
+            ObsBuilder.Fill(_getupObs, d, Map, ZeroCommand, LastAction, _phase);
+            _sw.Restart();
+            _getupInput.Upload(_getupObs); _getupWorker.Schedule(_getupInput);
+            var output = _getupWorker.PeekOutput() as Tensor<float>; output.CompleteAllPendingOperations();
+            var act = output.AsReadOnlySpan(); LastInferenceMs = _sw.Elapsed.TotalMilliseconds;
+            for (int i = 0; i < Map.N; i++)
+            {
+                RawAction[i] = act[i]; float a = Mathf.Clamp(act[i], -1f, 1f); LastAction[i] = a; _actF[i] = a;
+                Ctrl[i] = System.Math.Clamp(Map.DefaultPose[i] + _spec.action_scale * a, Map.CtrlMin[i], Map.CtrlMax[i]);
+            }
+            _phase += 2f * Mathf.PI * ObsBuilder.GaitFreqHz * _spec.ctrl_dt;
+            if (_phase > 2f * Mathf.PI) _phase -= 2f * Mathf.PI;
+            OnPolicyStep?.Invoke(this);
+        }
+
+        /// <summary>Hand the body to the get-up brain (on) or back to the fight brain (off). Returns false when there is no
+        /// get-up brain for this body. The worker is made once, on first use.</summary>
+        public bool SetGetUp(bool on)
+        {
+            if (on && getupPolicy == null) return false;
+            if (on && _getupWorker == null)
+            {
+                _getupWorker = new Worker(ModelLoader.Load(getupPolicy), BackendType.CPU);
+                _getupObs = new float[ObsBuilder.ObsDim]; _getupInput = new Tensor<float>(new TensorShape(1, ObsBuilder.ObsDim));
+            }
+            _getup = on;
+            return true;
+        }
+
         /// <summary>Training keyframe for this robot: default joint pose, pelvis at its spawn x/y/yaw (qpos0) and the
         /// keyframe height, zero velocities, hold ctrl. Pure mjData writes; no scene recreation.</summary>
         public void ResetPose()
         {
+            _getup = false;
             var m = MjScene.Instance.Model; var d = MjScene.Instance.Data;
             for (int k = 0; k < 7; k++) d->qpos[Map.RootQposAdr + k] = m->qpos0[Map.RootQposAdr + k];
             d->qpos[Map.RootQposAdr + 2] = _spec.key_root_z;
@@ -193,6 +243,7 @@ namespace PoKingHill
         {
             _worker?.Dispose(); _input?.Dispose(); _worker = null; _input = null;
             policy = newPolicy; policyObsDim = obsDim; goal = newGoal; goalStopDist = stopDist; goalVmax = vmax; command = Vector3.zero; shoveStyle = shove;
+            tactic = Tactic.Press; _getup = false;
             if (pose != stylePose) { stylePose = pose; SetStyleOffsets(); }
             LoadBrain(); ResetClock();
         }

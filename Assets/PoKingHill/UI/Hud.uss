@@ -120,7 +120,7 @@ Label { color: var(--ink); -unity-font-style: normal; font-size: 34px; margin: 0
 .winner-stripe { height: 12px; border-radius: 6px; margin: 12px 0 18px 0; }
 .res-row { flex-direction: row; align-items: center; height: 64px; border-bottom-width: 1px; border-color: var(--line); }
 .res-row Label { font-size: 27px; }
-.res-name { flex-grow: 1; flex-basis: 0; }
+.res-name { flex-grow: 1; flex-basis: 0; min-width: 0; overflow: hidden; }
 .res-cell { width: 112px; -unity-text-align: middle-right; color: var(--ink-dim); }
 .res-head Label { color: var(--ink-dim); font-size: 23px; }
 .win { color: var(--good); -unity-font-style: bold; }
@@ -129,3 +129,35 @@ Label { color: var(--ink); -unity-font-style: normal; font-size: 34px; margin: 0
 .bracket Label { font-size: 26px; }
 .res-cell.elo { width: 150px; }
 .primary.next { flex-grow: 1; flex-basis: 0; height: 96px; margin: 8px 7px; font-size: 36px; }
+
+/* ---- vitals, status tags, knock-out feed (Biometrics, ContactLedger, Stamina, Tactician) ------------------- */
+.badge-col { flex-direction: column; align-items: stretch; padding: 6px 16px 8px 10px; }
+.badge-top { flex-direction: row; align-items: center; }
+.badge-tag { font-size: 22px; -unity-font-style: bold; color: var(--accent-ink); background-color: var(--accent); border-radius: 12px; padding: 1px 10px; margin-left: 10px; }
+.badge.down { border-color: var(--bad); }
+.badge.down .badge-tag { background-color: var(--bad); color: var(--ink); }
+.badge.edge { border-color: var(--bad); background-color: rgba(120, 24, 20, 0.72); }
+.badge.edge .badge-tag { background-color: var(--bad); color: var(--ink); }
+.badge.hyped { border-color: var(--accent); background-color: rgba(120, 88, 10, 0.72); }
+.vitals { height: 26px; margin: 6px 0 0 36px; min-width: 140px; }
+
+.feed { align-self: flex-end; align-items: flex-end; margin-top: 10px; }
+.feed-row { flex-direction: row; align-items: center; background-color: var(--glass); border-radius: 18px; padding: 4px 14px 4px 10px; margin-top: 6px; }
+.feed-row Label { font-size: 25px; }
+.feed-row .dot { width: 18px; height: 18px; border-radius: 9px; margin-right: 6px; margin-left: 4px; }
+.feed-verb { color: var(--ink-dim); margin: 0 8px; }
+
+/* ---- intro: tale of the tape -------------------------------------------------------------------------------- */
+.intro { background-color: var(--glass-strong); border-radius: 36px; padding: 24px 30px 18px 30px; border-width: 2px; border-color: var(--line); margin: 0 4px 18px 4px; }
+.intro-stripe { height: 10px; border-radius: 5px; margin-bottom: 14px; }
+.intro-kicker { font-size: 26px; color: var(--accent); -unity-font-style: bold; letter-spacing: 2px; }
+.intro-name { font-size: 54px; -unity-font-style: bold; white-space: normal; margin: 2px 0 6px 0; }
+.intro-weather { font-size: 27px; color: var(--ink-dim); white-space: normal; margin-top: 6px; }
+.intro-grid { flex-direction: row; flex-wrap: wrap; justify-content: space-between; margin-top: 14px; }
+.intro-tile { width: 32%; background-color: rgba(255, 255, 255, 0.07); border-radius: 20px; padding: 12px 14px; margin-bottom: 10px; }
+.intro-value { font-size: 36px; -unity-font-style: bold; white-space: normal; }
+.intro-key { font-size: 22px; color: var(--ink-dim); }
+
+/* ---- menu additions ------------------------------------------------------------------------------------------ */
+.seg-tight .seg-btn { font-size: 25px; }
+.chip.wide { width: 100%; }

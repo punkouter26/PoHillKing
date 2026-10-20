@@ -3,7 +3,8 @@ using UnityEngine;
 
 namespace PoKingHill
 {
-    public enum MatchState { Booting, Menu, Fight, Result, Replay }
+    /// <summary>Intro = the tale of the tape before a match's first round (fighters stand passively, no round clock).</summary>
+    public enum MatchState { Booting, Menu, Intro, Fight, Result, Replay }
 
     public enum RoundEnd { Knockout, SeaArrived, FullTime, NobodyLeft }
 
@@ -37,6 +38,18 @@ namespace PoKingHill
         public static event Action<Vector3, float> Splash;
         /// <summary>Free text for the caption line (commentary, chat votes, hazards).</summary>
         public static event Action<string> Caption;
+        /// <summary>The commentator's settled line for a moment (Claude's reply, or the template when Claude is off or
+        /// failed): what the voice reads. Captions that are not commentary (hazards, chat) never come here.</summary>
+        public static event Action<string> Commentary;
+        /// <summary>Who knocked a fighter out (ContactLedger): victim, the fighter that pushed it most recently (null = it
+        /// fell on its own), and the one before that (assist, may be null).</summary>
+        public static event Action<PolicyRunner, PolicyRunner, PolicyRunner> KnockoutCredited;
+        /// <summary>A fighter fell inside the plateau and its get-up brain took over (GameSettings.GetUp).</summary>
+        public static event Action<PolicyRunner> Down;
+        /// <summary>A fighter that was down stands again and fights on.</summary>
+        public static event Action<PolicyRunner> Recovered;
+        /// <summary>Adrenaline for one fighter (chat !hype or a badge tap; Stamina applies it).</summary>
+        public static event Action<PolicyRunner> Hyped;
 
         public static void RaiseState(MatchState s) => StateChanged?.Invoke(s);
         public static void RaiseRoundStarted() => RoundStarted?.Invoke();
@@ -46,9 +59,15 @@ namespace PoKingHill
         public static void RaiseFootfall(Vector3 p, float s, float slip) => Footfall?.Invoke(p, s, slip);
         public static void RaiseSplash(Vector3 p, float s) => Splash?.Invoke(p, s);
         public static void RaiseCaption(string text) => Caption?.Invoke(text);
+        public static void RaiseCommentary(string text) => Commentary?.Invoke(text);
+        public static void RaiseKnockoutCredited(PolicyRunner victim, PolicyRunner by, PolicyRunner assist) => KnockoutCredited?.Invoke(victim, by, assist);
+        public static void RaiseDown(PolicyRunner r) => Down?.Invoke(r);
+        public static void RaiseRecovered(PolicyRunner r) => Recovered?.Invoke(r);
+        public static void RaiseHyped(PolicyRunner r) => Hyped?.Invoke(r);
 
         // Domain reload is off in fast enter-play mode: listeners from the previous play session must not linger.
         [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.SubsystemRegistration)]
-        static void Reset() { StateChanged = null; RoundStarted = null; Knockout = null; RoundEnded = null; Impact = null; Footfall = null; Splash = null; Caption = null; }
+        static void Reset() { StateChanged = null; RoundStarted = null; Knockout = null; RoundEnded = null; Impact = null; Footfall = null; Splash = null; Caption = null;
+                           Commentary = null; KnockoutCredited = null; Down = null; Recovered = null; Hyped = null; }
     }
 }

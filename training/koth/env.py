@@ -65,7 +65,7 @@ def default_cfg(rung: str = "r0") -> dict:
                     lin_vel_z=-0.5, feet_air_time=2.0, feet_slip=-0.1, feet_phase=1.0, pose=-0.1, joint_deviation_hip=-0.25,
                     joint_deviation_knee=-0.1, dof_pos_limits=-1.0, action_rate=-0.01, joint_vel=-2e-4, stand_still=-0.1,
                     tracking_heading=1.0, plateau=0.0, off_rim=0.0, ring_advantage=0.0, opp_radius=0.0, self_edge=0.0, push_out=0.0, hand_push=0.0, win=0.0, draw=0.0, termination=-1.0,
-                    stalemate=0.0, belly_push=0.0, arm_contact=0.0),
+                    stalemate=0.0, belly_push=0.0, arm_contact=0.0, getup_height=0.0, getup_upright=0.0, getup_pose=0.0, getup_still=0.0, getup_rise=0.0),
         tracking_sigma=0.25, swing_height=0.12, terminate_on_leg_contact=True, max_radius=8.0, combat=False,
         contact_free=False,        # True: within reach of the opponent, arms/waist are exempt from the pose penalty
         gait_free=False,           # True: within reach of the opponent, the gait-clock rewards are off (feet may plant)
@@ -80,9 +80,29 @@ def default_cfg(rung: str = "r0") -> dict:
         stalemate_rule=dict(dist=0.6, speed=0.1, seconds=2.0),   # reward["stalemate"] fires after `seconds` this close and slow
         push_out_cap=0.0,          # > 0: at most this much push_out reward per episode
         fatigue=dict(enabled=False, tau_s=10.0, min_scale=0.6, gain=2.0, omega_ref=10.0, obs=False),
+        getup=None,                # dict (rung "getup"): episodes start from drops in random orientations and never end on a fall
     )
     if rung == "r0":                       # stand only: zero command, disturbances on
         cfg["command"].update(zero_prob=1.0)
+    elif rung == "getup":                  # get back up after a fall (Unity: PolicyRunner's get-up brain, GameSettings.GetUp)
+        # drop_prob of the resets drop the robot from drop_z with a uniformly random orientation and joints at
+        # default +- joint_noise; the rest start standing, so the brain also learns to stay up once it is up. Lying
+        # down is the task, not a failure: only a NaN state ends an episode early. Rewards: pelvis height (share of
+        # the standing height), uprightness, and once standing (height > 0.85 x standing, up > 0.9) the default pose
+        # and no drift, so the fight brain can take over from a familiar stance.
+        # Run getup1 (no assist) settled at iteration 400 into sitting up and staying there (pelvis at 26 % of the standing
+        # height, up-axis 0.65): standing pays 3x more but was never found. As in HoST (humanoid standing-up control, 2025),
+        # a vertical pull on the pelvis (assist x body weight, only while it is below the standing height) helps early on
+        # and fades linearly to zero over assist_iters PPO iterations; getup_rise pays the pelvis' upward speed until standing.
+        # getup2 (assist 0.8 only while low, warm from getup1) kept sitting: the help is now the whole body weight at any
+        # height (assist_low_only False), from a fresh start, so a lying robot first hangs into a standing posture.
+        cfg.update(getup=dict(drop_prob=0.85, drop_z=0.85, joint_noise=0.6, stand_h=0.85, stand_up=0.9, assist=1.0, assist_iters=1000, assist_low_only=False),
+                   episode_length_s=8.0, terminate_on_leg_contact=False)
+        cfg["command"].update(zero_prob=1.0)
+        cfg["push"].update(interval_s=[1e6, 1e6]); cfg["projectile"].update(enabled=False)
+        cfg["reward"] = {k: 0.0 for k in cfg["reward"]}
+        cfg["reward"].update(getup_height=2.0, getup_upright=1.0, getup_pose=1.0, getup_still=-0.2, getup_rise=0.5, action_rate=-0.01, joint_vel=-2e-4,
+                             dof_pos_limits=-1.0, termination=-1.0)
     elif rung == "r2":                     # arena, return to and hold the plateau
         cfg.update(scene="scene_koth_1p_train.xml", arena=True, goal="center")
         # 2026-10-08: every agent starts on the summit and nobody is asked to climb. Slope spawns ([0, 2.6]) were
@@ -549,6 +569,14 @@ class KothEnv:
             q[:, self.rq + 0] = xy[:, :, 0]; q[:, self.rq + 1] = xy[:, :, 1]
             q[:, self.rq + 2] = self.key_root_z + terrain_height(xy, self.arena) + 0.02 + 0.12 * slope
         q[:, self.rq + 3] = torch.cos(yaw / 2); q[:, self.rq + 4] = 0; q[:, self.rq + 5] = 0; q[:, self.rq + 6] = torch.sin(yaw / 2)
+        gu = self.cfg.get("getup")
+        if gu:                                                  # drops: uniformly random orientation, loose joints, from drop_z
+            drop = torch.rand(n, A, device=self.device) < gu["drop_prob"]
+            rq = torch.randn(n, A, 4, device=self.device); rq = rq / rq.norm(dim=2, keepdim=True)
+            for k in range(4): q[:, self.rq + 3 + k] = torch.where(drop, rq[:, :, k], q[:, self.rq + 3 + k])
+            q[:, self.rq + 2] = torch.where(drop, gu["drop_z"] + terrain_height(q[:, self.rq[:, None] + torch.arange(2, device=self.device)], self.arena), q[:, self.rq + 2])
+            loose = torch.clamp(self.key_qpos[self.qadr] + (torch.rand(n, A, 29, device=self.device) * 2 - 1) * gu["joint_noise"], self.jnt_lo_a, self.jnt_hi_a)
+            q[:, self.qadr] = torch.where(drop[:, :, None], loose, q[:, self.qadr])
         q[:, self.box_qcols] = self.box_qpark                   # park the pool
         self.qpos[ids] = q; self.qvel[ids] = v; self.box_life[ids] = 0
         self.ctrl[ids] = self.key_ctrl; self.pending_ctrl[rows] = self.key_ctrl[self.aid].repeat(n, 1)
@@ -629,6 +657,27 @@ class KothEnv:
         p = (tau * jvel).abs() / (tmax * fz["omega_ref"])
         self.fatigue = (self.fatigue + self.ctrl_dt * (fz["gain"] * p - self.fatigue) / fz["tau_s"]).clamp(0.0, 1.0)
 
+    # ------------------------------------------------------------------ get-up assist (rung getup, training only)
+    def _getup_assist(self):
+        """Vertical pull on each pelvis (assist x subtree weight; with assist_low_only only while it is below stand_h x the
+        standing height), fading linearly to 0 over assist_iters PPO iterations (24 env steps each). xfrc_applied is
+        re-written every control step."""
+        gu = self.cfg["getup"]; it = self.curriculum_offset_iters + self.common_step / 24
+        a = gu["assist"] * max(0.0, 1.0 - it / gu["assist_iters"]); self._assist_now = a
+        if not hasattr(self, "_xfrc"):
+            self._xfrc = wp.to_torch(self.d.xfrc_applied)
+            J = mujoco.mjtObj.mjOBJ_BODY
+            self.pelvis_body = torch.tensor([mujoco.mj_name2id(self.mjm, J, p + "pelvis") for p in self.cfg["robots"]], device=self.device)
+        pb = self.pelvis_body
+        if a <= 0: self._xfrc[:, pb, 2] = 0.0; return
+        weight = self.mp["body_subtreemass"][:, pb] * 9.81                                    # (N, A), mass randomised per world
+        if gu.get("assist_low_only", True):
+            pos = self._flat(self.qpos[:, self.rq7])[:, :3]
+            low = (pos[:, 2] - terrain_height(pos[:, :2], self.arena)) < gu["stand_h"] * self.key_root_z.repeat(self.N)
+            self._xfrc[:, pb, 2] = a * weight * low.view(self.N, self.A).float()
+        else:
+            self._xfrc[:, pb, 2] = a * weight
+
     # ------------------------------------------------------------------ step
     def _step_sim(self):
         # torch and warp use different CUDA streams: flush torch writes, run the graph, wait for it
@@ -660,6 +709,7 @@ class KothEnv:
         self.ctrl[:, self.aid.reshape(-1)] = apply.reshape(N, A * 29)
         self._disturb()
         if self.fatigue_on: self._apply_fatigue_limits()
+        if self.cfg.get("getup") and self.cfg["getup"].get("assist", 0) > 0: self._getup_assist()
         self._step_sim()
         self.episode_length_buf += 1; self.common_step += 1
         self.phase = torch.remainder(self.phase + 2 * math.pi * GAIT_FREQ_HZ * self.ctrl_dt, 2 * math.pi)
@@ -678,6 +728,7 @@ class KothEnv:
         fallen = tipped | low | nan
         if self.arena: fallen |= radius > self.cfg["max_radius"]
         if self.cfg["terminate_on_leg_contact"]: fallen |= leg
+        if self.cfg.get("getup"): fallen = nan                  # getting up is the task: lying down never ends the episode
         timeout = self.episode_length_buf >= self.max_episode_length
         if A > 2:                                    # free-for-all: an eliminated robot stays in the world, limp
             fallen = fallen & ~self.out; self.out |= fallen               # fallen = eliminated this step
@@ -708,6 +759,9 @@ class KothEnv:
         if A >= 2: self.extras["sep"] = self._sep
         if A > 2: self.extras["out"] = self.out.clone(); self.extras["world_won"] = won_w; self.extras["world_lost"] = lost
         if self.arena: self.extras["log"]["ep/on_plateau"] = (radius < PLATEAU_R).float().mean()
+        if self.cfg.get("getup"):
+            self.extras["log"]["ep/standing"] = self._standing.mean(); self.extras["standing"] = self._standing
+            self.extras["log"]["ep/assist"] = torch.tensor(getattr(self, "_assist_now", 0.0))
         if self.A >= 2:
             self.extras["log"]["ep/decided"] = (decided.float().sum() / world_done.float().sum().clamp(min=1))
             self.extras["log"]["ep/separation"] = self._sep.mean()
@@ -794,6 +848,15 @@ class KothEnv:
                 slow = torch.maximum(linv_w[:, :2].norm(dim=1), ovel[:, :2].norm(dim=1)) < st["speed"]
                 self.stale_t = torch.where((dist < st["dist"]) & slow, self.stale_t + dt, torch.zeros_like(self.stale_t))
                 t["stalemate"] = (self.stale_t > st["seconds"]).float()
+        gu = self.cfg.get("getup")
+        if gu:                                          # rung getup: height and uprightness, then a settled standing pose
+            h = (pos[:, 2] - terrain_height(pos[:, :2], self.arena)) / self.key_root_z.repeat(self.N); up = -grav[:, 2]
+            standing = ((h > gu["stand_h"]) & (up > gu["stand_up"])).float(); self._standing = standing
+            t["getup_height"] = h.clamp(0.0, 1.0)
+            t["getup_upright"] = ((up + 1) / 2) ** 2
+            t["getup_pose"] = torch.exp(-(dev ** 2).sum(1)) * standing
+            t["getup_still"] = ((linv_w[:, :2] ** 2).sum(1) + (angv ** 2).sum(1) * 0.1) * standing
+            t["getup_rise"] = linv_w[:, 2].clamp(0.0, 1.0) * (1 - standing)
         t["plateau"] = (radius < 1.2).float()
         t["off_rim"] = (radius - PLATEAU_R).clamp(min=0)
         self.reward_terms = {k: R[k] * v * dt for k, v in t.items() if R.get(k, 0.0) != 0.0}

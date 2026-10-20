@@ -23,8 +23,33 @@ namespace PoKingHill
         float _nextClaude; bool _busy; int _bigHits;
         static readonly System.Random Rng = new();
 
-        void OnEnable() { MatchEvents.RoundStarted += OnStart; MatchEvents.Knockout += OnKo; MatchEvents.RoundEnded += OnEnd; MatchEvents.Impact += OnImpact; }
-        void OnDisable() { MatchEvents.RoundStarted -= OnStart; MatchEvents.Knockout -= OnKo; MatchEvents.RoundEnded -= OnEnd; MatchEvents.Impact -= OnImpact; }
+        void OnEnable()
+        {
+            MatchEvents.RoundStarted += OnStart; MatchEvents.KnockoutCredited += OnKo; MatchEvents.RoundEnded += OnEnd; MatchEvents.Impact += OnImpact;
+            MatchEvents.Down += OnDown; MatchEvents.Recovered += OnUp; MatchEvents.Hyped += OnHype;
+        }
+        void OnDisable()
+        {
+            MatchEvents.RoundStarted -= OnStart; MatchEvents.KnockoutCredited -= OnKo; MatchEvents.RoundEnded -= OnEnd; MatchEvents.Impact -= OnImpact;
+            MatchEvents.Down -= OnDown; MatchEvents.Recovered -= OnUp; MatchEvents.Hyped -= OnHype;
+        }
+
+        string Who(PolicyRunner r) => director.BadgeOf(director.AgentOf(Array.IndexOf(director.fighters, r)));
+
+        void OnDown(PolicyRunner r)
+        {
+            if (!On) return; string who = Who(r);
+            Say(Pick($"{who} is down! Can they get up?", $"{who} hits the deck, the count is on.", $"Down goes {who}, but it's not over."),
+                $"{who} has fallen on the summit and has {director.getupSeconds:0} seconds to stand up again or be counted out.");
+        }
+
+        void OnUp(PolicyRunner r)
+        {
+            if (!On) return; string who = Who(r);
+            Say(Pick($"{who} is back up!", $"{who} beats the count!", $"Up again: {who} fights on."), $"{who} got back up before the count ran out and is fighting again.");
+        }
+
+        void OnHype(PolicyRunner r) { if (On) Say(Pick($"The crowd lifts {Who(r)}!", $"Adrenaline for {Who(r)}!"), null); }
 
         bool On => GameSettings.Commentary && director != null && director.statsRounds == 0;
 
@@ -36,13 +61,16 @@ namespace PoKingHill
                 $"A king-of-the-hill round between humanoid robots just started: {field}. The sea rises and ends the round in about half a minute.");
         }
 
-        void OnKo(PolicyRunner r)
+        // ContactLedger credits the knock-out right after the director announces it: by = null means nobody pushed it.
+        void OnKo(PolicyRunner r, PolicyRunner by, PolicyRunner assist)
         {
             if (!On) return;
-            int body = Array.IndexOf(director.fighters, r); string who = director.BadgeOf(director.AgentOf(body));
-            int left = director.Alive.Count;
-            Say(Pick($"{who} is off the hill!", $"Down goes {who}!", $"{who} tumbles toward the water."),
-                $"{who} has just been knocked off the summit after {director.RoundTime:0.0} s; {left} fighter{(left == 1 ? "" : "s")} still standing.");
+            string who = Who(r); int left = director.Alive.Count;
+            string line = by == null ? Pick($"{who} is off the hill!", $"{who} tumbles toward the water.", $"{who} slips off on their own!")
+                        : assist == null ? Pick($"{Who(by)} shoves {who} off!", $"{who} goes over, courtesy of {Who(by)}.", $"{Who(by)} sends {who} into the sea!")
+                        : Pick($"{Who(by)} finishes {who}, with help from {Who(assist)}!", $"{who} is off: {Who(by)} and {Who(assist)} teamed up.");
+            string credit = by == null ? "nobody was pushing them" : $"{Who(by)} pushed them off" + (assist != null ? $" with help from {Who(assist)}" : "");
+            Say(line, $"{who} has just been knocked off the summit after {director.RoundTime:0.0} s ({credit}); {left} fighter{(left == 1 ? "" : "s")} still standing.");
         }
 
         void OnImpact(Vector3 p, float strength, PolicyRunner r)
@@ -69,18 +97,27 @@ namespace PoKingHill
 
         static string Pick(params string[] lines) => lines[Rng.Next(lines.Length)];
 
+        // The template line shows at once. The voice (MatchEvents.Commentary) gets one line per moment: Claude's when it
+        // was asked and answered, else the template.
         void Say(string local, string claudePrompt)
         {
             MatchEvents.RaiseCaption(local);
-            if (claudePrompt == null || !GameSettings.ClaudeCommentary || _busy || Time.unscaledTime < _nextClaude || !ClaudeAvailable) return;
+            if (claudePrompt == null || !GameSettings.ClaudeCommentary || _busy || Time.unscaledTime < _nextClaude || !ClaudeAvailable) { MatchEvents.RaiseCommentary(local); return; }
             _nextClaude = Time.unscaledTime + minGapSeconds;
-            StartCoroutine(AskClaude(claudePrompt));
+            StartCoroutine(AskClaude(claudePrompt, local));
         }
 
         [Serializable] class Block { public string type; public string text; }
         [Serializable] class Reply { public Block[] content; public string stop_reason; }
 
-        IEnumerator AskClaude(string situation)
+        IEnumerator AskClaude(string situation, string fallback)
+        {
+            string said = null;
+            yield return Ask(situation, s => said = s);
+            MatchEvents.RaiseCommentary(said ?? fallback);
+        }
+
+        IEnumerator Ask(string situation, Action<string> answered)
         {
             _busy = true;
             const string system = "You are a lively sports commentator for a physics game where humanoid robots fight to stay on a mountain " +
@@ -98,7 +135,7 @@ namespace PoKingHill
             Reply reply; try { reply = JsonUtility.FromJson<Reply>(req.downloadHandler.text); } catch { yield break; }
             if (reply == null || reply.stop_reason == "refusal" || reply.content == null) yield break;   // declined: keep the template line
             foreach (var b in reply.content)
-                if (b.type == "text" && !string.IsNullOrWhiteSpace(b.text)) { MatchEvents.RaiseCaption(b.text.Trim().Trim('"')); yield break; }
+                if (b.type == "text" && !string.IsNullOrWhiteSpace(b.text)) { string line = b.text.Trim().Trim('"'); MatchEvents.RaiseCaption(line); answered(line); yield break; }
         }
 
         static string Json(string s) => s.Replace("\\", "\\\\").Replace("\"", "\\\"").Replace("\n", "\\n");

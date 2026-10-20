@@ -1,0 +1,100 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Broadcast Features HUD</title>
+<style>
+  :root { --bg: #f6f6f4; --ink: #1d1d1f; --dim: #5d5d63; --card: #ffffff; --line: #ddd; --bad: #c0392b; --good: #1e8449; --pin: #e8a300; --pin-ink: #1a1406; }
+  @media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) { --bg: #151517; --ink: #ececef; --dim: #a0a0a8; --card: #1f1f23; --line: #333; --bad: #ff6b5b; --good: #4cd18a; } }
+  :root[data-theme="dark"] { --bg: #151517; --ink: #ececef; --dim: #a0a0a8; --card: #1f1f23; --line: #333; --bad: #ff6b5b; --good: #4cd18a; }
+  body { margin: 0; padding: 24px 16px 48px; background: var(--bg); color: var(--ink); font: 16px/1.5 system-ui, sans-serif; }
+  main { max-width: 1000px; margin: 0 auto; }
+  h1 { font-size: 26px; margin: 0 0 4px; } h2 { font-size: 20px; margin: 40px 0 8px; }
+  p.sub { color: var(--dim); margin: 0 0 24px; }
+  .pair { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 16px; }
+  figure { margin: 0; background: var(--card); border: 1px solid var(--line); border-radius: 12px; padding: 12px; }
+  .shot { position: relative; }
+  .shot img { width: 100%; height: auto; border-radius: 8px; display: block; }
+  .pin { position: absolute; transform: translate(-50%, -50%); width: 26px; height: 26px; border-radius: 13px; background: var(--pin); color: var(--pin-ink);
+         font: 700 14px/26px system-ui, sans-serif; text-align: center; box-shadow: 0 0 0 3px rgba(0,0,0,.45); }
+  figcaption { font-size: 14px; color: var(--dim); margin-top: 8px; }
+  figcaption ol { margin: 6px 0 0; padding-left: 20px; }
+  .tag { font-weight: 600; } .bad { color: var(--bad); } .good { color: var(--good); }
+  code { font-size: 14px; }
+  table { border-collapse: collapse; font-size: 14px; margin-top: 8px; } td, th { border-bottom: 1px solid var(--line); padding: 4px 10px 4px 0; text-align: left; }
+</style>
+</head>
+<body>
+<main>
+  <h1>Broadcast features in the HUD</h1>
+  <p class="sub">261019. Seven features from the feature list: tale of the tape (1), vitals strip (2), knock-out credit, feed and voice (3), tactician (7), pack targeting (8), get-up rule (9), stamina and hype (10). Captures: Unity Game view at 1080 x 2520 (9:16 column), six-way free-for-all unless noted. Numbered pins mark what changed.</p>
+
+  <h2>1. Settings split in two tabs: Settings and Connect</h2>
+  <p>The Settings tab already ran past the bottom of the sheet: "Reset all settings" lay on top of the Claude and Azure chips. Network features moved to a new Connect tab, and the match options gained the five targeting modes and four feature switches.</p>
+  <div class="pair">
+    <figure><div class="shot"><img src="before/05_settings.png" alt="Old settings tab: the reset button overlaps the last chips"><span class="pin" style="left:50%;top:91%">1</span></div>
+      <figcaption><span class="tag bad">Before</span><ol><li>"Reset all settings" drawn over the Claude / Azure chips: the sheet overflowed.</li></ol></figcaption></figure>
+    <figure><div class="shot"><img src="after/05_settings.png" alt="New settings tab with five targeting modes and four feature chips"><span class="pin" style="left:50%;top:55%">1</span><span class="pin" style="left:50%;top:62%">2</span><span class="pin" style="left:83%;top:36%">3</span></div>
+      <figcaption><span class="tag good">After</span><ol><li>Free-for-all targets: Nearest, Opportunist, Dogpile, Grudge, Vulture.</li><li>Tale of the tape, Stamina + hype, Get back up (locked until a get-up brain exists), Tactician (experimental).</li><li>New Connect tab.</li></ol></figcaption></figure>
+    <figure><div class="shot"><img src="after/06_connect.png" alt="Connect tab: Twitch, weather city, Claude, voice, telemetry, reset"><span class="pin" style="left:50%;top:67%">1</span><span class="pin" style="left:50%;top:80%">2</span><span class="pin" style="left:50%;top:90%">3</span></div>
+      <figcaption><span class="tag good">After</span><ol><li>Live-weather city (Open-Meteo, no key) under the Twitch field (chat now also takes <code>!hype &lt;fighter&gt;</code>).</li><li>Voice: Azure Speech or ElevenLabs; each chip names the key it waits for.</li><li>Reset has its full height again.</li></ol></figcaption></figure>
+  </div>
+
+  <h2>2. Tale of the tape before the first round</h2>
+  <p>New match state <code>Intro</code>: the fighters stand passively while a Cinemachine spline dolly cranes up from the sea, then an orbit visits each one (from outside the ring, so nobody stands in front) with a card read from the compiled model and the ladder. "Skip intro" starts the round; the round itself starts from a fresh placement, as before.</p>
+  <div class="pair">
+    <figure><div class="shot"><img src="before/01_menu.png" alt="Before: the match went straight from the menu to the fight"></div>
+      <figcaption><span class="tag bad">Before</span>: Quick match / Custom went straight into the round.</figcaption></figure>
+    <figure><div class="shot"><img src="after/08_intro_crane.png" alt="Crane shot rising to the summit with the field card"><span class="pin" style="left:50%;top:78%">1</span><span class="pin" style="left:80%;top:52%">2</span></div>
+      <figcaption><span class="tag good">After</span><ol><li>"Tonight on the summit": the field.</li><li>Crane shot along <code>Intro crane path</code> (Splines).</li></ol></figcaption></figure>
+    <figure><div class="shot"><img src="after/09_intro_card.png" alt="Fighter card: mass, strongest joint, Elo, record, knock-outs, brain"><span class="pin" style="left:12%;top:67%">1</span><span class="pin" style="left:50%;top:73%">2</span><span class="pin" style="left:50%;top:86%">3</span></div>
+      <figcaption><span class="tag good">After</span><ol><li>Seat colour stripe and "Fighter n of 6".</li><li>Mass and strongest joint from mjModel; Elo, record and knock-outs from the ladder; brain kind from the input size.</li><li>Skip intro.</li></ol></figcaption></figure>
+  </div>
+
+  <h2>3. Badges carry vitals, tactics and status</h2>
+  <p>Each badge has a strip drawn with Painter2D: balance (capture point against the planted feet, a step's reach counted as full), the last 3 s of joint strain as a sparkline, and stamina in gold. A tag shows <b>DOWN n.n</b> (get-up count), <b>EDGE</b> (capture point past the rim while heading out), <b>HYPE</b>, or the fighter's tactic (regroup, flank, lurk). Tapping a badge cheers that fighter on (adrenaline, with a cooldown).</p>
+  <div class="pair">
+    <figure><div class="shot"><img src="before/02_six_way_fight.png" alt="Before: plain badges with name and wins"><span class="pin" style="left:50%;top:10%">1</span></div>
+      <figcaption><span class="tag bad">Before</span><ol><li>Name and wins only.</li></ol></figcaption></figure>
+    <figure><div class="shot"><img src="after/10_fight.png" alt="After: vitals strips, a regroup tag, steam off a tired fighter"><span class="pin" style="left:86%;top:8%">1</span><span class="pin" style="left:78%;top:10.5%">2</span><span class="pin" style="left:35%;top:36%">3</span></div>
+      <figcaption><span class="tag good">After</span> (tactician on)<ol><li>Tactic tag: the Duelist's planner chose "regroup".</li><li>Vitals: balance bar, strain sparkline, stamina.</li><li>Steam off a worn-out fighter (stamina &lt; 0.4).</li></ol></figcaption></figure>
+    <figure><div class="shot"><img src="after/13_hype.png" alt="Hype tag on a fighter and the crowd caption"><span class="pin" style="left:49%;top:8%">1</span><span class="pin" style="left:50%;top:92%">2</span></div>
+      <figcaption><span class="tag good">After</span><ol><li>HYPE: adrenaline, servo stiffness +15 % for 4 s and a quarter of the stamina back (a badge tap or chat <code>!hype</code>, 8 s cooldown, hidden once a fighter is out).</li><li>The commentator picks it up.</li></ol></figcaption></figure>
+    <figure><div class="shot"><img src="after/15_getup_down.png" alt="A fighter down with its get-up count running"><span class="pin" style="left:49%;top:13%">1</span><span class="pin" style="left:50%;top:91%">2</span></div>
+      <figcaption><span class="tag good">After</span> (Get back up on)<ol><li>DOWN 3.6: the Free-for-all fell on the plateau; its get-up brain has the rest of the 5 s count to stand it up again, or it is out.</li><li>"Down goes Free-for-all, but it's not over."</li></ol></figcaption></figure>
+  </div>
+
+  <h2>4. Who pushed whom: knock-out feed and results</h2>
+  <p><code>ContactLedger</code> assigns every contact impulse between two fighters to the one moving faster toward the other; a knock-out goes to the largest recent push (3 s), the runner-up gets the assist. The feed keeps the last four, the commentator names them, and the ladder now keeps record, knock-outs and assists. On the results sheet KO (knock-outs + assists) replaces the distance walked.</p>
+  <div class="pair">
+    <figure><div class="shot"><img src="before/04_six_way_result.png" alt="Before: results with Walked column"></div>
+      <figcaption><span class="tag bad">Before</span>: result, out at, walked, top speed, Elo.</figcaption></figure>
+    <figure><div class="shot"><img src="after/14_feed.png" alt="Knock-out feed with assists"><span class="pin" style="left:62%;top:29%">1</span><span class="pin" style="left:50%;top:92%">2</span></div>
+      <figcaption><span class="tag good">After</span><ol><li>"Free-for-all pushes off Trump + All-rounder": credit and assist.</li><li>The caption line names the pusher.</li></ol></figcaption></figure>
+    <figure><div class="shot"><img src="after/11_result.png" alt="Results with a KO column instead of Walked"><span class="pin" style="left:60%;top:64%">1</span><span class="pin" style="left:82%;top:20.5%">2</span></div>
+      <figcaption><span class="tag good">After</span><ol><li>KO column (knock-outs + assists) where Walked was: the Free-for-all pushed off three.</li><li>"Walker falls off": nobody had pushed it in the last 3 s.</li></ol></figcaption></figure>
+    <figure><div class="shot"><img src="after/07_agents.png" alt="Agents tab with record and knock-outs"><span class="pin" style="left:30%;top:62.5%">1</span></div>
+      <figcaption><span class="tag good">After</span><ol><li>Each agent card: Elo, win-loss record and knock-outs from the ladder (it used to show rounds and this session's wins).</li></ol></figcaption></figure>
+  </div>
+
+  <h2>5. Pack targeting: Vulture</h2>
+  <p>Vulture holds a spot out of the fight (<code>Tactic.Lurk</code>, 0.6 m from the centre) while two others push each other, then goes for whoever is least balanced or nearest the rim. Dogpile sends everyone at the fighter nearest the centre, Grudge at whoever pushed you last.</p>
+  <div class="pair">
+    <figure><div class="shot"><img src="after/12_vulture_lurk.png" alt="Vulture targeting: the Duelist lurks"><span class="pin" style="left:61%;top:13%">1</span><span class="pin" style="left:20%;top:15%">2</span></div>
+      <figcaption><span class="tag good">After</span><ol><li>"lurk": the Duelist holds back while others push each other.</li><li>Balance bars green while walking (a step's reach counts as full balance).</li></ol></figcaption></figure>
+  </div>
+
+  <h2>6. Measured</h2>
+  <table>
+    <tr><th>What</th><th>Result</th></tr>
+    <tr><td>EditMode tests</td><td>40 / 40 (new: MlpNet vs Sentis on four brains, ladder record and credits, capture-point geometry, voice PCM, weather codes)</td></tr>
+    <tr><td>PlayMode tests</td><td>3 / 3 (new: the intro leads into the first round with brains armed)</td></tr>
+    <tr><td>Physics tick, six-way, editor</td><td>1.0-1.15 ms with or without the new sensors (no measurable cost)</td></tr>
+    <tr><td>Get-up gate (200 drops)</td><td>Unity 99.5 % up within the 5 s count, median 1.47 s (1.38 / 1.60); CPU MuJoCo 100 %, 1.52 s (1.40 / 1.60)</td></tr>
+    <tr><td>Duel with the get-up rule (200)</td><td>Unity 99 % decided, median 7.98 s; Python 99.5 %, 8.40 s (same relationship as the plain-rule gate)</td></tr>
+    <tr><td>Tactician A/B (200 duels)</td><td>loses to plain Press in every variant (best 76-120); kept as an experimental show option</td></tr>
+  </table>
+</main>
+</body>
+</html>

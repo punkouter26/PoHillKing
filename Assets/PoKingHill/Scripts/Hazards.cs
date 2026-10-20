@@ -13,13 +13,15 @@ namespace PoKingHill
     ///   Quake   2 s of random horizontal shoves on every pelvis
     ///   Shrink  the plateau that counts as "in" shrinks from 1.7 m to 1.3 m over 8 s, for the rest of the round
     ///   Boxes   one thrown box at every fighter (the training's projectile recipe)
-    /// With GameSettings.Hazards a random one strikes every 8-12 s; chat votes (ChatVotes) and the debug panel can
+    /// With GameSettings.Hazards a random one strikes every 8-12 s (a gust 20 % of the time, up to 70 % when the live
+    /// weather city is windy); chat votes (ChatVotes) and the debug panel can
     /// trigger any of them. Off in the statistics gate.
     /// </summary>
     public unsafe class Hazards : MonoBehaviour
     {
         public DemoDirector director;
         public ProjectilePool pool;
+        public WeatherFeed weather;                      // optional: windy weather makes gusts the likelier random hazard
         public float windShare = 0.12f, iceScale = 0.7f, shrinkTo = 1.3f;
 
         public string Active => _windUntil > Now || _iceUntil > Now || _quakeUntil > Now ? _activeName : "";
@@ -84,7 +86,9 @@ namespace PoKingHill
             if (director == null || director.State != MatchState.Fight || !GameSettings.Hazards || director.statsRounds > 0) return;
             if (Time.time < _nextRandom) return;
             _nextRandom = Time.time + 8f + (float)_rng.NextDouble() * 4f;
-            Trigger((Hazard)_rng.Next(5));
+            // live weather: the windier it is at the chosen city, the more of the random hazards are gusts (each gust keeps its strength)
+            float windShareOfPicks = weather != null && weather.Ready ? Mathf.Clamp(weather.WindKmh / 60f, 0.2f, 0.7f) : 0.2f;
+            Trigger(_rng.NextDouble() < windShareOfPicks ? Hazard.Wind : (Hazard)(1 + _rng.Next(4)));
         }
 
         void Pre(object s, MjStepArgs a)

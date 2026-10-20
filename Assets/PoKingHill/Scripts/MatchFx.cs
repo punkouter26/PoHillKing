@@ -13,13 +13,17 @@ namespace PoKingHill
     ///   light      a new time of day each round, the sky darkening toward a storm as the sea rises, and a spotlight
     ///              on the fighter nearest the centre
     ///   winner     confetti over the winner
+    ///   stamina    steam off fighters that are worn out, a spark burst on adrenaline (Stamina)
+    ///   weather    with a live weather city (WeatherFeed): night, overcast or clear sky, and a stormier sea when it rains
     /// The particle systems, decal pool, volume and lights are scene objects built by the editor builder, so they
     /// can be tuned by hand; this component only drives them.
     /// </summary>
     public unsafe class MatchFx : MonoBehaviour
     {
         public DemoDirector director;
-        public ParticleSystem dust, sparks, splash, ripple, confetti;
+        public ParticleSystem dust, sparks, splash, ripple, confetti, steam;
+        public Stamina stamina;
+        public WeatherFeed weather;
         public DecalProjector[] scuffs = System.Array.Empty<DecalProjector>();
         public Volume hitVolume;
         public Light sun, kingSpot;
@@ -35,7 +39,9 @@ namespace PoKingHill
             (new Vector3(22f, 60f, 0f), new Color(1.00f, 0.78f, 0.55f), 1.00f),      // late afternoon
             (new Vector3(12f, -120f, 0f), new Color(1.00f, 0.62f, 0.42f), 0.85f),    // sunset
             (new Vector3(35f, 150f, 0f), new Color(0.85f, 0.90f, 1.00f), 0.95f),     // overcast morning
+            (new Vector3(28f, 200f, 0f), new Color(0.55f, 0.65f, 0.95f), 0.40f),     // moonlight (live weather at night)
         };
+        float _nextSteam;
 
         void OnEnable()
         {
@@ -50,12 +56,18 @@ namespace PoKingHill
             _fogCalm = RenderSettings.fogColor;
             if (sun != null) { _sunCalm = sun.color; _sunCalmIntensity = sun.intensity; }
             MatchEvents.Impact += OnImpact; MatchEvents.Footfall += OnFootfall; MatchEvents.Splash += OnSplash;
-            MatchEvents.RoundStarted += OnRound; MatchEvents.RoundEnded += OnEnd;
+            MatchEvents.RoundStarted += OnRound; MatchEvents.RoundEnded += OnEnd; MatchEvents.Hyped += OnHype;
         }
         void OnDisable()
         {
             MatchEvents.Impact -= OnImpact; MatchEvents.Footfall -= OnFootfall; MatchEvents.Splash -= OnSplash;
-            MatchEvents.RoundStarted -= OnRound; MatchEvents.RoundEnded -= OnEnd;
+            MatchEvents.RoundStarted -= OnRound; MatchEvents.RoundEnded -= OnEnd; MatchEvents.Hyped -= OnHype;
+        }
+
+        void OnHype(PolicyRunner r)
+        {
+            if (!On || r.PelvisTransform == null) return;
+            Burst(sparks, r.PelvisTransform.position + Vector3.up * 0.3f, 40, 2.5f); _punch = Mathf.Max(_punch, 0.5f);
         }
 
         bool On => GameSettings.Effects && director != null && director.statsRounds == 0;
@@ -106,7 +118,9 @@ namespace PoKingHill
         void OnRound()
         {
             if (director == null || director.statsRounds > 0 || sun == null) return;
-            var t = TimesOfDay[_rng.Next(TimesOfDay.Length)];
+            // live weather: night -> moonlight, cloudy or wet -> overcast, else a daylight pick; without it any of the four
+            int pick = weather != null && weather.Ready ? (!weather.IsDay ? 4 : weather.Wet || weather.CloudCover > 70 ? 3 : _rng.Next(3)) : _rng.Next(4);
+            var t = TimesOfDay[pick];
             sun.transform.rotation = Quaternion.Euler(t.euler); _sunCalm = t.color; _sunCalmIntensity = t.intensity;
         }
 
@@ -129,6 +143,16 @@ namespace PoKingHill
             var sea = director.sea;
             float storm = sea != null && director.State == MatchState.Fight ? Mathf.Clamp01((sea.Level + sea.startDepth) / sea.startDepth) : 0f;
             storm = storm * storm;
+            if (weather != null && weather.Ready && weather.Wet && director.State == MatchState.Fight) storm = Mathf.Max(storm, 0.35f);
+            if (steam != null && stamina != null && GameSettings.Stamina && On && director.State == MatchState.Fight && Time.time >= _nextSteam)
+            {
+                _nextSteam = Time.time + 0.2f;
+                for (int i = 0; i < director.Playing; i++)
+                {
+                    var r = director.fighters[i]; float s = stamina.Level(r);
+                    if (s < 0.4f && !director.IsOut(i) && r.PelvisTransform != null) Burst(steam, r.PelvisTransform.position + Vector3.up * 0.55f, s < 0.2f ? 2 : 1, 0.25f);
+                }
+            }
             if (water != null && sea != null) { water.SetFloat(SeaLevel, sea.Level); water.SetFloat(Storm, storm); }
             if (sun != null)
             {

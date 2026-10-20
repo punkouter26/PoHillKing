@@ -39,7 +39,7 @@ namespace PoKingHill
         {
             MatchEvents.RoundStarted -= Repaint; MatchEvents.StateChanged -= OnState;
         }
-        void OnState(MatchState s) { if (s == MatchState.Menu) Repaint(); }
+        void OnState(MatchState s) { if (s == MatchState.Menu || s == MatchState.Intro) Repaint(); }
 
         void Init()
         {

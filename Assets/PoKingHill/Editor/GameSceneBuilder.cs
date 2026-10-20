@@ -25,25 +25,34 @@ namespace PoKingHill.EditorTools
         public static void Dress(GameObject rig, DemoDirector director, Sea sea, ImpactSynth synth, Camera cam, MatchCamera classic, ProjectilePool pool)
         {
             Directory.CreateDirectory(UiDir); Directory.CreateDirectory(FxDir);
-            var log = rig.AddComponent<MatchLog>(); log.director = director;
+            // sensors and mechanics that read (or, Stamina, scale) the simulation; all inert in the statistics gates
+            var ledger = rig.AddComponent<ContactLedger>(); ledger.director = director; director.ledger = ledger;
+            var bio = rig.AddComponent<Biometrics>(); bio.director = director; director.bio = bio;
+            var stamina = rig.AddComponent<Stamina>(); stamina.director = director;
+            var tactician = rig.AddComponent<Tactician>(); tactician.director = director;
+            var weather = rig.AddComponent<WeatherFeed>();
+            var log = rig.AddComponent<MatchLog>(); log.director = director; log.ledger = ledger;
             var replay = rig.AddComponent<ReplaySystem>(); replay.director = director;
             rig.AddComponent<PuppetControl>().director = director;
-            var odds = rig.AddComponent<WinOdds>(); odds.director = director;
+            var odds = rig.AddComponent<WinOdds>(); odds.director = director; odds.stamina = stamina;
             rig.AddComponent<Commentator>().director = director;
-            var hazards = rig.AddComponent<Hazards>(); hazards.director = director; hazards.pool = pool;
-            var chat = rig.AddComponent<ChatVotes>(); chat.hazards = hazards;
+            var hazards = rig.AddComponent<Hazards>(); hazards.director = director; hazards.pool = pool; hazards.weather = weather;
+            var chat = rig.AddComponent<ChatVotes>(); chat.hazards = hazards; chat.stamina = stamina; chat.director = director;
             var look = rig.AddComponent<BodyLook>(); look.director = director;
             look.lineMaterial = AssetDatabase.LoadAssetAtPath<Material>(FxDir + "/IntentLine.mat");
             if (look.lineMaterial == null) { look.lineMaterial = new Material(Shader.Find("Universal Render Pipeline/Unlit")); AssetDatabase.CreateAsset(look.lineMaterial, FxDir + "/IntentLine.mat"); }
+            // the voice gets its own AudioSource: the rig's belongs to ImpactSynth's procedural audio
+            var voice = new GameObject("Voice (commentary)"); voice.transform.SetParent(rig.transform, false); voice.AddComponent<VoiceCaster>().director = director;
 
-            BuildHud(director, odds, replay, log, hazards, chat);
+            var hud = BuildHud(director, odds, replay, log, hazards, chat);
+            hud.bio = bio; hud.ledger = ledger; hud.stamina = stamina; hud.tactician = tactician; hud.weather = weather;
             BuildCameraRig(rig, director, cam, classic);
-            BuildFx(rig, director, sea);
+            var fx = BuildFx(rig, director, sea); fx.stamina = stamina; fx.weather = weather;
             EnsureDecalFeature();
         }
 
         // ------------------------------------------------------------------ HUD
-        static void BuildHud(DemoDirector director, WinOdds odds, ReplaySystem replay, MatchLog log, Hazards hazards, ChatVotes chat)
+        static HudView BuildHud(DemoDirector director, WinOdds odds, ReplaySystem replay, MatchLog log, Hazards hazards, ChatVotes chat)
         {
             string themePath = UiDir + "/HudTheme.tss";
             if (!File.Exists(themePath)) { File.WriteAllText(themePath, "@import url(\"unity-theme://default\");\n"); AssetDatabase.ImportAsset(themePath); }
@@ -61,6 +70,7 @@ namespace PoKingHill.EditorTools
             hud.director = director; hud.odds = odds; hud.replay = replay; hud.log = log; hud.hazards = hazards; hud.chat = chat;
             hud.style = AssetDatabase.LoadAssetAtPath<StyleSheet>(UiDir + "/Hud.uss");
             if (hud.style == null) throw new Exception(UiDir + "/Hud.uss missing");
+            return hud;
         }
 
         // ------------------------------------------------------------------ cameras
@@ -102,17 +112,28 @@ namespace PoKingHill.EditorTools
             var winner = Orbit("Winner orbit", 40f, 3.2f, 12f);
             var replay = Orbit("Replay orbit", 42f, 2.6f, 10f);
             var menu = Orbit("Menu orbit", 40f, 7.5f, 16f); menu.Target.TrackingTarget = anchor; menu.Target.LookAtTarget = anchor;
+            var intro = Orbit("Intro orbit (tale of the tape)", 36f, 3.0f, 10f);
+
+            // intro crane: from low over the far sea up to the summit shot's position, looking at the summit (Splines)
+            var path = new GameObject("Intro crane path").AddComponent<UnityEngine.Splines.SplineContainer>(); path.transform.SetParent(root.transform);
+            var spline = path.Spline; spline.Clear();
+            foreach (var p in new[] { new Vector3(-6f, -4.5f, -14f), new Vector3(-3.5f, -1f, -10f), new Vector3(-1f, 1.6f, -7.4f), new Vector3(0f, 2.6f, -6.2f) })
+                spline.Add(new UnityEngine.Splines.BezierKnot(new Unity.Mathematics.float3(p.x, p.y, p.z)), UnityEngine.Splines.TangentMode.AutoSmooth);
+            var crane = V("Intro crane (spline dolly)", 40f); crane.Target.LookAtTarget = anchor;
+            var dolly = crane.gameObject.AddComponent<CinemachineSplineDolly>(); dolly.Spline = path; dolly.PositionUnits = UnityEngine.Splines.PathIndexUnit.Normalized;
+            dolly.CameraPosition = 0f; dolly.CameraRotation = CinemachineSplineDolly.RotationMode.Default;
+            crane.gameObject.AddComponent<CinemachineRotationComposer>();
 
             var impulse = rig.AddComponent<CinemachineImpulseSource>();
             impulse.ImpulseDefinition.ImpulseShape = CinemachineImpulseDefinition.ImpulseShapes.Bump; impulse.ImpulseDefinition.ImpulseDuration = 0.22f;
 
             var bc = rig.AddComponent<BroadcastCamera>();
             bc.director = director; bc.brain = brain; bc.classic = classic; bc.summit = summit; bc.faller = faller; bc.winner = winner; bc.replay = replay; bc.menu = menu;
-            bc.group = group; bc.impulse = impulse; bc.summitAnchor = anchor;
+            bc.group = group; bc.impulse = impulse; bc.summitAnchor = anchor; bc.crane = crane; bc.intro = intro;
         }
 
         // ------------------------------------------------------------------ effects
-        static void BuildFx(GameObject rig, DemoDirector director, Sea sea)
+        static MatchFx BuildFx(GameObject rig, DemoDirector director, Sea sea)
         {
             var fx = rig.AddComponent<MatchFx>(); fx.director = director;
             var root = new GameObject("Effects (render only)").transform;
@@ -140,6 +161,9 @@ namespace PoKingHill.EditorTools
             var cm = fx.confetti.main; cm.startColor = new ParticleSystem.MinMaxGradient(new Color(1f, 0.36f, 0.3f), new Color(0.3f, 0.65f, 1f)); cm.startSpeed = new ParticleSystem.MinMaxCurve(2f, 5f);
             var ce = fx.confetti.emission; ce.enabled = true; ce.SetBursts(new[] { new ParticleSystem.Burst(0f, 160) });
             var cs = fx.confetti.shape; cs.enabled = true; cs.shapeType = ParticleSystemShapeType.Cone; cs.angle = 35f; cs.radius = 0.2f; cs.rotation = new Vector3(-90f, 0, 0);
+            // steam off worn-out fighters (Stamina): slow, rising, growing puffs
+            fx.steam = Particles(root, "Steam", alpha, 1.4f, new Vector2(0.12f, 0.25f), new Color(0.92f, 0.94f, 0.97f, 0.45f), -0.08f, 200);
+            var ss = fx.steam.sizeOverLifetime; ss.enabled = true; ss.size = new ParticleSystem.MinMaxCurve(1f, AnimationCurve.Linear(0, 0.6f, 1, 2.2f));
 
             // scuff decals: a pool of URP decal projectors, faded by MatchFx
             var decalShader = Shader.Find("Shader Graphs/Decal");
@@ -184,6 +208,7 @@ namespace PoKingHill.EditorTools
                 if (wm == null) { wm = new Material(waterShader); AssetDatabase.CreateAsset(wm, FxDir + "/Water.mat"); }
                 sea.waterVisual.GetComponent<MeshRenderer>().sharedMaterial = wm; fx.water = wm;
             }
+            return fx;
         }
 
         static ParticleSystem Particles(Transform parent, string name, Material mat, float life, Vector2 size, Color color, float gravity, int max)

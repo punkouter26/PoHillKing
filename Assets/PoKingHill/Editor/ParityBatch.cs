@@ -228,14 +228,17 @@ namespace PoKingHill.EditorTools
             var director = rig.AddComponent<DemoDirector>(); director.fighters = runners; director.sea = sea;
             Unity.InferenceEngine.ModelAsset Onnx(string file) => AssetDatabase.LoadAssetAtPath<Unity.InferenceEngine.ModelAsset>($"{ModelDir}/{file}.onnx");
             // value = the critic exported next to the policy by export_policy.py --value, when present (drives the win-odds bar)
+            // mlp / valueMlp = the same weights for the Tactician's rollouts (scripts/export_mlp.py), when exported
+            TextAsset Mlp(string dir, string file) => AssetDatabase.LoadAssetAtPath<TextAsset>($"{dir}/{file}.bytes");
             Fighter F(string name, string badge, string file, int dim, GoalMode goal) => new Fighter { name = name, shortName = badge, obsDim = dim, goal = goal,
-                policy = Onnx(file + "_policy"), value = Onnx(file + "_value") };
+                policy = Onnx(file + "_policy"), value = Onnx(file + "_value"), mlp = Mlp(ModelDir, file + "_mlp"), valueMlp = Mlp(ModelDir, file + "_value_mlp") };
             var walker = F("G1 Walker (stands its ground)", "Walker", "r1", 103, GoalMode.None); walker.steerable = true;
             var roster = new List<Fighter> { F("G1 All-rounder (champion)", "All-rounder", "attacker", 112, GoalMode.Opponent), F("G1 Duelist (generation 7)", "Duelist", "duelist", 112, GoalMode.Opponent),
                                              F("G1 Rammer (generation 1)", "Rammer", "rammer", 112, GoalMode.Opponent), walker };
             // The free-for-all brain (scripts/train.py --rung r5ffa) joins when it has been exported; its input size comes from the file.
             var ffa = Onnx("ffa_policy");
-            if (ffa != null) roster.Insert(1, new Fighter { name = "G1 Free-for-all (trained 4-way)", shortName = "Free-for-all", obsDim = InputsOf(ffa), goal = GoalMode.Opponent, policy = ffa, value = Onnx("ffa_value") });
+            if (ffa != null) roster.Insert(1, new Fighter { name = "G1 Free-for-all (trained 4-way)", shortName = "Free-for-all", obsDim = InputsOf(ffa), goal = GoalMode.Opponent, policy = ffa, value = Onnx("ffa_value"),
+                                                            mlp = Mlp(ModelDir, "ffa_mlp"), valueMlp = Mlp(ModelDir, "ffa_value_mlp") });
             // A human is offered only when this scene has its body (koth_6p: Kim e_, Trump f_) and a brain of theirs exists:
             // the fighting brain (Models/<body>/fighter_policy.onnx, 112 inputs) when exported, else the walker that
             // walks at the nearest opponent. vmax: the walking speed the fighter was trained with (Trump's style: 0.7).
@@ -252,12 +255,17 @@ namespace PoKingHill.EditorTools
                 return new Fighter { name = name, shortName = badge, body = body, policy = policy, obsDim = policy != null ? InputsOf(policy) : 103, goal = GoalMode.Opponent, stopDist = 0f,
                                      vmax = fights ? fighterVmax : 0.8f, available = policy != null && hasBody, inGame = policy != null && hasBody,
                                      shove = pose != null, stylePose = pose ?? "shove", value = Own(file + "_value"),
+                                     mlp = fights ? Mlp(ModelsOf(body), file + "_mlp") : null, valueMlp = fights ? Mlp(ModelsOf(body), file + "_value_mlp") : null,
                                      note = !hasBody ? $"no {badge} body in this scene" : policy == null ? "no brain yet" : fights ? "" : "walks at you, never trained to fight" };
             }
             roster.Add(Human("kim", "Kim", "Kim", 1f));
             roster.Add(Human("trump", "Trump (Bulldozer: 102 kg, slow, shoves with his body)", "Trump", 0.7f, "bull"));
             director.roster = roster.ToArray();
             if (director.roster.Any(f => f.available && f.policy == null)) throw new Exception("a roster policy is missing in " + ModelDir);
+            // get-up brains (training rung getup, exported as Models[/<body>]/getup_policy.onnx) for the bodies that have one
+            director.getupBrains = new[] { "g1", "kim", "trump" }
+                .Select(b => new BodyBrain { body = b, policy = AssetDatabase.LoadAssetAtPath<Unity.InferenceEngine.ModelAsset>($"{ModelsOf(b)}/getup_policy.onnx") })
+                .Where(b => b.policy != null).ToArray();
             director.maps = new[] { "Mountain top", "Summit (baseline)" };
             director.mapVisuals = new[] { BuildMountainVisual(), GameObject.Find("ArenaVisual (render only)") };
             RenderSettings.fog = true; RenderSettings.fogMode = FogMode.Exponential; RenderSettings.fogDensity = 0.0022f;      // haze gives the peaks distance
@@ -371,7 +379,9 @@ namespace PoKingHill.EditorTools
         public static void RunTrumpDuelStats() => RunDuelStats("trump", int.Parse(Cli.Arg("-kothRounds", "200")), -1, -1);
 
         /// <summary>The statistics gate on a robot's two-body testbed; agent index -1 = that robot's own roster entry.</summary>
-        public static void RunDuelStats(string robot, int rounds, int a, int b)
+        public static void RunDuelStats(string robot, int rounds, int a, int b) => RunDuelStats(robot, rounds, a, b, play: true);
+
+        static void RunDuelStats(string robot, int rounds, int a, int b, bool play)
         {
             string gate = robot == "g1" ? GateScene : $"{SceneDir}/Gate_duel_{robot}_2p.unity";
             BuildDuelDemo("koth_2p", gate, robot);
@@ -380,6 +390,51 @@ namespace PoKingHill.EditorTools
             var dd = UnityEngine.Object.FindAnyObjectByType<DemoDirector>(); dd.sea = null; dd.roundSeconds = 25f;
             int own = Array.FindIndex(dd.roster, f => f.body == robot && f.available);
             dd.statsRounds = rounds; dd.selectedA = a < 0 ? own : a; dd.selectedB = b < 0 ? own : b;
+            if (play) EditorApplication.EnterPlaymode();
+        }
+
+        /// <summary>Tactician A/B gate: the duel statistics gate (-kothA / -kothB roster indices, default the champion
+        /// against itself, -kothRounds N) with only seat A planning (Tactician.gateSeat = 0, rollouts waited for, so the
+        /// result does not depend on the time scale). Compare wins_a with wins_b; the plain gate on the same pair is the
+        /// baseline (about 50/50).</summary>
+        public static void RunTacticianStats()
+        {
+            // variants for tuning: -kothHorizon s, -kothPressBonus x, -kothCandidates n (1 = Press only: must match the plain gate)
+            float F(string k, float d) => float.TryParse(Cli.Arg(k, ""), System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out float v) ? v : d;
+            RunTacticianStats(int.Parse(Cli.Arg("-kothRounds", "200")), F("-kothHorizon", 0.6f), F("-kothPressBonus", 0f), (int)F("-kothCandidates", 4), int.Parse(Cli.Arg("-kothA", "0")), int.Parse(Cli.Arg("-kothB", "0")));
+        }
+
+        public static void RunTacticianStats(int rounds, float horizon, float pressBonus, int candidates, int a = 0, int b = 0, int samples = 1)
+        {
+            RunDuelStats("g1", rounds, a, b, play: false);
+            var t = UnityEngine.Object.FindAnyObjectByType<Tactician>();
+            if (t == null) { Debug.LogError("[ParityBatch] no Tactician in the gate scene"); if (Cli.Exit) EditorApplication.Exit(3); return; }
+            t.gateSeat = 0; t.horizon = horizon; t.pressBonus = pressBonus; t.candidateCount = candidates; t.samples = samples;
+            EditorApplication.EnterPlaymode();
+        }
+
+        /// <summary>Get-up gate: Testbed_flat_1p with the get-up brain (Models[/robot]/getup_policy.onnx, -kothRobot),
+        /// -kothRounds N drops (default 200) with the training recipe; GetupProbe writes getup_stats_unity.json to compare
+        /// with scripts/getup_stats.py (success share within the 5 s count and time-to-stand quartiles).</summary>
+        public static void RunGetupStats()
+        {
+            EditorSceneManager.OpenScene(SceneOf(Robot, "flat_1p"), OpenSceneMode.Single);
+            var policy = AssetDatabase.LoadAssetAtPath<Unity.InferenceEngine.ModelAsset>($"{ModelsOf(Robot)}/getup_policy.onnx");
+            var runner = UnityEngine.Object.FindObjectsByType<PolicyRunner>(FindObjectsInactive.Include).FirstOrDefault();
+            if (policy == null || runner == null) { Debug.LogError("[ParityBatch] RunGetupStats needs getup_policy.onnx and a PolicyRunner"); if (Cli.Exit) EditorApplication.Exit(3); return; }
+            // the testbed's hold-parity probe writes unity_hold_trace_flat_1p.json whenever the scene plays: not in this gate
+            foreach (var hold in UnityEngine.Object.FindObjectsByType<ParityProbe>(FindObjectsInactive.Include)) UnityEngine.Object.DestroyImmediate(hold);
+            var probe = runner.gameObject.AddComponent<GetupProbe>(); probe.runner = runner; probe.policy = policy; probe.drops = int.Parse(Cli.Arg("-kothRounds", "200"));
+            EditorApplication.EnterPlaymode();
+        }
+
+        /// <summary>The duel statistics gate with the get-up rule (DemoDirector.getupInStats): compare with
+        /// scripts/duel_stats.py --getup on the same pair.</summary>
+        public static void RunGetupDuelStats()
+        {
+            RunDuelStats("g1", int.Parse(Cli.Arg("-kothRounds", "200")), int.Parse(Cli.Arg("-kothA", "0")), int.Parse(Cli.Arg("-kothB", "0")), play: false);
+            var dd = UnityEngine.Object.FindAnyObjectByType<DemoDirector>(); dd.getupInStats = true;
+            if (dd.getupBrains.Length == 0) { Debug.LogError("[ParityBatch] no getup_policy.onnx for the G1"); if (Cli.Exit) EditorApplication.Exit(3); return; }
             EditorApplication.EnterPlaymode();
         }
 

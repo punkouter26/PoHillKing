@@ -23,8 +23,14 @@ namespace PoKingHill
         [Tooltip("Ticked in the menu: this agent takes part in matches")] public bool inGame = true;
         [Tooltip("False = listed in the menu but cannot be ticked yet; note says why")] public bool available = true;
         public string note = "";
+        [Tooltip("Optional weights of the policy for Tactician rollouts (scripts/export_mlp.py, <file>_mlp.bytes)")] public TextAsset mlp;
+        [Tooltip("Optional critic weights (<file>_value_mlp.bytes) that score Tactician rollouts")] public TextAsset valueMlp;
         public string Badge => shortName.Length > 0 ? shortName : name;
     }
+
+    /// <summary>A brain that belongs to a kind of body rather than to an agent (the get-up brain).</summary>
+    [Serializable]
+    public class BodyBrain { public string body = "g1"; public ModelAsset policy; }
 
     /// <summary>
     /// Match flow for king of the hill, as an explicit state machine: Menu -> Fight -> Result (-> Replay) -> Fight or
@@ -58,6 +64,13 @@ namespace PoKingHill
         [Tooltip("Free-for-all statistics gate: the candidate (roster index) on seat A against three opponents drawn from this pool every round (roster indices). Empty = the two-fighter gate.")]
         public int[] statsPool = Array.Empty<int>();
         public int statsCandidate = -1;
+        [Tooltip("Get-up brain per body kind (training rung getup): a fighter that falls on the plateau gets getupSeconds to stand again (GameSettings.GetUp)")]
+        public BodyBrain[] getupBrains = Array.Empty<BodyBrain>();
+        public float getupSeconds = 5f; public int maxGetups = 2;
+        [Tooltip("The statistics gate plays with the get-up rule (duel_stats.py --getup)")] public bool getupInStats;
+        [Tooltip("Tale of the tape: crane shot length, then this many seconds per fighter (clamped to fit about 7 s)")] public float introCrane = 1.6f, introPerFighter = 1.6f;
+        public ContactLedger ledger;                     // optional: Grudge / Vulture targeting
+        public Biometrics bio;                           // optional: Vulture targeting
 
         /// <summary>Colour of each body's badge and team trim, in fighters[] order after seating.</summary>
         public static readonly Color[] SeatColors =
@@ -81,6 +94,15 @@ namespace PoKingHill
         public bool AgentSeatedTwice(int agent) { int n = 0; for (int i = 0; i < _playing; i++) if (_seat[i] == agent) n++; return n > 1; }
         public int Draws => _draws;
         public bool IsOut(int body) => body >= 0 && body < _out.Length && _out[body];
+        /// <summary>Fallen on the plateau, the get-up brain driving and the count running (still in the round).</summary>
+        public bool IsDown(int body) => body >= 0 && body < _downAt.Length && _downAt[body] >= 0 && !_out[body];
+        /// <summary>Seconds left on a down fighter's count.</summary>
+        public float DownLeft(int body) => IsDown(body) ? Mathf.Max(0f, (float)(_downAt[body] + getupSeconds - MjScene.Instance.Data->time)) : 0f;
+        /// <summary>During the intro: the seat being presented (-1 during the crane shot), and how far into its card (0..1).</summary>
+        public int IntroFeatured => State == MatchState.Intro ? (int)Mathf.Floor((Time.unscaledTime - _introStart - introCrane) / Mathf.Max(0.01f, _introPer)) : -1;
+        public float IntroPhase => State == MatchState.Intro ? Mathf.Repeat((Time.unscaledTime - _introStart - introCrane) / Mathf.Max(0.01f, _introPer), 1f) : 0f;
+        public float IntroElapsed => State == MatchState.Intro ? Time.unscaledTime - _introStart : 0f;
+        public float IntroLength => _introLength;
         public double RoundTime => State >= MatchState.Fight && MjScene.InstanceExists && MjScene.Instance.Data != null ? MjScene.Instance.Data->time - _roundStart : 0;
         public float ResultSecondsLeft => Mathf.Max(0f, _resultUntil - Time.unscaledTime);
         public RoundResult LastResult { get; private set; }
@@ -103,6 +125,8 @@ namespace PoKingHill
         readonly List<PolicyRunner> _alive = new(), _fallen = new();
         int[] _seat = Array.Empty<int>(), _wins = Array.Empty<int>(), _score = Array.Empty<int>();   // roster index per body (-1 = parked); wins per body; wins per agent
         bool[] _out = Array.Empty<bool>(); int _playing;
+        double[] _downAt = Array.Empty<double>(), _stoodAt = Array.Empty<double>(), _lurkAt = Array.Empty<double>(); int[] _getups = Array.Empty<int>(); bool[] _steered = Array.Empty<bool>(), _lurking = Array.Empty<bool>();
+        float _introStart, _introPer, _introLength;
         PolicyRunner[] _target = Array.Empty<PolicyRunner>();
         readonly List<double> _times = new();
         int _draws, _roundsThisMatch; double _roundStart; float _resultUntil; string _last = ""; bool _pending, _knockout;
@@ -147,6 +171,8 @@ namespace PoKingHill
             {
                 _pending = false;
                 _seat = new int[fighters.Length]; _wins = new int[fighters.Length]; _out = new bool[fighters.Length]; _target = new PolicyRunner[fighters.Length];
+                _downAt = new double[fighters.Length]; _stoodAt = new double[fighters.Length]; _lurkAt = new double[fighters.Length]; _getups = new int[fighters.Length];
+                _steered = new bool[fighters.Length]; _lurking = new bool[fighters.Length];
                 _score = new int[Mathf.Max(1, roster.Length)];
                 _arena = fighters[0].Spec?.arena ?? new ArenaSpec();
                 if (autoLaunch) Launch(); else EnterMenu();
@@ -175,10 +201,17 @@ namespace PoKingHill
 
         // Each fighter is pointed at one opponent still in. With two fighters: always the other one. With more, either
         // the nearest (as trained) or, with Targeting.Opportunist, the one easiest to push off: near the rim or unsteady.
+        // Free-for-all modes beyond Opportunist (GameSettings.Targeting): Dogpile = everyone at the king (nearest the
+        // centre; the king itself takes the nearest), Grudge = whoever pushed me in the last 6 s (ContactLedger), Vulture =
+        // hold a spot out of the fight (Tactic.Lurk) while two others push each other, then go for the weakest
+        // (Biometrics stability, or the one nearest the rim). Brains still see one opponent, as trained.
         void Retarget()
         {
             var d = MjScene.Instance.Data;
-            bool opportunist = _playing > 2 && statsRounds == 0 && GameSettings.Targeting == Targeting.Opportunist;
+            var mode = _playing > 2 && statsRounds == 0 ? GameSettings.Targeting : Targeting.Nearest;
+            if (mode > Targeting.Opportunist && State == MatchState.Fight) { RetargetMode(d, mode); return; }
+            if (mode != Targeting.Vulture) for (int i = 0; i < _playing; i++) if (_lurking[i]) { _lurking[i] = false; fighters[i].tactic = Tactic.Press; }
+            bool opportunist = mode == Targeting.Opportunist;
             for (int i = 0; i < _playing; i++)
             {
                 double* q = d->qpos + fighters[i].Map.RootQposAdr; double best = double.MaxValue, current = double.MaxValue; PolicyRunner pick = null, any = null;
@@ -212,6 +245,59 @@ namespace PoKingHill
                 bool ffaBrain = fighters[i].policyObsDim >= ObsBuilder.ObsDim + 18;
                 fighters[i].opponent = ffaBrain ? n1 : pick ?? any;
                 fighters[i].opponent2 = n2;
+            }
+        }
+
+        void RetargetMode(MujocoLib.mjData_* d, Targeting mode)
+        {
+            double R(int j) { double* o = d->qpos + fighters[j].Map.RootQposAdr; return Math.Sqrt(o[0] * o[0] + o[1] * o[1]); }
+            double Dist(int i, int j) { double* a = d->qpos + fighters[i].Map.RootQposAdr; double* b = d->qpos + fighters[j].Map.RootQposAdr; return Math.Sqrt((a[0] - b[0]) * (a[0] - b[0]) + (a[1] - b[1]) * (a[1] - b[1])); }
+            int king = -1; for (int j = 0; j < _playing; j++) if (!_out[j] && (king < 0 || R(j) < R(king))) king = j;
+            for (int i = 0; i < _playing; i++)
+            {
+                int nearest = -1, any = -1, second = -1;
+                for (int j = 0; j < _playing; j++)
+                {
+                    if (j == i) continue; if (any < 0 || Dist(i, j) < Dist(i, any)) any = j;
+                    if (_out[j]) continue;
+                    if (nearest < 0 || Dist(i, j) < Dist(i, nearest)) { second = nearest; nearest = j; } else if (second < 0 || Dist(i, j) < Dist(i, second)) second = j;
+                }
+                if (nearest < 0) nearest = any; if (second < 0) second = nearest;
+                int pick = nearest; bool lurk = false;
+                if (mode == Targeting.Dogpile)
+                {
+                    pick = king >= 0 && king != i ? king : nearest;
+                    int cur = Array.IndexOf(fighters, _target[i]);           // keep the current king unless the new one is clearly more central
+                    if (cur >= 0 && cur != i && cur < _playing && !_out[cur] && pick != cur && king != i && R(pick) > R(cur) - 0.15) pick = cur;
+                }
+                else if (mode == Targeting.Grudge && ledger != null)
+                {
+                    var by = ledger.LastPusher(fighters[i], 6.0); int j = Array.IndexOf(fighters, by);
+                    if (j >= 0 && j < _playing && !_out[j]) pick = j;
+                }
+                else if (mode == Targeting.Vulture)
+                {
+                    int weakest = -1, alive = 0; float weak = float.MaxValue;
+                    for (int j = 0; j < _playing; j++)
+                    {
+                        if (_out[j]) continue; alive++; if (j == i) continue;
+                        var v = bio != null ? bio.Of(fighters[j]) : null; float s = v != null ? Mathf.Min(v.stability, v.rim / 0.6f) : 1f;
+                        if (s < weak) { weak = s; weakest = j; }
+                    }
+                    bool engaged = ledger != null && ledger.Engaged(fighters[i], 0.8);
+                    if (weakest >= 0 && weak < 0.45f) { pick = weakest; _lurkAt[i] = -1; }  // someone is about to go: pounce
+                    else if (_lurking[i] && d->time - _lurkAt[i] < 1.5) { lurk = true; pick = Array.IndexOf(fighters, _target[i]); if (pick < 0 || pick >= _playing || _out[pick]) pick = nearest; }   // hold the lurk a moment: no flicker
+                    else if (!engaged && alive >= 3 && ledger != null)
+                        for (int a = 0; a < _playing && !lurk; a++)
+                            for (int b = a + 1; b < _playing && !lurk; b++)
+                                if (a != i && b != i && !_out[a] && !_out[b] && ledger.Fighting(fighters[a], fighters[b], 1.0))
+                                { lurk = true; var va = bio?.Of(fighters[a]); var vb = bio?.Of(fighters[b]); pick = va != null && vb != null && vb.stability < va.stability ? b : a; }
+                }
+                if (lurk != _lurking[i]) { _lurking[i] = lurk; fighters[i].tactic = lurk ? Tactic.Lurk : Tactic.Press; if (lurk) _lurkAt[i] = d->time; }
+                _target[i] = fighters[pick];
+                fighters[i].opponent = fighters[pick];
+                int other = second != pick ? second : nearest != pick ? nearest : pick;
+                fighters[i].opponent2 = fighters[other];
             }
         }
 
@@ -307,20 +393,47 @@ namespace PoKingHill
                 if (seats.Count < 2) { _last = "That selection has only one body to fight with: tick another agent"; return; }
                 selectedA = seats[0]; selectedB = seats[1];
                 Seat(seats.Count);
-                for (int i = 0; i < fighters.Length; i++)
-                {
-                    if (i >= _playing) { fighters[i].SetBrain(null, ObsBuilder.ObsDim, GoalMode.None, 0.3f, 0.8f); continue; }
-                    var f = roster[seats[i]]; _seat[i] = seats[i];
-                    bool steered = puppet && steer >= 0 && i == 0;
-                    fighters[i].SetBrain(f.policy, f.obsDim, steered ? GoalMode.None : f.goal, f.stopDist, f.vmax, f.shove, f.stylePose);
-                }
+                for (int i = 0; i < _playing; i++) { _seat[i] = seats[i]; _steered[i] = puppet && steer >= 0 && i == 0; }
                 if (puppet && steer >= 0) PuppetBody = 0;
             }
             else Seat(2);
             if (statsRounds == 0 && !autoLaunch) roundsPerMatch = _bracket.Count > 0 ? 1 : GameSettings.RoundsPerMatch;   // PerfProbe/auto runs keep theirs
             _roundsThisMatch = 0;
+            if (statsRounds == 0 && !autoLaunch && GameSettings.Intro && roster.Length > 0) { BeginIntro(); return; }
+            ArmBrains();
             NewRound();
         }
+
+        // Each seated body gets its agent's brain (and its body's get-up brain); the rest stand passively.
+        void ArmBrains()
+        {
+            if (roster.Length == 0) return;
+            for (int i = 0; i < fighters.Length; i++)
+            {
+                if (i >= _playing) { fighters[i].SetBrain(null, ObsBuilder.ObsDim, GoalMode.None, 0.3f, 0.8f); continue; }
+                var f = roster[_seat[i]];
+                fighters[i].SetBrain(f.policy, f.obsDim, _steered[i] ? GoalMode.None : f.goal, f.stopDist, f.vmax, f.shove, f.stylePose);
+                fighters[i].getupPolicy = Array.Find(getupBrains, b => b != null && b.body == fighters[i].body)?.policy;
+            }
+        }
+
+        // ------------------------------------------------------------------ intro (tale of the tape)
+        // The seated fighters stand passively on their spawn spots (no brain, hold ctrl, as in the menu) while the camera
+        // cranes up to the summit and then visits each one; HudView shows its card. Then the brains are armed and the
+        // first round starts from a fresh placement, exactly as without the intro.
+        void BeginIntro()
+        {
+            for (int i = 0; i < fighters.Length; i++) fighters[i].SetBrain(null, ObsBuilder.ObsDim, GoalMode.None, 0.3f, 0.8f);
+            Place(); ClearOut();
+            if (sea != null) sea.Park();
+            _introPer = Mathf.Clamp(6f / Mathf.Max(1, _playing), 0.9f, introPerFighter);
+            _introStart = Time.unscaledTime; _introLength = introCrane + _playing * _introPer;
+            SetState(MatchState.Intro);
+        }
+
+        /// <summary>End the tale of the tape now (HUD button) and start the first round.</summary>
+        public void SkipIntro() { if (State == MatchState.Intro) EndIntro(); }
+        void EndIntro() { ArmBrains(); NewRound(); }
 
         List<int> InGame()
         {
@@ -348,7 +461,11 @@ namespace PoKingHill
         void ClearOut()
         {
             _alive.Clear(); _fallen.Clear();
-            for (int i = 0; i < _playing; i++) { _out[i] = false; fighters[i].paused = false; _alive.Add(fighters[i]); }
+            for (int i = 0; i < _playing; i++)
+            {
+                _out[i] = false; fighters[i].paused = false; _alive.Add(fighters[i]);
+                _downAt[i] = -1; _stoodAt[i] = -1; _getups[i] = 0; _lurking[i] = false; fighters[i].tactic = Tactic.Press;
+            }
         }
 
         /// <summary>Start the next round of the current match (also the HUD's Reset).</summary>
@@ -368,6 +485,39 @@ namespace PoKingHill
             return rad > OutRadiusNow || ObsBuilder.Up(q + 3) < _arena.fall_up || q[2] - _arena.Ground(rad) < _arena.fall_height;
         }
 
+        /// <summary>The get-up rule is on: in play with GameSettings.GetUp, or in a gate started with getupInStats.</summary>
+        public bool GetUpRule => statsRounds > 0 ? getupInStats : GameSettings.GetUp;
+
+        // Get-up rule: a ring-out is still out at once. A fall inside the plateau (radius < plateau_r) hands the body to
+        // its get-up brain and starts a count of getupSeconds; standing again (up > 0.9, pelvis above 85 % of the standing
+        // height, for 0.4 s) gives it back to the fight brain, the count running out is a knock-out. At most maxGetups
+        // per fighter per round; a fighter with no get-up brain is out on a fall as before. Mirrored by
+        // training/scripts/duel_stats.py --getup.
+        bool OutWithGetUp(MujocoLib.mjData_* d, int i, double t)
+        {
+            var r = fighters[i]; double* q = d->qpos + r.Map.RootQposAdr;
+            double rad = Math.Sqrt(q[0] * q[0] + q[1] * q[1]), h = q[2] - _arena.Ground(rad), up = ObsBuilder.Up(q + 3);
+            if (rad > OutRadiusNow) return true;
+            if (_downAt[i] >= 0)
+            {
+                if (up > 0.9 && h > 0.85 * (r.Spec?.key_root_z ?? 0.75f))
+                {
+                    if (_stoodAt[i] < 0) _stoodAt[i] = t;
+                    if (t - _stoodAt[i] >= 0.4) { _downAt[i] = -1; _stoodAt[i] = -1; r.SetGetUp(false); MatchEvents.RaiseRecovered(r); }
+                }
+                else _stoodAt[i] = -1;
+                return _downAt[i] >= 0 && t - _downAt[i] > getupSeconds;
+            }
+            bool fallen = up < _arena.fall_up || h < _arena.fall_height;
+            if (!fallen) return false;
+            if (rad < _arena.plateau_r && _getups[i] < maxGetups && r.SetGetUp(true))
+            {
+                _downAt[i] = t; _stoodAt[i] = -1; _getups[i]++; MatchEvents.RaiseDown(r);
+                return false;
+            }
+            return true;
+        }
+
         void Post(object s, MjStepArgs a)
         {
             _stepMs = 0.95 * _stepMs + 0.05 * _sw.Elapsed.TotalMilliseconds;
@@ -375,11 +525,12 @@ namespace PoKingHill
             var d = MjScene.Instance.Data;
             double t = d->time - _roundStart;
             if (t > 1.2) Shot("combat");
-            int alive = 0, last = -1;
+            int alive = 0, last = -1; bool getup = GetUpRule;
             for (int i = 0; i < _playing; i++)
             {
-                if (!_out[i] && Out(d, fighters[i]))
+                if (!_out[i] && (getup ? OutWithGetUp(d, i, t) : Out(d, fighters[i])))
                 {
+                    if (_downAt[i] >= 0) { _downAt[i] = -1; fighters[i].SetGetUp(false); }
                     _out[i] = true; _knockout = true; _alive.Remove(fighters[i]); _fallen.Add(fighters[i]);
                     if (_playing > 2) fighters[i].paused = true;        // in a free-for-all an eliminated fighter goes limp
                     MatchEvents.RaiseKnockout(fighters[i]);
@@ -406,12 +557,13 @@ namespace PoKingHill
                 // The sea has reached the top with several still standing: the hill belongs to whoever is nearest its
                 // centre. (Without a sea, in the statistics gate, a full-time round stays a tie as in training.)
                 double best = double.MaxValue;
-                for (int i = 0; i < _playing; i++)
-                {
-                    if (_out[i]) continue;
-                    double* q = d->qpos + fighters[i].Map.RootQposAdr; double r2 = q[0] * q[0] + q[1] * q[1];
-                    if (r2 < best) { best = r2; winner = i; }
-                }
+                for (int pass = 0; pass < 2 && winner < 0; pass++)          // a fighter that is down only wins if everyone left is down
+                    for (int i = 0; i < _playing; i++)
+                    {
+                        if (_out[i] || (pass == 0 && IsDown(i))) continue;
+                        double* q = d->qpos + fighters[i].Map.RootQposAdr; double r2 = q[0] * q[0] + q[1] * q[1];
+                        if (r2 < best) { best = r2; winner = i; }
+                    }
                 end = RoundEnd.SeaArrived;
                 how = $"nearest the centre when the sea arrived ({Math.Sqrt(best):0.0} m, {alive} still standing)";
                 _last = $"{(char)('A' + winner)} ({NameOf(_seat[winner], "Robot")}) holds the summit as the sea arrives";
@@ -565,6 +717,7 @@ namespace PoKingHill
                 if (_shotDir != null && Cli.Exit) _launchAt = Time.unscaledTime + 1.0f;     // automated capture run: continue into a round
             }
             if (_launchAt > 0 && Time.unscaledTime >= _launchAt) { _launchAt = -1; Launch(); }
+            if (State == MatchState.Intro && Time.unscaledTime >= _introStart + _introLength) EndIntro();
             if (State == MatchState.Result)
             {
                 float shownFor = pauseBetweenRounds - (_resultUntil - Time.unscaledTime);

@@ -15,7 +15,9 @@ namespace PoKingHill
     public static class Ladder
     {
         public const float Start = 1500f; const float K = 24f;
-        [Serializable] class Entry { public string name; public float rating; public int rounds; }
+        // wins/losses (decided rounds against another agent), knock-outs and assists (ContactLedger) came later: files
+        // written before them read as 0.
+        [Serializable] class Entry { public string name; public float rating; public int rounds, wins, losses, kos, assists; }
         [Serializable] class File { public List<Entry> agents = new(); }
         static Dictionary<string, Entry> _byName;
         /// <summary>Tests point the ladder at a scratch file so they never touch the player's ratings.</summary>
@@ -34,6 +36,13 @@ namespace PoKingHill
         static Entry Get(string name) { var all = All(); if (!all.TryGetValue(name, out var e)) all[name] = e = new Entry { name = name, rating = Start }; return e; }
         public static float Rating(string name) => Get(name).rating;
         public static int Rounds(string name) => Get(name).rounds;
+        public static int Wins(string name) => Get(name).wins;
+        public static int Losses(string name) => Get(name).losses;
+        public static int Knockouts(string name) => Get(name).kos;
+        public static int Assists(string name) => Get(name).assists;
+
+        /// <summary>Knock-outs and assists one agent was credited with in a round (saved with the next Record).</summary>
+        public static void AddCredits(string name, int kos, int assists) { if (kos == 0 && assists == 0) return; var e = Get(name); e.kos += kos; e.assists += assists; Save(); }
 
         /// <summary>Pairs are bodies, not agents, so a mirror match (the same agent on two bodies) counts correctly: the
         /// winning body beats every other body; pairs of the same agent and pairs that both lost to a third are skipped.</summary>
@@ -54,7 +63,12 @@ namespace PoKingHill
                 }
             for (int i = 0; i < n; i++) if (r.Agents[i] >= 0 && r.Agents[i] < roster.Length) seen.Add(roster[r.Agents[i]].name);
             if (seen.Count < 2) return;
-            foreach (var name in seen) { var e = Get(name); e.rating += delta.TryGetValue(name, out var d) ? d : 0; e.rounds++; }
+            string winner = r.Winner >= 0 && r.Winner < n && r.Agents[r.Winner] >= 0 && r.Agents[r.Winner] < roster.Length ? roster[r.Agents[r.Winner]].name : null;
+            foreach (var name in seen)
+            {
+                var e = Get(name); e.rating += delta.TryGetValue(name, out var d) ? d : 0; e.rounds++;
+                if (winner != null) { if (name == winner) e.wins++; else e.losses++; }
+            }
             Save();
         }
 
@@ -75,6 +89,7 @@ namespace PoKingHill
     public unsafe class MatchLog : MonoBehaviour
     {
         public DemoDirector director;
+        public ContactLedger ledger;                    // optional: knock-out credits in the telemetry and the ladder
         const int Hz = 10, MaxSeconds = 90, MaxBodies = 8;
         readonly float[,] _kin = new float[MaxBodies, MaxSeconds * Hz * 4];     // x, y, z, up per sample
         readonly double[] _path = new double[MaxBodies], _topSpeed = new double[MaxBodies], _effort = new double[MaxBodies], _koAt = new double[MaxBodies];
@@ -130,6 +145,9 @@ namespace PoKingHill
             for (int i = 0; i < r.Agents.Length && i < MaxBodies; i++) _ratingDelta[i] = -Ladder.Rating(director.NameOf(r.Agents[i], "Robot"));
             Ladder.Record(r, director.roster);
             for (int i = 0; i < r.Agents.Length && i < MaxBodies; i++) _ratingDelta[i] += Ladder.Rating(director.NameOf(r.Agents[i], "Robot"));
+            if (ledger != null)
+                for (int i = 0; i < r.Agents.Length && i < director.fighters.Length; i++)
+                    if (r.Agents[i] >= 0) Ladder.AddCredits(director.NameOf(r.Agents[i], "Robot"), ledger.Knockouts(director.fighters[i]), ledger.Assists(director.fighters[i]));
             try { Write(r); } catch (Exception ex) { Debug.LogWarning("[MatchLog] " + ex.Message); }
         }
 
@@ -151,7 +169,10 @@ namespace PoKingHill
                   .Append(r.Winner < 0 ? "tie" : r.Winner == i ? "win" : "loss").Append("\",\"rating\":").Append(F(Ladder.Rating(name)))
                   .Append(",\"ko_s\":").Append(F(_koAt[i])).Append(",\"path_m\":").Append(F(_path[i])).Append(",\"top_speed\":").Append(F(_topSpeed[i]))
                   .Append(",\"effort\":").Append(F(_effort[i] / Math.Max(1, _effortTicks))).Append(",\"final_r\":").Append(F(Math.Sqrt(q[0] * q[0] + q[1] * q[1])))
-                  .Append(",\"puppet\":").Append(director.PuppetBody == i ? "true" : "false").Append(",\"kin\":[");
+                  .Append(",\"puppet\":").Append(director.PuppetBody == i ? "true" : "false");
+                if (ledger != null)
+                    sb.Append(",\"kos\":").Append(ledger.Knockouts(f)).Append(",\"assists\":").Append(ledger.Assists(f)).Append(",\"pushed_ns\":").Append(F(ledger.Pushed(f)));
+                sb.Append(",\"kin\":[");
                 for (int k = 0; k < 4 * _samples; k++) { if (k > 0) sb.Append(','); sb.Append(F(_kin[i, k])); }
                 sb.Append("]}");
             }

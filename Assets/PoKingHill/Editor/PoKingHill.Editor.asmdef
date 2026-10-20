@@ -9,7 +9,9 @@
         "Unity.InputSystem",
         "Unity.RenderPipelines.Core.Runtime",
         "Unity.RenderPipelines.Universal.Runtime",
-        "Unity.Cinemachine"
+        "Unity.Cinemachine",
+        "Unity.Splines",
+        "Unity.Mathematics"
     ],
     "includePlatforms": [
         "Editor"

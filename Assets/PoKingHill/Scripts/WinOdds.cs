@@ -18,6 +18,7 @@ namespace PoKingHill
     public unsafe class WinOdds : MonoBehaviour
     {
         public DemoDirector director;
+        public Stamina stamina;                          // optional: the critic sees each fighter's current kp scale
         public float criticTemperature = 6f, physicsTemperature = 2f, hz = 10f;
         public float[] Odds { get; private set; } = new float[8];
         public bool FromCritic { get; private set; }
@@ -78,7 +79,7 @@ namespace PoKingHill
             var arena = r.Spec?.arena ?? new ArenaSpec(); double rad = Math.Sqrt(q[0] * q[0] + q[1] * q[1]);
             b[o + 3] = (float)(q[2] - arena.Ground(rad));
             FootContacts(r, d, out b[o + 4], out b[o + 5]);
-            b[o + 6] = 1f; b[o + 7] = 0.6f; b[o + 8] = 1f;
+            b[o + 6] = 1f; b[o + 7] = 0.6f; b[o + 8] = stamina != null ? stamina.KpScale(r) : 1f;     // a tired fighter's servos are softer (Stamina)
             if (b.Length > o + 9 && r.opponent != null && r.opponent.Map != null)
             {
                 ObsBuilder.FillCombat(b, o + 9, d, r.Map, r.opponent.Map);
