@@ -1,0 +1,1716 @@
+[
+ {
+  "robot": "g1",
+  "model": "training/assets/g1/scene_koth_2p_train.xml",
+  "collision_geoms": 27,
+  "pairs_non_adjacent": 326,
+  "pairs_enabled": 32,
+  "enabled_pairs": [
+   "a_left_foot1_collision / a_right_foot1_collision",
+   "a_left_foot1_collision / a_right_foot2_collision",
+   "a_left_foot1_collision / a_right_foot3_collision",
+   "a_left_foot1_collision / a_right_foot_box_collision",
+   "a_left_foot1_collision / a_right_linkage_brace_collision",
+   "a_left_foot1_collision / a_right_shin_collision",
+   "a_left_foot2_collision / a_right_foot1_collision",
+   "a_left_foot2_collision / a_right_foot2_collision",
+   "a_left_foot2_collision / a_right_foot3_collision",
+   "a_left_foot2_collision / a_right_foot_box_collision",
+   "a_left_foot2_collision / a_right_linkage_brace_collision",
+   "a_left_foot2_collision / a_right_shin_collision",
+   "a_left_foot3_collision / a_right_foot1_collision",
+   "a_left_foot3_collision / a_right_foot2_collision",
+   "a_left_foot3_collision / a_right_foot3_collision",
+   "a_left_foot3_collision / a_right_foot_box_collision",
+   "a_left_foot3_collision / a_right_linkage_brace_collision",
+   "a_left_foot3_collision / a_right_shin_collision",
+   "a_left_foot_box_collision / a_right_foot1_collision",
+   "a_left_foot_box_collision / a_right_foot2_collision",
+   "a_left_foot_box_collision / a_right_foot3_collision",
+   "a_left_foot_box_collision / a_right_foot_box_collision",
+   "a_left_foot_box_collision / a_right_linkage_brace_collision",
+   "a_left_foot_box_collision / a_right_shin_collision",
+   "a_left_linkage_brace_collision / a_right_foot1_collision",
+   "a_left_linkage_brace_collision / a_right_foot2_collision",
+   "a_left_linkage_brace_collision / a_right_foot3_collision",
+   "a_left_linkage_brace_collision / a_right_foot_box_collision",
+   "a_left_shin_collision / a_right_foot1_collision",
+   "a_left_shin_collision / a_right_foot2_collision",
+   "a_left_shin_collision / a_right_foot3_collision",
+   "a_left_shin_collision / a_right_foot_box_collision"
+  ],
+  "poses": {
+   "zero": {
+    "enabled_overlaps": [],
+    "all_overlaps": [
+     [
+      "a_pelvis_collision",
+      "a_left_hip_collision",
+      1.9
+     ],
+     [
+      "a_pelvis_collision",
+      "a_right_hip_collision",
+      1.9
+     ],
+     [
+      "a_left_elbow_yaw_collision",
+      "a_left_wrist_collision",
+      22.0
+     ],
+     [
+      "a_right_elbow_yaw_collision",
+      "a_right_wrist_collision",
+      22.0
+     ]
+    ]
+   },
+   "rest": {
+    "enabled_overlaps": [],
+    "all_overlaps": [
+     [
+      "a_pelvis_collision",
+      "a_left_hip_collision",
+      2.7
+     ],
+     [
+      "a_pelvis_collision",
+      "a_right_hip_collision",
+      2.7
+     ],
+     [
+      "a_left_linkage_brace_collision",
+      "a_left_foot2_collision",
+      0.2
+     ],
+     [
+      "a_right_linkage_brace_collision",
+      "a_right_foot2_collision",
+      0.2
+     ],
+     [
+      "a_left_elbow_yaw_collision",
+      "a_left_wrist_collision",
+      22.0
+     ],
+     [
+      "a_right_elbow_yaw_collision",
+      "a_right_wrist_collision",
+      22.0
+     ]
+    ]
+   },
+   "tpose": {
+    "enabled_overlaps": [],
+    "all_overlaps": [
+     [
+      "a_pelvis_collision",
+      "a_left_hip_collision",
+      2.7
+     ],
+     [
+      "a_pelvis_collision",
+      "a_right_hip_collision",
+      2.7
+     ],
+     [
+      "a_left_linkage_brace_collision",
+      "a_left_foot2_collision",
+      0.2
+     ],
+     [
+      "a_right_linkage_brace_collision",
+      "a_right_foot2_collision",
+      0.2
+     ],
+     [
+      "a_left_elbow_yaw_collision",
+      "a_left_wrist_collision",
+      22.0
+     ],
+     [
+      "a_right_elbow_yaw_collision",
+      "a_right_wrist_collision",
+      22.0
+     ]
+    ]
+   }
+  },
+  "swing": {
+   "a_left_hip_pitch_joint": {
+    "samples": 9,
+    "with_any_overlap": 9,
+    "with_enabled_overlap": 0,
+    "worst_any_mm": 22.0,
+    "worst_enabled_mm": 0.0,
+    "pairs": {
+     "a_left_elbow_yaw_collision / a_left_wrist_collision": 22.0,
+     "a_right_elbow_yaw_collision / a_right_wrist_collision": 22.0,
+     "a_pelvis_collision / a_left_hip_collision": 13.1,
+     "a_left_thigh_collision / a_torso_collision": 6.8
+    }
+   },
+   "a_left_hip_roll_joint": {
+    "samples": 9,
+    "with_any_overlap": 9,
+    "with_enabled_overlap": 0,
+    "worst_any_mm": 78.6,
+    "worst_enabled_mm": 0.0,
+    "pairs": {
+     "a_left_thigh_collision / a_left_wrist_collision": 78.6,
+     "a_left_thigh_collision / a_left_elbow_yaw_collision": 58.8,
+     "a_left_shin_collision / a_right_shin_collision": 51.8,
+     "a_left_hip_collision / a_left_wrist_collision": 48.1
+    }
+   },
+   "a_left_hip_yaw_joint": {
+    "samples": 9,
+    "with_any_overlap": 9,
+    "with_enabled_overlap": 1,
+    "worst_any_mm": 22.0,
+    "worst_enabled_mm": 2.4,
+    "pairs": {
+     "a_left_elbow_yaw_collision / a_left_wrist_collision": 22.0,
+     "a_right_elbow_yaw_collision / a_right_wrist_collision": 22.0,
+     "a_pelvis_collision / a_left_hip_collision": 2.7,
+     "a_pelvis_collision / a_right_hip_collision": 2.7
+    }
+   },
+   "a_left_knee_joint": {
+    "samples": 9,
+    "with_any_overlap": 9,
+    "with_enabled_overlap": 0,
+    "worst_any_mm": 22.0,
+    "worst_enabled_mm": 0.0,
+    "pairs": {
+     "a_left_elbow_yaw_collision / a_left_wrist_collision": 22.0,
+     "a_right_elbow_yaw_collision / a_right_wrist_collision": 22.0,
+     "a_pelvis_collision / a_left_hip_collision": 2.7,
+     "a_pelvis_collision / a_right_hip_collision": 2.7
+    }
+   },
+   "a_left_ankle_pitch_joint": {
+    "samples": 9,
+    "with_any_overlap": 9,
+    "with_enabled_overlap": 0,
+    "worst_any_mm": 22.0,
+    "worst_enabled_mm": 0.0,
+    "pairs": {
+     "a_left_elbow_yaw_collision / a_left_wrist_collision": 22.0,
+     "a_right_elbow_yaw_collision / a_right_wrist_collision": 22.0,
+     "a_left_linkage_brace_collision / a_left_foot2_collision": 12.2,
+     "a_pelvis_collision / a_left_hip_collision": 2.7
+    }
+   },
+   "a_left_ankle_roll_joint": {
+    "samples": 9,
+    "with_any_overlap": 9,
+    "with_enabled_overlap": 0,
+    "worst_any_mm": 22.0,
+    "worst_enabled_mm": 0.0,
+    "pairs": {
+     "a_left_elbow_yaw_collision / a_left_wrist_collision": 22.0,
+     "a_right_elbow_yaw_collision / a_right_wrist_collision": 22.0,
+     "a_pelvis_collision / a_left_hip_collision": 2.7,
+     "a_pelvis_collision / a_right_hip_collision": 2.7
+    }
+   },
+   "a_right_hip_pitch_joint": {
+    "samples": 9,
+    "with_any_overlap": 9,
+    "with_enabled_overlap": 0,
+    "worst_any_mm": 22.0,
+    "worst_enabled_mm": 0.0,
+    "pairs": {
+     "a_left_elbow_yaw_collision / a_left_wrist_collision": 22.0,
+     "a_right_elbow_yaw_collision / a_right_wrist_collision": 22.0,
+     "a_pelvis_collision / a_right_hip_collision": 13.1,
+     "a_right_thigh_collision / a_torso_collision": 6.8
+    }
+   },
+   "a_right_hip_roll_joint": {
+    "samples": 9,
+    "with_any_overlap": 9,
+    "with_enabled_overlap": 0,
+    "worst_any_mm": 78.6,
+    "worst_enabled_mm": 0.0,
+    "pairs": {
+     "a_right_thigh_collision / a_right_wrist_collision": 78.6,
+     "a_right_thigh_collision / a_right_elbow_yaw_collision": 58.7,
+     "a_left_shin_collision / a_right_shin_collision": 51.8,
+     "a_right_hip_collision / a_right_wrist_collision": 48.1
+    }
+   },
+   "a_right_hip_yaw_joint": {
+    "samples": 9,
+    "with_any_overlap": 9,
+    "with_enabled_overlap": 1,
+    "worst_any_mm": 22.0,
+    "worst_enabled_mm": 2.4,
+    "pairs": {
+     "a_left_elbow_yaw_collision / a_left_wrist_collision": 22.0,
+     "a_right_elbow_yaw_collision / a_right_wrist_collision": 22.0,
+     "a_pelvis_collision / a_left_hip_collision": 2.7,
+     "a_pelvis_collision / a_right_hip_collision": 2.7
+    }
+   },
+   "a_right_knee_joint": {
+    "samples": 9,
+    "with_any_overlap": 9,
+    "with_enabled_overlap": 0,
+    "worst_any_mm": 22.0,
+    "worst_enabled_mm": 0.0,
+    "pairs": {
+     "a_left_elbow_yaw_collision / a_left_wrist_collision": 22.0,
+     "a_right_elbow_yaw_collision / a_right_wrist_collision": 22.0,
+     "a_pelvis_collision / a_left_hip_collision": 2.7,
+     "a_pelvis_collision / a_right_hip_collision": 2.7
+    }
+   },
+   "a_right_ankle_pitch_joint": {
+    "samples": 9,
+    "with_any_overlap": 9,
+    "with_enabled_overlap": 0,
+    "worst_any_mm": 22.0,
+    "worst_enabled_mm": 0.0,
+    "pairs": {
+     "a_left_elbow_yaw_collision / a_left_wrist_collision": 22.0,
+     "a_right_elbow_yaw_collision / a_right_wrist_collision": 22.0,
+     "a_right_linkage_brace_collision / a_right_foot2_collision": 12.2,
+     "a_pelvis_collision / a_left_hip_collision": 2.7
+    }
+   },
+   "a_right_ankle_roll_joint": {
+    "samples": 9,
+    "with_any_overlap": 9,
+    "with_enabled_overlap": 0,
+    "worst_any_mm": 22.0,
+    "worst_enabled_mm": 0.0,
+    "pairs": {
+     "a_left_elbow_yaw_collision / a_left_wrist_collision": 22.0,
+     "a_right_elbow_yaw_collision / a_right_wrist_collision": 22.0,
+     "a_pelvis_collision / a_left_hip_collision": 2.7,
+     "a_pelvis_collision / a_right_hip_collision": 2.7
+    }
+   },
+   "a_waist_yaw_joint": {
+    "samples": 9,
+    "with_any_overlap": 9,
+    "with_enabled_overlap": 0,
+    "worst_any_mm": 22.0,
+    "worst_enabled_mm": 0.0,
+    "pairs": {
+     "a_left_elbow_yaw_collision / a_left_wrist_collision": 22.0,
+     "a_right_elbow_yaw_collision / a_right_wrist_collision": 22.0,
+     "a_pelvis_collision / a_left_hip_collision": 2.7,
+     "a_pelvis_collision / a_right_hip_collision": 2.7
+    }
+   },
+   "a_waist_roll_joint": {
+    "samples": 9,
+    "with_any_overlap": 9,
+    "with_enabled_overlap": 0,
+    "worst_any_mm": 40.9,
+    "worst_enabled_mm": 0.0,
+    "pairs": {
+     "a_right_hip_collision / a_right_wrist_collision": 40.9,
+     "a_left_hip_collision / a_left_wrist_collision": 40.9,
+     "a_right_hip_collision / a_right_hand_collision": 23.4,
+     "a_left_hip_collision / a_left_hand_collision": 23.4
+    }
+   },
+   "a_waist_pitch_joint": {
+    "samples": 9,
+    "with_any_overlap": 9,
+    "with_enabled_overlap": 0,
+    "worst_any_mm": 22.0,
+    "worst_enabled_mm": 0.0,
+    "pairs": {
+     "a_left_elbow_yaw_collision / a_left_wrist_collision": 22.0,
+     "a_right_elbow_yaw_collision / a_right_wrist_collision": 22.0,
+     "a_pelvis_collision / a_left_hip_collision": 2.7,
+     "a_pelvis_collision / a_right_hip_collision": 2.7
+    }
+   },
+   "a_left_shoulder_pitch_joint": {
+    "samples": 9,
+    "with_any_overlap": 9,
+    "with_enabled_overlap": 0,
+    "worst_any_mm": 22.0,
+    "worst_enabled_mm": 0.0,
+    "pairs": {
+     "a_left_elbow_yaw_collision / a_left_wrist_collision": 22.0,
+     "a_right_elbow_yaw_collision / a_right_wrist_collision": 22.0,
+     "a_head_collision / a_left_elbow_yaw_collision": 19.6,
+     "a_head_collision / a_left_shoulder_yaw_collision": 17.6
+    }
+   },
+   "a_left_shoulder_roll_joint": {
+    "samples": 9,
+    "with_any_overlap": 9,
+    "with_enabled_overlap": 0,
+    "worst_any_mm": 109.2,
+    "worst_enabled_mm": 0.0,
+    "pairs": {
+     "a_torso_collision / a_left_shoulder_yaw_collision": 109.2,
+     "a_torso_collision / a_left_elbow_yaw_collision": 104.9,
+     "a_right_hip_collision / a_left_hand_collision": 65.1,
+     "a_left_hip_collision / a_left_hand_collision": 50.5
+    }
+   },
+   "a_left_shoulder_yaw_joint": {
+    "samples": 9,
+    "with_any_overlap": 9,
+    "with_enabled_overlap": 0,
+    "worst_any_mm": 22.0,
+    "worst_enabled_mm": 0.0,
+    "pairs": {
+     "a_left_elbow_yaw_collision / a_left_wrist_collision": 22.0,
+     "a_right_elbow_yaw_collision / a_right_wrist_collision": 22.0,
+     "a_left_hip_collision / a_left_hand_collision": 6.4,
+     "a_pelvis_collision / a_left_hip_collision": 2.7
+    }
+   },
+   "a_left_elbow_joint": {
+    "samples": 9,
+    "with_any_overlap": 9,
+    "with_enabled_overlap": 0,
+    "worst_any_mm": 22.0,
+    "worst_enabled_mm": 0.0,
+    "pairs": {
+     "a_left_elbow_yaw_collision / a_left_wrist_collision": 22.0,
+     "a_right_elbow_yaw_collision / a_right_wrist_collision": 22.0,
+     "a_pelvis_collision / a_left_hip_collision": 2.7,
+     "a_pelvis_collision / a_right_hip_collision": 2.7
+    }
+   },
+   "a_left_wrist_roll_joint": {
+    "samples": 9,
+    "with_any_overlap": 9,
+    "with_enabled_overlap": 0,
+    "worst_any_mm": 22.0,
+    "worst_enabled_mm": 0.0,
+    "pairs": {
+     "a_left_elbow_yaw_collision / a_left_wrist_collision": 22.0,
+     "a_right_elbow_yaw_collision / a_right_wrist_collision": 22.0,
+     "a_pelvis_collision / a_left_hip_collision": 2.7,
+     "a_pelvis_collision / a_right_hip_collision": 2.7
+    }
+   },
+   "a_left_wrist_pitch_joint": {
+    "samples": 9,
+    "with_any_overlap": 9,
+    "with_enabled_overlap": 0,
+    "worst_any_mm": 22.0,
+    "worst_enabled_mm": 0.0,
+    "pairs": {
+     "a_left_elbow_yaw_collision / a_left_wrist_collision": 22.0,
+     "a_right_elbow_yaw_collision / a_right_wrist_collision": 22.0,
+     "a_pelvis_collision / a_left_hip_collision": 2.7,
+     "a_pelvis_collision / a_right_hip_collision": 2.7
+    }
+   },
+   "a_left_wrist_yaw_joint": {
+    "samples": 9,
+    "with_any_overlap": 9,
+    "with_enabled_overlap": 0,
+    "worst_any_mm": 57.8,
+    "worst_enabled_mm": 0.0,
+    "pairs": {
+     "a_left_hip_collision / a_left_hand_collision": 57.8,
+     "a_pelvis_collision / a_left_hand_collision": 32.1,
+     "a_left_elbow_yaw_collision / a_left_wrist_collision": 22.0,
+     "a_right_elbow_yaw_collision / a_right_wrist_collision": 22.0
+    }
+   },
+   "a_right_shoulder_pitch_joint": {
+    "samples": 9,
+    "with_any_overlap": 9,
+    "with_enabled_overlap": 0,
+    "worst_any_mm": 22.0,
+    "worst_enabled_mm": 0.0,
+    "pairs": {
+     "a_right_elbow_yaw_collision / a_right_wrist_collision": 22.0,
+     "a_left_elbow_yaw_collision / a_left_wrist_collision": 22.0,
+     "a_head_collision / a_right_elbow_yaw_collision": 19.6,
+     "a_head_collision / a_right_shoulder_yaw_collision": 17.6
+    }
+   },
+   "a_right_shoulder_roll_joint": {
+    "samples": 9,
+    "with_any_overlap": 9,
+    "with_enabled_overlap": 0,
+    "worst_any_mm": 109.2,
+    "worst_enabled_mm": 0.0,
+    "pairs": {
+     "a_torso_collision / a_right_shoulder_yaw_collision": 109.2,
+     "a_torso_collision / a_right_elbow_yaw_collision": 104.9,
+     "a_left_hip_collision / a_right_hand_collision": 65.1,
+     "a_right_hip_collision / a_right_hand_collision": 50.5
+    }
+   },
+   "a_right_shoulder_yaw_joint": {
+    "samples": 9,
+    "with_any_overlap": 9,
+    "with_enabled_overlap": 0,
+    "worst_any_mm": 22.0,
+    "worst_enabled_mm": 0.0,
+    "pairs": {
+     "a_right_elbow_yaw_collision / a_right_wrist_collision": 22.0,
+     "a_left_elbow_yaw_collision / a_left_wrist_collision": 22.0,
+     "a_right_hip_collision / a_right_hand_collision": 6.4,
+     "a_pelvis_collision / a_left_hip_collision": 2.7
+    }
+   },
+   "a_right_elbow_joint": {
+    "samples": 9,
+    "with_any_overlap": 9,
+    "with_enabled_overlap": 0,
+    "worst_any_mm": 22.0,
+    "worst_enabled_mm": 0.0,
+    "pairs": {
+     "a_right_elbow_yaw_collision / a_right_wrist_collision": 22.0,
+     "a_left_elbow_yaw_collision / a_left_wrist_collision": 22.0,
+     "a_pelvis_collision / a_left_hip_collision": 2.7,
+     "a_pelvis_collision / a_right_hip_collision": 2.7
+    }
+   },
+   "a_right_wrist_roll_joint": {
+    "samples": 9,
+    "with_any_overlap": 9,
+    "with_enabled_overlap": 0,
+    "worst_any_mm": 22.0,
+    "worst_enabled_mm": 0.0,
+    "pairs": {
+     "a_left_elbow_yaw_collision / a_left_wrist_collision": 22.0,
+     "a_right_elbow_yaw_collision / a_right_wrist_collision": 22.0,
+     "a_pelvis_collision / a_left_hip_collision": 2.7,
+     "a_pelvis_collision / a_right_hip_collision": 2.7
+    }
+   },
+   "a_right_wrist_pitch_joint": {
+    "samples": 9,
+    "with_any_overlap": 9,
+    "with_enabled_overlap": 0,
+    "worst_any_mm": 22.0,
+    "worst_enabled_mm": 0.0,
+    "pairs": {
+     "a_left_elbow_yaw_collision / a_left_wrist_collision": 22.0,
+     "a_right_elbow_yaw_collision / a_right_wrist_collision": 22.0,
+     "a_pelvis_collision / a_left_hip_collision": 2.7,
+     "a_pelvis_collision / a_right_hip_collision": 2.7
+    }
+   },
+   "a_right_wrist_yaw_joint": {
+    "samples": 9,
+    "with_any_overlap": 9,
+    "with_enabled_overlap": 0,
+    "worst_any_mm": 57.8,
+    "worst_enabled_mm": 0.0,
+    "pairs": {
+     "a_right_hip_collision / a_right_hand_collision": 57.8,
+     "a_pelvis_collision / a_right_hand_collision": 32.1,
+     "a_left_elbow_yaw_collision / a_left_wrist_collision": 22.0,
+     "a_right_elbow_yaw_collision / a_right_wrist_collision": 22.0
+    }
+   }
+  }
+ },
+ {
+  "robot": "kim",
+  "model": "training/assets/kim/scene_koth_2p_train.xml",
+  "collision_geoms": 24,
+  "pairs_non_adjacent": 253,
+  "pairs_enabled": 32,
+  "enabled_pairs": [
+   "a_left_foot1_collision / a_right_foot1_collision",
+   "a_left_foot1_collision / a_right_foot2_collision",
+   "a_left_foot1_collision / a_right_foot3_collision",
+   "a_left_foot1_collision / a_right_foot_box_collision",
+   "a_left_foot1_collision / a_right_linkage_brace_collision",
+   "a_left_foot1_collision / a_right_shin_collision",
+   "a_left_foot2_collision / a_right_foot1_collision",
+   "a_left_foot2_collision / a_right_foot2_collision",
+   "a_left_foot2_collision / a_right_foot3_collision",
+   "a_left_foot2_collision / a_right_foot_box_collision",
+   "a_left_foot2_collision / a_right_linkage_brace_collision",
+   "a_left_foot2_collision / a_right_shin_collision",
+   "a_left_foot3_collision / a_right_foot1_collision",
+   "a_left_foot3_collision / a_right_foot2_collision",
+   "a_left_foot3_collision / a_right_foot3_collision",
+   "a_left_foot3_collision / a_right_foot_box_collision",
+   "a_left_foot3_collision / a_right_linkage_brace_collision",
+   "a_left_foot3_collision / a_right_shin_collision",
+   "a_left_foot_box_collision / a_right_foot1_collision",
+   "a_left_foot_box_collision / a_right_foot2_collision",
+   "a_left_foot_box_collision / a_right_foot3_collision",
+   "a_left_foot_box_collision / a_right_foot_box_collision",
+   "a_left_foot_box_collision / a_right_linkage_brace_collision",
+   "a_left_foot_box_collision / a_right_shin_collision",
+   "a_left_linkage_brace_collision / a_right_foot1_collision",
+   "a_left_linkage_brace_collision / a_right_foot2_collision",
+   "a_left_linkage_brace_collision / a_right_foot3_collision",
+   "a_left_linkage_brace_collision / a_right_foot_box_collision",
+   "a_left_shin_collision / a_right_foot1_collision",
+   "a_left_shin_collision / a_right_foot2_collision",
+   "a_left_shin_collision / a_right_foot3_collision",
+   "a_left_shin_collision / a_right_foot_box_collision"
+  ],
+  "poses": {
+   "zero": {
+    "enabled_overlaps": [
+     [
+      "a_left_foot_box_collision",
+      "a_right_foot_box_collision",
+      3.5
+     ],
+     [
+      "a_left_foot_box_collision",
+      "a_right_foot3_collision",
+      0.5
+     ],
+     [
+      "a_left_foot1_collision",
+      "a_right_foot_box_collision",
+      0.5
+     ]
+    ],
+    "all_overlaps": [
+     [
+      "a_pelvis_collision",
+      "a_left_thigh_collision",
+      135.6
+     ],
+     [
+      "a_pelvis_collision",
+      "a_right_thigh_collision",
+      135.6
+     ],
+     [
+      "a_left_thigh_collision",
+      "a_right_thigh_collision",
+      37.4
+     ],
+     [
+      "a_left_thigh_collision",
+      "a_right_shin_collision",
+      2.2
+     ],
+     [
+      "a_left_shin_collision",
+      "a_right_thigh_collision",
+      2.2
+     ],
+     [
+      "a_left_foot_box_collision",
+      "a_right_foot_box_collision",
+      3.5
+     ],
+     [
+      "a_left_foot_box_collision",
+      "a_right_foot3_collision",
+      0.5
+     ],
+     [
+      "a_left_foot1_collision",
+      "a_right_foot_box_collision",
+      0.5
+     ],
+     [
+      "a_chest_collision",
+      "a_left_upper_arm_collision",
+      40.3
+     ],
+     [
+      "a_chest_collision",
+      "a_right_upper_arm_collision",
+      40.3
+     ],
+     [
+      "a_left_forearm_collision",
+      "a_left_hand_collision",
+      35.9
+     ],
+     [
+      "a_right_forearm_collision",
+      "a_right_hand_collision",
+      35.9
+     ]
+    ]
+   },
+   "rest": {
+    "enabled_overlaps": [
+     [
+      "a_left_foot_box_collision",
+      "a_right_foot_box_collision",
+      3.5
+     ],
+     [
+      "a_left_foot_box_collision",
+      "a_right_foot3_collision",
+      0.5
+     ],
+     [
+      "a_left_foot1_collision",
+      "a_right_foot_box_collision",
+      0.5
+     ]
+    ],
+    "all_overlaps": [
+     [
+      "a_pelvis_collision",
+      "a_left_thigh_collision",
+      135.7
+     ],
+     [
+      "a_pelvis_collision",
+      "a_right_thigh_collision",
+      135.7
+     ],
+     [
+      "a_left_thigh_collision",
+      "a_right_thigh_collision",
+      37.4
+     ],
+     [
+      "a_left_thigh_collision",
+      "a_right_shin_collision",
+      2.4
+     ],
+     [
+      "a_left_shin_collision",
+      "a_right_thigh_collision",
+      2.4
+     ],
+     [
+      "a_left_foot_box_collision",
+      "a_right_foot_box_collision",
+      3.5
+     ],
+     [
+      "a_left_foot_box_collision",
+      "a_right_foot3_collision",
+      0.5
+     ],
+     [
+      "a_left_foot1_collision",
+      "a_right_foot_box_collision",
+      0.5
+     ],
+     [
+      "a_chest_collision",
+      "a_left_upper_arm_collision",
+      30.4
+     ],
+     [
+      "a_chest_collision",
+      "a_right_upper_arm_collision",
+      30.4
+     ],
+     [
+      "a_left_forearm_collision",
+      "a_left_hand_collision",
+      35.9
+     ],
+     [
+      "a_right_forearm_collision",
+      "a_right_hand_collision",
+      35.9
+     ]
+    ]
+   },
+   "tpose": {
+    "enabled_overlaps": [
+     [
+      "a_left_foot_box_collision",
+      "a_right_foot_box_collision",
+      3.5
+     ],
+     [
+      "a_left_foot_box_collision",
+      "a_right_foot3_collision",
+      0.5
+     ],
+     [
+      "a_left_foot1_collision",
+      "a_right_foot_box_collision",
+      0.5
+     ]
+    ],
+    "all_overlaps": [
+     [
+      "a_pelvis_collision",
+      "a_left_thigh_collision",
+      135.7
+     ],
+     [
+      "a_pelvis_collision",
+      "a_right_thigh_collision",
+      135.7
+     ],
+     [
+      "a_left_thigh_collision",
+      "a_right_thigh_collision",
+      37.4
+     ],
+     [
+      "a_left_thigh_collision",
+      "a_right_shin_collision",
+      2.4
+     ],
+     [
+      "a_left_shin_collision",
+      "a_right_thigh_collision",
+      2.4
+     ],
+     [
+      "a_left_foot_box_collision",
+      "a_right_foot_box_collision",
+      3.5
+     ],
+     [
+      "a_left_foot_box_collision",
+      "a_right_foot3_collision",
+      0.5
+     ],
+     [
+      "a_left_foot1_collision",
+      "a_right_foot_box_collision",
+      0.5
+     ],
+     [
+      "a_left_forearm_collision",
+      "a_left_hand_collision",
+      35.9
+     ],
+     [
+      "a_right_forearm_collision",
+      "a_right_hand_collision",
+      35.9
+     ]
+    ]
+   }
+  },
+  "swing": {
+   "a_left_hip_pitch_joint": {
+    "samples": 9,
+    "with_any_overlap": 9,
+    "with_enabled_overlap": 3,
+    "worst_any_mm": 147.4,
+    "worst_enabled_mm": 3.5,
+    "pairs": {
+     "a_pelvis_collision / a_left_thigh_collision": 147.4,
+     "a_pelvis_collision / a_right_thigh_collision": 135.7,
+     "a_left_thigh_collision / a_right_thigh_collision": 37.4,
+     "a_left_forearm_collision / a_left_hand_collision": 35.9
+    }
+   },
+   "a_left_hip_roll_joint": {
+    "samples": 9,
+    "with_any_overlap": 9,
+    "with_enabled_overlap": 2,
+    "worst_any_mm": 143.3,
+    "worst_enabled_mm": 30.6,
+    "pairs": {
+     "a_pelvis_collision / a_left_thigh_collision": 143.3,
+     "a_pelvis_collision / a_right_thigh_collision": 135.7,
+     "a_left_thigh_collision / a_right_thigh_collision": 133.3,
+     "a_left_shin_collision / a_right_thigh_collision": 115.3
+    }
+   },
+   "a_left_hip_yaw_joint": {
+    "samples": 9,
+    "with_any_overlap": 9,
+    "with_enabled_overlap": 9,
+    "worst_any_mm": 135.8,
+    "worst_enabled_mm": 35.1,
+    "pairs": {
+     "a_pelvis_collision / a_left_thigh_collision": 135.8,
+     "a_pelvis_collision / a_right_thigh_collision": 135.7,
+     "a_left_thigh_collision / a_right_thigh_collision": 38.3,
+     "a_left_forearm_collision / a_left_hand_collision": 35.9
+    }
+   },
+   "a_left_knee_joint": {
+    "samples": 9,
+    "with_any_overlap": 9,
+    "with_enabled_overlap": 4,
+    "worst_any_mm": 135.7,
+    "worst_enabled_mm": 3.5,
+    "pairs": {
+     "a_pelvis_collision / a_left_thigh_collision": 135.7,
+     "a_pelvis_collision / a_right_thigh_collision": 135.7,
+     "a_left_thigh_collision / a_right_thigh_collision": 37.4,
+     "a_left_forearm_collision / a_left_hand_collision": 35.9
+    }
+   },
+   "a_left_ankle_pitch_joint": {
+    "samples": 9,
+    "with_any_overlap": 9,
+    "with_enabled_overlap": 9,
+    "worst_any_mm": 135.7,
+    "worst_enabled_mm": 3.5,
+    "pairs": {
+     "a_pelvis_collision / a_left_thigh_collision": 135.7,
+     "a_pelvis_collision / a_right_thigh_collision": 135.7,
+     "a_left_thigh_collision / a_right_thigh_collision": 37.4,
+     "a_left_forearm_collision / a_left_hand_collision": 35.9
+    }
+   },
+   "a_left_ankle_roll_joint": {
+    "samples": 9,
+    "with_any_overlap": 9,
+    "with_enabled_overlap": 5,
+    "worst_any_mm": 135.7,
+    "worst_enabled_mm": 16.2,
+    "pairs": {
+     "a_pelvis_collision / a_left_thigh_collision": 135.7,
+     "a_pelvis_collision / a_right_thigh_collision": 135.7,
+     "a_left_thigh_collision / a_right_thigh_collision": 37.4,
+     "a_left_forearm_collision / a_left_hand_collision": 35.9
+    }
+   },
+   "a_right_hip_pitch_joint": {
+    "samples": 9,
+    "with_any_overlap": 9,
+    "with_enabled_overlap": 3,
+    "worst_any_mm": 147.4,
+    "worst_enabled_mm": 3.5,
+    "pairs": {
+     "a_pelvis_collision / a_right_thigh_collision": 147.4,
+     "a_pelvis_collision / a_left_thigh_collision": 135.7,
+     "a_left_thigh_collision / a_right_thigh_collision": 37.4,
+     "a_left_forearm_collision / a_left_hand_collision": 35.9
+    }
+   },
+   "a_right_hip_roll_joint": {
+    "samples": 9,
+    "with_any_overlap": 9,
+    "with_enabled_overlap": 2,
+    "worst_any_mm": 143.3,
+    "worst_enabled_mm": 30.6,
+    "pairs": {
+     "a_pelvis_collision / a_right_thigh_collision": 143.3,
+     "a_pelvis_collision / a_left_thigh_collision": 135.7,
+     "a_left_thigh_collision / a_right_thigh_collision": 133.3,
+     "a_left_thigh_collision / a_right_shin_collision": 115.3
+    }
+   },
+   "a_right_hip_yaw_joint": {
+    "samples": 9,
+    "with_any_overlap": 9,
+    "with_enabled_overlap": 9,
+    "worst_any_mm": 135.8,
+    "worst_enabled_mm": 35.1,
+    "pairs": {
+     "a_pelvis_collision / a_right_thigh_collision": 135.8,
+     "a_pelvis_collision / a_left_thigh_collision": 135.7,
+     "a_left_thigh_collision / a_right_thigh_collision": 38.3,
+     "a_left_forearm_collision / a_left_hand_collision": 35.9
+    }
+   },
+   "a_right_knee_joint": {
+    "samples": 9,
+    "with_any_overlap": 9,
+    "with_enabled_overlap": 4,
+    "worst_any_mm": 135.7,
+    "worst_enabled_mm": 3.5,
+    "pairs": {
+     "a_pelvis_collision / a_left_thigh_collision": 135.7,
+     "a_pelvis_collision / a_right_thigh_collision": 135.7,
+     "a_left_thigh_collision / a_right_thigh_collision": 37.4,
+     "a_left_forearm_collision / a_left_hand_collision": 35.9
+    }
+   },
+   "a_right_ankle_pitch_joint": {
+    "samples": 9,
+    "with_any_overlap": 9,
+    "with_enabled_overlap": 9,
+    "worst_any_mm": 135.7,
+    "worst_enabled_mm": 3.5,
+    "pairs": {
+     "a_pelvis_collision / a_left_thigh_collision": 135.7,
+     "a_pelvis_collision / a_right_thigh_collision": 135.7,
+     "a_left_thigh_collision / a_right_thigh_collision": 37.4,
+     "a_left_forearm_collision / a_left_hand_collision": 35.9
+    }
+   },
+   "a_right_ankle_roll_joint": {
+    "samples": 9,
+    "with_any_overlap": 9,
+    "with_enabled_overlap": 5,
+    "worst_any_mm": 135.7,
+    "worst_enabled_mm": 16.2,
+    "pairs": {
+     "a_pelvis_collision / a_left_thigh_collision": 135.7,
+     "a_pelvis_collision / a_right_thigh_collision": 135.7,
+     "a_left_thigh_collision / a_right_thigh_collision": 37.4,
+     "a_left_forearm_collision / a_left_hand_collision": 35.9
+    }
+   },
+   "a_waist_yaw_joint": {
+    "samples": 9,
+    "with_any_overlap": 9,
+    "with_enabled_overlap": 9,
+    "worst_any_mm": 135.7,
+    "worst_enabled_mm": 3.5,
+    "pairs": {
+     "a_pelvis_collision / a_left_thigh_collision": 135.7,
+     "a_pelvis_collision / a_right_thigh_collision": 135.7,
+     "a_left_thigh_collision / a_right_thigh_collision": 37.4,
+     "a_left_forearm_collision / a_left_hand_collision": 35.9
+    }
+   },
+   "a_waist_roll_joint": {
+    "samples": 9,
+    "with_any_overlap": 9,
+    "with_enabled_overlap": 9,
+    "worst_any_mm": 135.7,
+    "worst_enabled_mm": 3.5,
+    "pairs": {
+     "a_pelvis_collision / a_left_thigh_collision": 135.7,
+     "a_pelvis_collision / a_right_thigh_collision": 135.7,
+     "a_left_thigh_collision / a_right_thigh_collision": 37.4,
+     "a_left_forearm_collision / a_left_hand_collision": 35.9
+    }
+   },
+   "a_waist_pitch_joint": {
+    "samples": 9,
+    "with_any_overlap": 9,
+    "with_enabled_overlap": 9,
+    "worst_any_mm": 135.7,
+    "worst_enabled_mm": 3.5,
+    "pairs": {
+     "a_pelvis_collision / a_left_thigh_collision": 135.7,
+     "a_pelvis_collision / a_right_thigh_collision": 135.7,
+     "a_left_thigh_collision / a_right_thigh_collision": 37.4,
+     "a_left_forearm_collision / a_left_hand_collision": 35.9
+    }
+   },
+   "a_left_shoulder_pitch_joint": {
+    "samples": 9,
+    "with_any_overlap": 9,
+    "with_enabled_overlap": 9,
+    "worst_any_mm": 135.7,
+    "worst_enabled_mm": 3.5,
+    "pairs": {
+     "a_pelvis_collision / a_left_thigh_collision": 135.7,
+     "a_pelvis_collision / a_right_thigh_collision": 135.7,
+     "a_left_thigh_collision / a_right_thigh_collision": 37.4,
+     "a_left_forearm_collision / a_left_hand_collision": 35.9
+    }
+   },
+   "a_left_shoulder_roll_joint": {
+    "samples": 9,
+    "with_any_overlap": 9,
+    "with_enabled_overlap": 9,
+    "worst_any_mm": 135.7,
+    "worst_enabled_mm": 3.5,
+    "pairs": {
+     "a_pelvis_collision / a_left_thigh_collision": 135.7,
+     "a_pelvis_collision / a_right_thigh_collision": 135.7,
+     "a_abdomen_collision / a_left_forearm_collision": 81.4,
+     "a_chest_collision / a_left_upper_arm_collision": 70.9
+    }
+   },
+   "a_left_shoulder_yaw_joint": {
+    "samples": 9,
+    "with_any_overlap": 9,
+    "with_enabled_overlap": 9,
+    "worst_any_mm": 135.7,
+    "worst_enabled_mm": 3.5,
+    "pairs": {
+     "a_pelvis_collision / a_left_thigh_collision": 135.7,
+     "a_pelvis_collision / a_right_thigh_collision": 135.7,
+     "a_left_thigh_collision / a_right_thigh_collision": 37.4,
+     "a_left_forearm_collision / a_left_hand_collision": 35.9
+    }
+   },
+   "a_left_elbow_joint": {
+    "samples": 9,
+    "with_any_overlap": 9,
+    "with_enabled_overlap": 9,
+    "worst_any_mm": 135.7,
+    "worst_enabled_mm": 3.5,
+    "pairs": {
+     "a_pelvis_collision / a_left_thigh_collision": 135.7,
+     "a_pelvis_collision / a_right_thigh_collision": 135.7,
+     "a_left_thigh_collision / a_right_thigh_collision": 37.4,
+     "a_left_forearm_collision / a_left_hand_collision": 35.9
+    }
+   },
+   "a_left_wrist_roll_joint": {
+    "samples": 9,
+    "with_any_overlap": 9,
+    "with_enabled_overlap": 9,
+    "worst_any_mm": 135.7,
+    "worst_enabled_mm": 3.5,
+    "pairs": {
+     "a_pelvis_collision / a_left_thigh_collision": 135.7,
+     "a_pelvis_collision / a_right_thigh_collision": 135.7,
+     "a_left_thigh_collision / a_right_thigh_collision": 37.4,
+     "a_left_forearm_collision / a_left_hand_collision": 35.9
+    }
+   },
+   "a_left_wrist_pitch_joint": {
+    "samples": 9,
+    "with_any_overlap": 9,
+    "with_enabled_overlap": 9,
+    "worst_any_mm": 135.7,
+    "worst_enabled_mm": 3.5,
+    "pairs": {
+     "a_pelvis_collision / a_left_thigh_collision": 135.7,
+     "a_pelvis_collision / a_right_thigh_collision": 135.7,
+     "a_left_forearm_collision / a_left_hand_collision": 39.1,
+     "a_left_thigh_collision / a_right_thigh_collision": 37.4
+    }
+   },
+   "a_left_wrist_yaw_joint": {
+    "samples": 9,
+    "with_any_overlap": 9,
+    "with_enabled_overlap": 9,
+    "worst_any_mm": 135.7,
+    "worst_enabled_mm": 3.5,
+    "pairs": {
+     "a_pelvis_collision / a_left_thigh_collision": 135.7,
+     "a_pelvis_collision / a_right_thigh_collision": 135.7,
+     "a_left_thigh_collision / a_right_thigh_collision": 37.4,
+     "a_left_forearm_collision / a_left_hand_collision": 36.4
+    }
+   },
+   "a_right_shoulder_pitch_joint": {
+    "samples": 9,
+    "with_any_overlap": 9,
+    "with_enabled_overlap": 9,
+    "worst_any_mm": 135.7,
+    "worst_enabled_mm": 3.5,
+    "pairs": {
+     "a_pelvis_collision / a_left_thigh_collision": 135.7,
+     "a_pelvis_collision / a_right_thigh_collision": 135.7,
+     "a_left_thigh_collision / a_right_thigh_collision": 37.4,
+     "a_right_forearm_collision / a_right_hand_collision": 35.9
+    }
+   },
+   "a_right_shoulder_roll_joint": {
+    "samples": 9,
+    "with_any_overlap": 9,
+    "with_enabled_overlap": 9,
+    "worst_any_mm": 135.7,
+    "worst_enabled_mm": 3.5,
+    "pairs": {
+     "a_pelvis_collision / a_left_thigh_collision": 135.7,
+     "a_pelvis_collision / a_right_thigh_collision": 135.7,
+     "a_abdomen_collision / a_right_forearm_collision": 81.4,
+     "a_chest_collision / a_right_upper_arm_collision": 70.9
+    }
+   },
+   "a_right_shoulder_yaw_joint": {
+    "samples": 9,
+    "with_any_overlap": 9,
+    "with_enabled_overlap": 9,
+    "worst_any_mm": 135.7,
+    "worst_enabled_mm": 3.5,
+    "pairs": {
+     "a_pelvis_collision / a_left_thigh_collision": 135.7,
+     "a_pelvis_collision / a_right_thigh_collision": 135.7,
+     "a_left_thigh_collision / a_right_thigh_collision": 37.4,
+     "a_right_forearm_collision / a_right_hand_collision": 35.9
+    }
+   },
+   "a_right_elbow_joint": {
+    "samples": 9,
+    "with_any_overlap": 9,
+    "with_enabled_overlap": 9,
+    "worst_any_mm": 135.7,
+    "worst_enabled_mm": 3.5,
+    "pairs": {
+     "a_pelvis_collision / a_left_thigh_collision": 135.7,
+     "a_pelvis_collision / a_right_thigh_collision": 135.7,
+     "a_left_thigh_collision / a_right_thigh_collision": 37.4,
+     "a_right_forearm_collision / a_right_hand_collision": 35.9
+    }
+   },
+   "a_right_wrist_roll_joint": {
+    "samples": 9,
+    "with_any_overlap": 9,
+    "with_enabled_overlap": 9,
+    "worst_any_mm": 135.7,
+    "worst_enabled_mm": 3.5,
+    "pairs": {
+     "a_pelvis_collision / a_left_thigh_collision": 135.7,
+     "a_pelvis_collision / a_right_thigh_collision": 135.7,
+     "a_left_thigh_collision / a_right_thigh_collision": 37.4,
+     "a_left_forearm_collision / a_left_hand_collision": 35.9
+    }
+   },
+   "a_right_wrist_pitch_joint": {
+    "samples": 9,
+    "with_any_overlap": 9,
+    "with_enabled_overlap": 9,
+    "worst_any_mm": 135.7,
+    "worst_enabled_mm": 3.5,
+    "pairs": {
+     "a_pelvis_collision / a_left_thigh_collision": 135.7,
+     "a_pelvis_collision / a_right_thigh_collision": 135.7,
+     "a_right_forearm_collision / a_right_hand_collision": 39.1,
+     "a_left_thigh_collision / a_right_thigh_collision": 37.4
+    }
+   },
+   "a_right_wrist_yaw_joint": {
+    "samples": 9,
+    "with_any_overlap": 9,
+    "with_enabled_overlap": 9,
+    "worst_any_mm": 135.7,
+    "worst_enabled_mm": 3.5,
+    "pairs": {
+     "a_pelvis_collision / a_left_thigh_collision": 135.7,
+     "a_pelvis_collision / a_right_thigh_collision": 135.7,
+     "a_left_thigh_collision / a_right_thigh_collision": 37.4,
+     "a_right_forearm_collision / a_right_hand_collision": 36.4
+    }
+   }
+  }
+ },
+ {
+  "robot": "trump",
+  "model": "training/assets/trump/scene_koth_2p_train.xml",
+  "collision_geoms": 24,
+  "pairs_non_adjacent": 253,
+  "pairs_enabled": 32,
+  "enabled_pairs": [
+   "a_left_foot1_collision / a_right_foot1_collision",
+   "a_left_foot1_collision / a_right_foot2_collision",
+   "a_left_foot1_collision / a_right_foot3_collision",
+   "a_left_foot1_collision / a_right_foot_box_collision",
+   "a_left_foot1_collision / a_right_linkage_brace_collision",
+   "a_left_foot1_collision / a_right_shin_collision",
+   "a_left_foot2_collision / a_right_foot1_collision",
+   "a_left_foot2_collision / a_right_foot2_collision",
+   "a_left_foot2_collision / a_right_foot3_collision",
+   "a_left_foot2_collision / a_right_foot_box_collision",
+   "a_left_foot2_collision / a_right_linkage_brace_collision",
+   "a_left_foot2_collision / a_right_shin_collision",
+   "a_left_foot3_collision / a_right_foot1_collision",
+   "a_left_foot3_collision / a_right_foot2_collision",
+   "a_left_foot3_collision / a_right_foot3_collision",
+   "a_left_foot3_collision / a_right_foot_box_collision",
+   "a_left_foot3_collision / a_right_linkage_brace_collision",
+   "a_left_foot3_collision / a_right_shin_collision",
+   "a_left_foot_box_collision / a_right_foot1_collision",
+   "a_left_foot_box_collision / a_right_foot2_collision",
+   "a_left_foot_box_collision / a_right_foot3_collision",
+   "a_left_foot_box_collision / a_right_foot_box_collision",
+   "a_left_foot_box_collision / a_right_linkage_brace_collision",
+   "a_left_foot_box_collision / a_right_shin_collision",
+   "a_left_linkage_brace_collision / a_right_foot1_collision",
+   "a_left_linkage_brace_collision / a_right_foot2_collision",
+   "a_left_linkage_brace_collision / a_right_foot3_collision",
+   "a_left_linkage_brace_collision / a_right_foot_box_collision",
+   "a_left_shin_collision / a_right_foot1_collision",
+   "a_left_shin_collision / a_right_foot2_collision",
+   "a_left_shin_collision / a_right_foot3_collision",
+   "a_left_shin_collision / a_right_foot_box_collision"
+  ],
+  "poses": {
+   "zero": {
+    "enabled_overlaps": [],
+    "all_overlaps": [
+     [
+      "a_pelvis_collision",
+      "a_left_thigh_collision",
+      164.5
+     ],
+     [
+      "a_pelvis_collision",
+      "a_right_thigh_collision",
+      164.5
+     ],
+     [
+      "a_pelvis_collision",
+      "a_abdomen_collision",
+      79.9
+     ],
+     [
+      "a_chest_collision",
+      "a_left_upper_arm_collision",
+      45.2
+     ],
+     [
+      "a_chest_collision",
+      "a_right_upper_arm_collision",
+      45.2
+     ],
+     [
+      "a_left_forearm_collision",
+      "a_left_hand_collision",
+      52.5
+     ],
+     [
+      "a_right_forearm_collision",
+      "a_right_hand_collision",
+      52.5
+     ]
+    ]
+   },
+   "rest": {
+    "enabled_overlaps": [],
+    "all_overlaps": [
+     [
+      "a_pelvis_collision",
+      "a_left_thigh_collision",
+      165.8
+     ],
+     [
+      "a_pelvis_collision",
+      "a_right_thigh_collision",
+      165.8
+     ],
+     [
+      "a_pelvis_collision",
+      "a_abdomen_collision",
+      79.9
+     ],
+     [
+      "a_chest_collision",
+      "a_left_upper_arm_collision",
+      45.2
+     ],
+     [
+      "a_chest_collision",
+      "a_right_upper_arm_collision",
+      45.2
+     ],
+     [
+      "a_left_forearm_collision",
+      "a_left_hand_collision",
+      52.5
+     ],
+     [
+      "a_right_forearm_collision",
+      "a_right_hand_collision",
+      52.5
+     ]
+    ]
+   },
+   "tpose": {
+    "enabled_overlaps": [],
+    "all_overlaps": [
+     [
+      "a_pelvis_collision",
+      "a_left_thigh_collision",
+      165.8
+     ],
+     [
+      "a_pelvis_collision",
+      "a_right_thigh_collision",
+      165.8
+     ],
+     [
+      "a_pelvis_collision",
+      "a_abdomen_collision",
+      79.9
+     ],
+     [
+      "a_chest_collision",
+      "a_left_upper_arm_collision",
+      30.0
+     ],
+     [
+      "a_chest_collision",
+      "a_right_upper_arm_collision",
+      30.0
+     ],
+     [
+      "a_left_forearm_collision",
+      "a_left_hand_collision",
+      52.5
+     ],
+     [
+      "a_right_forearm_collision",
+      "a_right_hand_collision",
+      52.5
+     ]
+    ]
+   }
+  },
+  "swing": {
+   "a_left_hip_pitch_joint": {
+    "samples": 9,
+    "with_any_overlap": 9,
+    "with_enabled_overlap": 0,
+    "worst_any_mm": 190.0,
+    "worst_enabled_mm": 0.0,
+    "pairs": {
+     "a_pelvis_collision / a_left_thigh_collision": 190.0,
+     "a_pelvis_collision / a_right_thigh_collision": 165.8,
+     "a_pelvis_collision / a_abdomen_collision": 79.9,
+     "a_left_forearm_collision / a_left_hand_collision": 52.5
+    }
+   },
+   "a_left_hip_roll_joint": {
+    "samples": 9,
+    "with_any_overlap": 9,
+    "with_enabled_overlap": 3,
+    "worst_any_mm": 205.1,
+    "worst_enabled_mm": 22.1,
+    "pairs": {
+     "a_left_shin_collision / a_right_shin_collision": 205.1,
+     "a_left_linkage_brace_collision / a_right_shin_collision": 177.9,
+     "a_pelvis_collision / a_left_thigh_collision": 175.9,
+     "a_pelvis_collision / a_right_thigh_collision": 165.8
+    }
+   },
+   "a_left_hip_yaw_joint": {
+    "samples": 9,
+    "with_any_overlap": 9,
+    "with_enabled_overlap": 2,
+    "worst_any_mm": 166.0,
+    "worst_enabled_mm": 18.5,
+    "pairs": {
+     "a_pelvis_collision / a_left_thigh_collision": 166.0,
+     "a_pelvis_collision / a_right_thigh_collision": 165.8,
+     "a_pelvis_collision / a_abdomen_collision": 79.9,
+     "a_left_forearm_collision / a_left_hand_collision": 52.5
+    }
+   },
+   "a_left_knee_joint": {
+    "samples": 9,
+    "with_any_overlap": 9,
+    "with_enabled_overlap": 0,
+    "worst_any_mm": 165.8,
+    "worst_enabled_mm": 0.0,
+    "pairs": {
+     "a_pelvis_collision / a_left_thigh_collision": 165.8,
+     "a_pelvis_collision / a_right_thigh_collision": 165.8,
+     "a_pelvis_collision / a_abdomen_collision": 79.9,
+     "a_left_forearm_collision / a_left_hand_collision": 52.5
+    }
+   },
+   "a_left_ankle_pitch_joint": {
+    "samples": 9,
+    "with_any_overlap": 9,
+    "with_enabled_overlap": 0,
+    "worst_any_mm": 165.8,
+    "worst_enabled_mm": 0.0,
+    "pairs": {
+     "a_pelvis_collision / a_left_thigh_collision": 165.8,
+     "a_pelvis_collision / a_right_thigh_collision": 165.8,
+     "a_pelvis_collision / a_abdomen_collision": 79.9,
+     "a_left_forearm_collision / a_left_hand_collision": 52.5
+    }
+   },
+   "a_left_ankle_roll_joint": {
+    "samples": 9,
+    "with_any_overlap": 9,
+    "with_enabled_overlap": 0,
+    "worst_any_mm": 165.8,
+    "worst_enabled_mm": 0.0,
+    "pairs": {
+     "a_pelvis_collision / a_left_thigh_collision": 165.8,
+     "a_pelvis_collision / a_right_thigh_collision": 165.8,
+     "a_pelvis_collision / a_abdomen_collision": 79.9,
+     "a_left_forearm_collision / a_left_hand_collision": 52.5
+    }
+   },
+   "a_right_hip_pitch_joint": {
+    "samples": 9,
+    "with_any_overlap": 9,
+    "with_enabled_overlap": 0,
+    "worst_any_mm": 190.0,
+    "worst_enabled_mm": 0.0,
+    "pairs": {
+     "a_pelvis_collision / a_right_thigh_collision": 190.0,
+     "a_pelvis_collision / a_left_thigh_collision": 165.8,
+     "a_pelvis_collision / a_abdomen_collision": 79.9,
+     "a_left_forearm_collision / a_left_hand_collision": 52.5
+    }
+   },
+   "a_right_hip_roll_joint": {
+    "samples": 9,
+    "with_any_overlap": 9,
+    "with_enabled_overlap": 3,
+    "worst_any_mm": 205.1,
+    "worst_enabled_mm": 22.1,
+    "pairs": {
+     "a_left_shin_collision / a_right_shin_collision": 205.1,
+     "a_left_shin_collision / a_right_linkage_brace_collision": 177.9,
+     "a_pelvis_collision / a_right_thigh_collision": 175.9,
+     "a_pelvis_collision / a_left_thigh_collision": 165.8
+    }
+   },
+   "a_right_hip_yaw_joint": {
+    "samples": 9,
+    "with_any_overlap": 9,
+    "with_enabled_overlap": 2,
+    "worst_any_mm": 166.0,
+    "worst_enabled_mm": 18.5,
+    "pairs": {
+     "a_pelvis_collision / a_right_thigh_collision": 166.0,
+     "a_pelvis_collision / a_left_thigh_collision": 165.8,
+     "a_pelvis_collision / a_abdomen_collision": 79.9,
+     "a_left_forearm_collision / a_left_hand_collision": 52.5
+    }
+   },
+   "a_right_knee_joint": {
+    "samples": 9,
+    "with_any_overlap": 9,
+    "with_enabled_overlap": 0,
+    "worst_any_mm": 165.8,
+    "worst_enabled_mm": 0.0,
+    "pairs": {
+     "a_pelvis_collision / a_left_thigh_collision": 165.8,
+     "a_pelvis_collision / a_right_thigh_collision": 165.8,
+     "a_pelvis_collision / a_abdomen_collision": 79.9,
+     "a_left_forearm_collision / a_left_hand_collision": 52.5
+    }
+   },
+   "a_right_ankle_pitch_joint": {
+    "samples": 9,
+    "with_any_overlap": 9,
+    "with_enabled_overlap": 0,
+    "worst_any_mm": 165.8,
+    "worst_enabled_mm": 0.0,
+    "pairs": {
+     "a_pelvis_collision / a_left_thigh_collision": 165.8,
+     "a_pelvis_collision / a_right_thigh_collision": 165.8,
+     "a_pelvis_collision / a_abdomen_collision": 79.9,
+     "a_left_forearm_collision / a_left_hand_collision": 52.5
+    }
+   },
+   "a_right_ankle_roll_joint": {
+    "samples": 9,
+    "with_any_overlap": 9,
+    "with_enabled_overlap": 0,
+    "worst_any_mm": 165.8,
+    "worst_enabled_mm": 0.0,
+    "pairs": {
+     "a_pelvis_collision / a_left_thigh_collision": 165.8,
+     "a_pelvis_collision / a_right_thigh_collision": 165.8,
+     "a_pelvis_collision / a_abdomen_collision": 79.9,
+     "a_left_forearm_collision / a_left_hand_collision": 52.5
+    }
+   },
+   "a_waist_yaw_joint": {
+    "samples": 9,
+    "with_any_overlap": 9,
+    "with_enabled_overlap": 0,
+    "worst_any_mm": 165.8,
+    "worst_enabled_mm": 0.0,
+    "pairs": {
+     "a_pelvis_collision / a_left_thigh_collision": 165.8,
+     "a_pelvis_collision / a_right_thigh_collision": 165.8,
+     "a_pelvis_collision / a_abdomen_collision": 80.3,
+     "a_left_forearm_collision / a_left_hand_collision": 52.5
+    }
+   },
+   "a_waist_roll_joint": {
+    "samples": 9,
+    "with_any_overlap": 9,
+    "with_enabled_overlap": 0,
+    "worst_any_mm": 165.8,
+    "worst_enabled_mm": 0.0,
+    "pairs": {
+     "a_pelvis_collision / a_left_thigh_collision": 165.8,
+     "a_pelvis_collision / a_right_thigh_collision": 165.8,
+     "a_pelvis_collision / a_abdomen_collision": 96.4,
+     "a_left_forearm_collision / a_left_hand_collision": 52.5
+    }
+   },
+   "a_waist_pitch_joint": {
+    "samples": 9,
+    "with_any_overlap": 9,
+    "with_enabled_overlap": 0,
+    "worst_any_mm": 165.8,
+    "worst_enabled_mm": 0.0,
+    "pairs": {
+     "a_pelvis_collision / a_left_thigh_collision": 165.8,
+     "a_pelvis_collision / a_right_thigh_collision": 165.8,
+     "a_pelvis_collision / a_abdomen_collision": 126.3,
+     "a_left_forearm_collision / a_left_hand_collision": 52.5
+    }
+   },
+   "a_left_shoulder_pitch_joint": {
+    "samples": 9,
+    "with_any_overlap": 9,
+    "with_enabled_overlap": 0,
+    "worst_any_mm": 165.8,
+    "worst_enabled_mm": 0.0,
+    "pairs": {
+     "a_pelvis_collision / a_left_thigh_collision": 165.8,
+     "a_pelvis_collision / a_right_thigh_collision": 165.8,
+     "a_pelvis_collision / a_abdomen_collision": 79.9,
+     "a_left_forearm_collision / a_left_hand_collision": 52.5
+    }
+   },
+   "a_left_shoulder_roll_joint": {
+    "samples": 9,
+    "with_any_overlap": 9,
+    "with_enabled_overlap": 0,
+    "worst_any_mm": 165.8,
+    "worst_enabled_mm": 0.0,
+    "pairs": {
+     "a_pelvis_collision / a_left_thigh_collision": 165.8,
+     "a_pelvis_collision / a_right_thigh_collision": 165.8,
+     "a_pelvis_collision / a_left_forearm_collision": 80.6,
+     "a_pelvis_collision / a_abdomen_collision": 79.9
+    }
+   },
+   "a_left_shoulder_yaw_joint": {
+    "samples": 9,
+    "with_any_overlap": 9,
+    "with_enabled_overlap": 0,
+    "worst_any_mm": 165.8,
+    "worst_enabled_mm": 0.0,
+    "pairs": {
+     "a_pelvis_collision / a_left_thigh_collision": 165.8,
+     "a_pelvis_collision / a_right_thigh_collision": 165.8,
+     "a_pelvis_collision / a_left_forearm_collision": 108.5,
+     "a_pelvis_collision / a_left_hand_collision": 90.4
+    }
+   },
+   "a_left_elbow_joint": {
+    "samples": 9,
+    "with_any_overlap": 9,
+    "with_enabled_overlap": 0,
+    "worst_any_mm": 165.8,
+    "worst_enabled_mm": 0.0,
+    "pairs": {
+     "a_pelvis_collision / a_left_thigh_collision": 165.8,
+     "a_pelvis_collision / a_right_thigh_collision": 165.8,
+     "a_pelvis_collision / a_abdomen_collision": 79.9,
+     "a_left_forearm_collision / a_left_hand_collision": 52.5
+    }
+   },
+   "a_left_wrist_roll_joint": {
+    "samples": 9,
+    "with_any_overlap": 9,
+    "with_enabled_overlap": 0,
+    "worst_any_mm": 165.8,
+    "worst_enabled_mm": 0.0,
+    "pairs": {
+     "a_pelvis_collision / a_left_thigh_collision": 165.8,
+     "a_pelvis_collision / a_right_thigh_collision": 165.8,
+     "a_pelvis_collision / a_abdomen_collision": 79.9,
+     "a_left_forearm_collision / a_left_hand_collision": 52.5
+    }
+   },
+   "a_left_wrist_pitch_joint": {
+    "samples": 9,
+    "with_any_overlap": 9,
+    "with_enabled_overlap": 0,
+    "worst_any_mm": 165.8,
+    "worst_enabled_mm": 0.0,
+    "pairs": {
+     "a_pelvis_collision / a_left_thigh_collision": 165.8,
+     "a_pelvis_collision / a_right_thigh_collision": 165.8,
+     "a_pelvis_collision / a_abdomen_collision": 79.9,
+     "a_left_forearm_collision / a_left_hand_collision": 57.6
+    }
+   },
+   "a_left_wrist_yaw_joint": {
+    "samples": 9,
+    "with_any_overlap": 9,
+    "with_enabled_overlap": 0,
+    "worst_any_mm": 165.8,
+    "worst_enabled_mm": 0.0,
+    "pairs": {
+     "a_pelvis_collision / a_left_thigh_collision": 165.8,
+     "a_pelvis_collision / a_right_thigh_collision": 165.8,
+     "a_pelvis_collision / a_abdomen_collision": 79.9,
+     "a_left_forearm_collision / a_left_hand_collision": 53.1
+    }
+   },
+   "a_right_shoulder_pitch_joint": {
+    "samples": 9,
+    "with_any_overlap": 9,
+    "with_enabled_overlap": 0,
+    "worst_any_mm": 165.8,
+    "worst_enabled_mm": 0.0,
+    "pairs": {
+     "a_pelvis_collision / a_left_thigh_collision": 165.8,
+     "a_pelvis_collision / a_right_thigh_collision": 165.8,
+     "a_pelvis_collision / a_abdomen_collision": 79.9,
+     "a_right_forearm_collision / a_right_hand_collision": 52.5
+    }
+   },
+   "a_right_shoulder_roll_joint": {
+    "samples": 9,
+    "with_any_overlap": 9,
+    "with_enabled_overlap": 0,
+    "worst_any_mm": 165.8,
+    "worst_enabled_mm": 0.0,
+    "pairs": {
+     "a_pelvis_collision / a_left_thigh_collision": 165.8,
+     "a_pelvis_collision / a_right_thigh_collision": 165.8,
+     "a_pelvis_collision / a_right_forearm_collision": 80.6,
+     "a_pelvis_collision / a_abdomen_collision": 79.9
+    }
+   },
+   "a_right_shoulder_yaw_joint": {
+    "samples": 9,
+    "with_any_overlap": 9,
+    "with_enabled_overlap": 0,
+    "worst_any_mm": 165.8,
+    "worst_enabled_mm": 0.0,
+    "pairs": {
+     "a_pelvis_collision / a_left_thigh_collision": 165.8,
+     "a_pelvis_collision / a_right_thigh_collision": 165.8,
+     "a_pelvis_collision / a_right_forearm_collision": 108.5,
+     "a_pelvis_collision / a_right_hand_collision": 90.4
+    }
+   },
+   "a_right_elbow_joint": {
+    "samples": 9,
+    "with_any_overlap": 9,
+    "with_enabled_overlap": 0,
+    "worst_any_mm": 165.8,
+    "worst_enabled_mm": 0.0,
+    "pairs": {
+     "a_pelvis_collision / a_left_thigh_collision": 165.8,
+     "a_pelvis_collision / a_right_thigh_collision": 165.8,
+     "a_pelvis_collision / a_abdomen_collision": 79.9,
+     "a_right_forearm_collision / a_right_hand_collision": 52.5
+    }
+   },
+   "a_right_wrist_roll_joint": {
+    "samples": 9,
+    "with_any_overlap": 9,
+    "with_enabled_overlap": 0,
+    "worst_any_mm": 165.8,
+    "worst_enabled_mm": 0.0,
+    "pairs": {
+     "a_pelvis_collision / a_left_thigh_collision": 165.8,
+     "a_pelvis_collision / a_right_thigh_collision": 165.8,
+     "a_pelvis_collision / a_abdomen_collision": 79.9,
+     "a_left_forearm_collision / a_left_hand_collision": 52.5
+    }
+   },
+   "a_right_wrist_pitch_joint": {
+    "samples": 9,
+    "with_any_overlap": 9,
+    "with_enabled_overlap": 0,
+    "worst_any_mm": 165.8,
+    "worst_enabled_mm": 0.0,
+    "pairs": {
+     "a_pelvis_collision / a_left_thigh_collision": 165.8,
+     "a_pelvis_collision / a_right_thigh_collision": 165.8,
+     "a_pelvis_collision / a_abdomen_collision": 79.9,
+     "a_right_forearm_collision / a_right_hand_collision": 57.6
+    }
+   },
+   "a_right_wrist_yaw_joint": {
+    "samples": 9,
+    "with_any_overlap": 9,
+    "with_enabled_overlap": 0,
+    "worst_any_mm": 165.8,
+    "worst_enabled_mm": 0.0,
+    "pairs": {
+     "a_pelvis_collision / a_left_thigh_collision": 165.8,
+     "a_pelvis_collision / a_right_thigh_collision": 165.8,
+     "a_pelvis_collision / a_abdomen_collision": 79.9,
+     "a_right_forearm_collision / a_right_hand_collision": 53.1
+    }
+   }
+  }
+ }
+]
