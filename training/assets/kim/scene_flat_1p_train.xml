@@ -115,11 +115,11 @@
                 <joint name="a_left_ankle_pitch_joint" class="kim_ankle_pitch" />
                 <body name="a_left_ankle_roll_link">
                   <joint name="a_left_ankle_roll_joint" class="kim_ankle_roll" />
-                  <geom name="a_left_foot_box_collision" class="kim_foot_box" size="0.1341 0.04995 0.012" pos="0.071 0 -0.0859" contype="17" conaffinity="22" condim="3" friction="0.6" mass="0.5124" />
-                  <geom name="a_left_foot1_collision" class="kim_foot_capsule" size="0.012 0.0275" pos="0.1626 -0.034965 -0.0839" quat="0.707107 0 -0.707107 0" contype="17" conaffinity="22" condim="3" friction="0.6" mass="0.02" />
-                  <geom name="a_left_foot3_collision" class="kim_foot_capsule" size="0.012 0.0275" pos="0.1626 0.034965 -0.0839" quat="0.707107 0 -0.707107 0" contype="17" conaffinity="22" condim="3" friction="0.6" mass="0.02" />
-                  <geom name="a_left_foot2_collision" class="kim_foot_capsule" size="0.022 0.1091" pos="0.071 0 -0.0739" quat="0.707107 0 -0.707107 0" contype="17" conaffinity="22" condim="3" friction="0.6" mass="0.02" />
-                  <site name="a_left_foot" pos="0.071 0 -0.0979" />
+                  <geom name="a_left_foot_box_collision" class="kim_foot_box" size="0.1341 0.04995 0.012" pos="0.071 0.00375 -0.0859" contype="17" conaffinity="22" condim="3" friction="0.6" mass="0.5124" />
+                  <geom name="a_left_foot1_collision" class="kim_foot_capsule" size="0.012 0.0275" pos="0.1626 -0.031215 -0.0839" quat="0.707107 0 -0.707107 0" contype="17" conaffinity="22" condim="3" friction="0.6" mass="0.02" />
+                  <geom name="a_left_foot3_collision" class="kim_foot_capsule" size="0.012 0.0275" pos="0.1626 0.038715 -0.0839" quat="0.707107 0 -0.707107 0" contype="17" conaffinity="22" condim="3" friction="0.6" mass="0.02" />
+                  <geom name="a_left_foot2_collision" class="kim_foot_capsule" size="0.022 0.1091" pos="0.071 0.00375 -0.0739" quat="0.707107 0 -0.707107 0" contype="17" conaffinity="22" condim="3" friction="0.6" mass="0.02" />
+                  <site name="a_left_foot" pos="0.071 0.00375 -0.0979" />
                 </body>
               </body>
             </body>
@@ -144,11 +144,11 @@
                 <joint name="a_right_ankle_pitch_joint" class="kim_ankle_pitch" />
                 <body name="a_right_ankle_roll_link">
                   <joint name="a_right_ankle_roll_joint" class="kim_ankle_roll" />
-                  <geom name="a_right_foot_box_collision" class="kim_foot_box" size="0.1341 0.04995 0.012" pos="0.071 0 -0.0859" contype="17" conaffinity="22" condim="3" friction="0.6" mass="0.5124" />
-                  <geom name="a_right_foot1_collision" class="kim_foot_capsule" size="0.012 0.0275" pos="0.1626 -0.034965 -0.0839" quat="0.707107 0 -0.707107 0" contype="17" conaffinity="22" condim="3" friction="0.6" mass="0.02" />
-                  <geom name="a_right_foot3_collision" class="kim_foot_capsule" size="0.012 0.0275" pos="0.1626 0.034965 -0.0839" quat="0.707107 0 -0.707107 0" contype="17" conaffinity="22" condim="3" friction="0.6" mass="0.02" />
-                  <geom name="a_right_foot2_collision" class="kim_foot_capsule" size="0.022 0.1091" pos="0.071 0 -0.0739" quat="0.707107 0 -0.707107 0" contype="17" conaffinity="22" condim="3" friction="0.6" mass="0.02" />
-                  <site name="a_right_foot" pos="0.071 0 -0.0979" />
+                  <geom name="a_right_foot_box_collision" class="kim_foot_box" size="0.1341 0.04995 0.012" pos="0.071 -0.00375 -0.0859" contype="17" conaffinity="22" condim="3" friction="0.6" mass="0.5124" />
+                  <geom name="a_right_foot1_collision" class="kim_foot_capsule" size="0.012 0.0275" pos="0.1626 -0.038715 -0.0839" quat="0.707107 0 -0.707107 0" contype="17" conaffinity="22" condim="3" friction="0.6" mass="0.02" />
+                  <geom name="a_right_foot3_collision" class="kim_foot_capsule" size="0.012 0.0275" pos="0.1626 0.031215 -0.0839" quat="0.707107 0 -0.707107 0" contype="17" conaffinity="22" condim="3" friction="0.6" mass="0.02" />
+                  <geom name="a_right_foot2_collision" class="kim_foot_capsule" size="0.022 0.1091" pos="0.071 -0.00375 -0.0739" quat="0.707107 0 -0.707107 0" contype="17" conaffinity="22" condim="3" friction="0.6" mass="0.02" />
+                  <site name="a_right_foot" pos="0.071 -0.00375 -0.0979" />
                 </body>
               </body>
             </body>
@@ -279,6 +279,6 @@
     <general name="a_right_wrist_yaw_joint" class="kim_wrist_yaw" joint="a_right_wrist_yaw_joint" ctrlrange="-0.4 0.4" biastype="affine" gainprm="15" biasprm="0 -15 -0.5" ctrllimited="true" forcerange="-8 8" forcelimited="true" />
   </actuator>
   <keyframe>
-    <key name="default" qpos="0 0 0.744367 1 0 0 0 -0.15 0 0 0.3 -0.15 0 -0.15 0 0 0.3 -0.15 0 0 0 0 0 0.12 0 0.35 0 0 0 0 -0.12 0 0.35 0 0 0 100 0 50 1 0 0 0 100.5 0 50 1 0 0 0 101 0 50 1 0 0 0 101.5 0 50 1 0 0 0" ctrl="-0.144409 -0.016383 0.0019585 0.281576 -0.124453 0.0120054 -0.144411 0.0163837 -0.00195882 0.281577 -0.124452 -0.0120107 -3.96863e-08 3.24768e-07 -0.00410623 -0.00761821 0.127102 0.000916014 0.360114 6.10275e-08 -0.00658028 0.00231554 -0.00761821 -0.127102 -0.000916041 0.360114 -6.0536e-08 -0.0065803 -0.0023156" />
+    <key name="default" qpos="0 0 0.744367 1 0 0 0 -0.15 0 0 0.3 -0.15 0 -0.15 0 0 0.3 -0.15 0 0 0 0 0 0.12 0 0.35 0 0 0 0 -0.12 0 0.35 0 0 0 100 0 50 1 0 0 0 100.5 0 50 1 0 0 0 101 0 50 1 0 0 0 101.5 0 50 1 0 0 0" ctrl="-0.144424 0.00630094 -0.0019062 0.281614 -0.124367 -0.0094292 -0.144424 -0.00630094 0.0019062 0.281614 -0.124367 0.0094292 3.35155e-18 7.41092e-18 -0.00417021 -0.0076234 0.12709 0.000916061 0.360114 6.89441e-08 -0.0065801 0.00231577 -0.0076234 -0.12709 -0.000916061 0.360114 -6.89441e-08 -0.0065801 -0.00231577" />
   </keyframe>
 </mujoco>
