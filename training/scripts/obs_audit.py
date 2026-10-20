@@ -55,7 +55,7 @@ def warp_samples(ckpt, rung, opponent, steps, num_envs, noise) -> np.ndarray:
     from koth.env import KothEnv
     from koth.actor import load
     from scripts.eval import eval_cfg
-    cfg = eval_cfg(rung, opponent=opponent, noise=noise, leg_contact_rule="unity")
+    cfg = eval_cfg(rung, opponent=opponent, noise=noise, leg_contact_rule="unity", ckpt=ckpt)
     env = KothEnv(cfg, num_envs, seed=0); pol = load(ckpt, device="cuda")
     obs = env.reset(); out = []
     for _ in range(steps):
@@ -76,6 +76,7 @@ def main():
     ap.add_argument("--drift-bar", type=float, default=0.5); ap.add_argument("--oor-bar", type=float, default=0.01)
     ap.add_argument("--ks-bar", type=float, default=0.25)
     ap.add_argument("--json", default=None)
+    ap.add_argument("--brain", default=None, help="only Unity rows whose brain name contains this (ObsRecorder writes the ONNX name per row)")
     a = ap.parse_args()
     sd = torch.load(a.ckpt, map_location="cpu", weights_only=False)["actor_state_dict"]
     mean = sd["obs_normalizer._mean"][0].double().numpy(); std = sd["obs_normalizer._std"][0].double().numpy(); D = len(mean)
@@ -83,6 +84,7 @@ def main():
     path = a.unity or (os.path.join(ROOT, "assets", os.environ.get("KOTH_ROBOT", "g1"), f"unity_obs_{a.tag}.jsonl") if a.tag else None)
     if path:
         rows = [json.loads(l) for l in open(path, encoding="utf-8") if l.strip()]
+        if a.brain: rows = [r for r in rows if isinstance(r, dict) and a.brain in r.get("brain", "")]
         rows = [r["obs"] if isinstance(r, dict) else r for r in rows]
         u = np.array([r[:D] for r in rows if len(r) >= D], dtype=np.float64)
         if len(u) < len(rows): print(f"warning: {len(rows) - len(u)} Unity rows narrower than the brain's {D} inputs were skipped")

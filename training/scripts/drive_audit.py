@@ -6,7 +6,7 @@
 1. Per joint of robot a_ in model_dump_<tag>.json (the compiled model Unity is gated against): kp, kv, actuator
    force range, ctrl range, damping, armature, next to a reference table: for the G1 the Unitree G1 (29 DoF) joint
    peak torques (as in mujoco_menagerie's g1.xml actuatorfrcrange) and approximate motor speed limits, and the
-   leg PD gains of unitree_rl_gym's G1 config; for Kim her own design table (koth/build_kim.py JOINT_CLASSES).
+   leg PD gains of unitree_rl_gym's G1 config; for a human its own design table (koth/build_<body>.py JOINT_CLASSES).
    kp here is the position-actuator gain (N m / rad of ctrl error). The project's leg gains are 2-3 x the
    unitree_rl_gym ones on purpose: lower gains could not hold a static pose in this model (rl_optimization_log.md).
 2. With --ckpt: a deterministic rollout on the rung's eval settings (eval.py), per joint: share of policy outputs at
@@ -33,11 +33,11 @@ def kind(joint: str) -> str:
 
 def spec_table() -> dict:
     if ROBOT == "g1": return G1_SPEC
-    from koth.build_kim import JOINT_CLASSES          # class: {name: (axis, range, peak torque, armature)} or one tuple
+    from koth.build_mjcf import human                  # the body's profile: class: {name: (axis, range, peak torque, armature)} or one tuple
     out = {}
-    for cls, v in JOINT_CLASSES.items():
+    for cls, v in human(ROBOT).JOINT_CLASSES.items():
         for name, t in (v.items() if isinstance(v, dict) else [(cls, v)]):
-            out[name.replace("kim_", "")] = (t[2], None, None)
+            out[name.replace(f"{ROBOT}_", "")] = (t[2], None, None)
     return out
 
 
@@ -52,7 +52,7 @@ def main():
     jm = json.load(open(os.path.join(ROOT, "assets", ROBOT, "joint_map.json")))
     joints = {j["name"]: j for j in dump["joints"]}; acts = {x["joint"]: x for x in dump["actuators"]}
     spec = spec_table(); rows = []
-    print(f"{ROBOT} model_dump_{a.tag}.json, robot a_ ({'Unitree G1 spec' if ROBOT == 'g1' else 'build_kim design table'} for reference)")
+    print(f"{ROBOT} model_dump_{a.tag}.json, robot a_ ({'Unitree G1 spec' if ROBOT == 'g1' else f'build_{ROBOT} design table'} for reference)")
     print(f"{'joint':>28} {'kp':>6} {'kv':>5} {'force':>6} {'spec':>5} {'ctrl range':>15} {'damp':>5} {'arm':>6} {'ref kp/kd':>9}")
     for name in jm["joints"]:
         j = joints["a_" + name]; act = acts["a_" + name]; sp = spec.get(kind(name), (None, None, None))
@@ -68,24 +68,27 @@ def main():
         from scripts.eval import eval_cfg, load_policy
         import warp as wp
         opp = a.opponent or ([a.ckpt] if a.rung.startswith(("r4", "r5")) else None)
-        env = KothEnv(eval_cfg(a.rung, opponent=opp), a.num_envs, seed=0); policy = load_policy(env, a.ckpt)
+        env = KothEnv(eval_cfg(a.rung, opponent=opp, ckpt=a.ckpt), a.num_envs, seed=0); policy = load_policy(env, a.ckpt)
         force = wp.to_torch(env.d.actuator_force); aid = env.aid[0]; lim = torch.tensor([r["forcerange"][1] for r in rows], device=env.device)
         spd = torch.tensor([r["spec_speed"] or float("inf") for r in rows], device=env.device)
         clamp = torch.zeros(29, device=env.device); mag = torch.zeros(29, device=env.device); sat = torch.zeros(29, device=env.device)
-        vmax = torch.zeros(29, device=env.device); n = 0
+        vmax = torch.zeros(29, device=env.device); n = 0; raws = []
         obs = env.reset(); steps = int(a.seconds / env.ctrl_dt)
         for _ in range(steps):
             with torch.no_grad(): act = policy(obs)
             clamp += (act.abs() >= 1).float().sum(0); mag += act.abs().clamp(max=1).sum(0); n += act.shape[0]
+            if len(raws) < 400: raws.append(act.abs().cpu())
             obs, *_ = env.step(act)
             f = force[:, aid].abs(); sat += (f >= 0.99 * lim).float().sum(0) / f.shape[0]
             vmax = torch.maximum(vmax, env._joints()[1][env.lrows if env.frozen is not None else slice(None)].abs().max(0).values)
         clamp, mag, sat = (clamp / n).cpu().numpy(), (mag / n).cpu().numpy(), (sat / steps).cpu().numpy(); vmax = vmax.cpu().numpy()
+        raw = torch.cat(raws).numpy(); p50, p95 = np.percentile(raw, 50, axis=0), np.percentile(raw, 95, axis=0)   # raw output, before the clamp
         print(f"\nrollout: {a.rung}, {a.num_envs} worlds x {steps} steps, deterministic policy {os.path.basename(a.ckpt)}")
-        print(f"{'joint':>28} {'|a|>=1':>7} {'mean|a|':>8} {'force at limit':>15} {'peak |qd|':>10} {'speed lim':>10}")
+        print(f"{'joint':>28} {'|a|>=1':>7} {'mean|a|':>8} {'raw p50':>8} {'raw p95':>8} {'force at limit':>15} {'peak |qd|':>10} {'speed lim':>10}")
         for i, r in enumerate(rows):
-            r.update(action_clamp_share=float(clamp[i]), mean_abs_action=float(mag[i]), force_saturation_share=float(sat[i]), peak_joint_speed=float(vmax[i]))
-            print(f"{r['joint']:>28} {clamp[i]:7.1%} {mag[i]:8.2f} {sat[i]:15.1%} {vmax[i]:10.1f} {r['spec_speed'] or '-':>10}")
+            r.update(action_clamp_share=float(clamp[i]), mean_abs_action=float(mag[i]), force_saturation_share=float(sat[i]), peak_joint_speed=float(vmax[i]),
+                     raw_abs_p50=float(p50[i]), raw_abs_p95=float(p95[i]))
+            print(f"{r['joint']:>28} {clamp[i]:7.1%} {mag[i]:8.2f} {p50[i]:8.2f} {p95[i]:8.2f} {sat[i]:15.1%} {vmax[i]:10.1f} {r['spec_speed'] or '-':>10}")
         print(f"all joints: {clamp.mean():.1%} of actions on the clamp, {sat.mean():.1%} of ticks force-limited")
     if a.json: json.dump(rows, open(a.json, "w"), indent=1)
 
