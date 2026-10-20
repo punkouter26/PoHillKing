@@ -15,7 +15,11 @@ kim_r0b / kim_r1b are judged as r0 / r1 (KOTH_ROBOT=kim), with kicks scaled to t
 (--push-vel defaults to 2 m/s x m_G1 / m_Kim).
 --leg-contact-rule unity: own foot-shin contact does not end a round (Unity / duel_stats.py); "train" keeps the rung's
 training rule (on for every rung up to r4*, off for the staged rungs).
-Prints one JSON line per seed plus a verdict; exit code 0 on pass, 1 on fail."""
+Prints one JSON line per seed plus a verdict; exit code 0 on pass, 1 on fail.
+Duel and free-for-all rows also carry "flags" (reported, never part of the pass): stall (more than 30 % of rounds reach
+the bell: trump_bull1/2, xg2), contact_avoidance (in touch, < 0.7 m apart, for under 15 % of the open round time: the
+bull runs learned to stay away), self_ejection (more losses than wins against a standing opponent: r4att). A brain that
+passes with a flag still deserves a look."""
 import argparse, json, os, sys
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 import torch
@@ -114,18 +118,30 @@ def eval_duel(env, policy, steps, league=False):
     """Robot a attacks robot b. Counts, per world, the first of: b ejected (radius > 1.7 or fallen), a ejected/fallen."""
     N = env.N; obs = env.reset()
     open_ = torch.ones(N, dtype=torch.bool, device=env.device); win = torch.zeros_like(open_); lose = torch.zeros_like(open_)
-    t_win = torch.full((N,), float('nan'), device=env.device)
+    t_win = torch.full((N,), float('nan'), device=env.device); touch = torch.zeros((), device=env.device); open_t = torch.zeros((), device=env.device)
     for t in range(steps):
         with torch.no_grad():
             act = policy(obs)
         obs, _, done, extras = env.step(act)
+        sep = extras["sep"].view(N, 2)[:, 0]; touch += ((sep < 0.7) & open_).sum(); open_t += open_.sum()
         out = (extras["radius"] > OUT_RADIUS) | extras["fallen"]; out = out.view(N, 2)
         b_out = out[:, 1] & open_; a_out = out[:, 0] & open_ & ~b_out
         win |= b_out; lose |= a_out; t_win = torch.where(b_out, t * env.ctrl_dt, t_win)
         open_ &= ~(b_out | a_out | (done if done.shape[0] == N else done.view(N, 2)[:, 0]))
-    w = win.float().mean().item(); l = lose.float().mean().item()
+    w = win.float().mean().item(); l = lose.float().mean().item(); contact = float(touch / open_t.clamp(min=1))
     return dict(duels=N, attacker_ejects_defender=round(w, 4), attacker_lost=round(l, 4), undecided=round(1 - w - l, 4),
-                median_time_s=round(float(t_win[win].median()) if win.any() else -1.0, 2), **{"pass": w >= 0.7 if not league else (w / max(w + l, 1e-9) > 0.55 and 1 - w - l < 0.15)})
+                median_time_s=round(float(t_win[win].median()) if win.any() else -1.0, 2), contact_share=round(contact, 4),
+                flags=hack_flags(1 - w - l, contact, w, l, standing_opponent=not league),
+                **{"pass": w >= 0.7 if not league else (w / max(w + l, 1e-9) > 0.55 and 1 - w - l < 0.15)})
+
+
+def hack_flags(undecided, contact, w, l, standing_opponent=False) -> list:
+    """Failure modes the run log has seen, as flags on an eval row (see the module docstring)."""
+    f = []
+    if undecided > 0.3: f.append("stall")
+    if contact is not None and contact < 0.15: f.append("contact_avoidance")
+    if standing_opponent and l > w: f.append("self_ejection")
+    return f
 
 
 def eval_ffa(env, policy, steps):
@@ -142,13 +158,17 @@ def eval_ffa(env, policy, steps):
         open_ &= ~(w_ | l_ | done)
     w = win.float().mean().item(); l = lose.float().mean().item()
     return dict(rounds=N, learner_last_one_in=round(w, 4), learner_out=round(l, 4), undecided=round(1 - w - l, 4),
-                median_time_s=round(float(t_win[win].median()) if win.any() else -1.0, 2), **{"pass": w >= 0.4})
+                median_time_s=round(float(t_win[win].median()) if win.any() else -1.0, 2), flags=hack_flags(1 - w - l, None, w, l), **{"pass": w >= 0.4})
 
 
 def eval_cfg(rung, shove=False, rim_brake=None, slope=False, opponent=None, leg_contact_rule="train", push_vel=None, noise=True,
-             combat2=False, decimation=None, fatigue="off", style_pose=None):
-    """The environment configuration eval.py judges a rung with (also used by contact_style.py)."""
+             combat2=False, decimation=None, fatigue="off", style_pose=None, ckpt=None):
+    """The environment configuration eval.py judges a rung with (also used by contact_style.py). ckpt: the judged brain,
+    whose action path (koth/action_map.py, from its run's config.json) the learner rows use; opponents use their own."""
     cfg = default_cfg(rung); base = base_rung(rung)
+    if ckpt:
+        from koth.action_map import ckpt_spec
+        cfg["action"] = ckpt_spec(ckpt)
     if combat2: cfg["combat2"] = True
     if decimation: cfg["decimation"] = decimation
     if fatigue != "off": cfg["fatigue"].update(enabled=True, obs=fatigue == "obs")
@@ -188,7 +208,7 @@ def main():
     ap.add_argument("--fatigue", choices=["off", "on", "obs"], default="off", help="as the brain was trained")
     a = ap.parse_args()
     cfg = eval_cfg(a.rung, a.shove, a.rim_brake, a.slope, a.opponent, a.leg_contact_rule, a.push_vel, combat2=a.combat2,
-                   decimation=a.decimation, fatigue=a.fatigue, style_pose=a.style_pose)
+                   decimation=a.decimation, fatigue=a.fatigue, style_pose=a.style_pose, ckpt=a.ckpt)
     base = base_rung(a.rung); duel = base in DUEL_RUNGS
     env = KothEnv(cfg, a.num_envs, seed=0)
     policy = load_policy(env, a.ckpt)

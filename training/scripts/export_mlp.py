@@ -18,7 +18,7 @@ from koth.actor import NORM_EPS, mlp_indices
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 MODELS = os.path.normpath(os.path.join(ROOT, "..", "Assets", "PoKingHill", "Models"))
 # the fighting brains ParityBatch.BuildDuelDemo seats (GoalMode.Opponent) and the critics next to them, relative to MODELS
-ROSTER = ["attacker", "duelist", "rammer", "ffa", "kim/fighter", "trump/fighter"]
+ROSTER = ["attacker", "duelist", "rammer", "ffa", "tactical", "kim/fighter", "trump/fighter"]      # missing files are skipped
 
 
 def layers(sd: dict):

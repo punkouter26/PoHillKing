@@ -24,6 +24,7 @@ namespace PoKingHill
         [Tooltip("False = listed in the menu but cannot be ticked yet; note says why")] public bool available = true;
         public string note = "";
         [Tooltip("Optional weights of the policy for Tactician rollouts (scripts/export_mlp.py, <file>_mlp.bytes)")] public TextAsset mlp;
+        [Tooltip("Optional action path of the policy (<file>_action.json, training/koth/action_map.py); empty = the original clamp path")] public TextAsset action;
         [Tooltip("Optional critic weights (<file>_value_mlp.bytes) that score Tactician rollouts")] public TextAsset valueMlp;
         public string Badge => shortName.Length > 0 ? shortName : name;
     }
@@ -61,6 +62,8 @@ namespace PoKingHill
         [Tooltip("Skip the menu and start fighting immediately.")] public bool autoLaunch;
         [Tooltip("Statistical parity gate: play this many rounds fast, write duel_stats_unity.json, then stop. 0 = off.")]
         public int statsRounds = 0;
+        [Tooltip("File name the statistics gate writes (empty = duel_stats_unity.json / ffa_stats_unity.json, the parity references); diagnostics runs set their own")]
+        public string statsFile = "";
         [Tooltip("Free-for-all statistics gate: the candidate (roster index) on seat A against three opponents drawn from this pool every round (roster indices). Empty = the two-fighter gate.")]
         public int[] statsPool = Array.Empty<int>();
         public int statsCandidate = -1;
@@ -414,7 +417,7 @@ namespace PoKingHill
             {
                 if (i >= _playing) { fighters[i].SetBrain(null, ObsBuilder.ObsDim, GoalMode.None, 0.3f, 0.8f); continue; }
                 var f = roster[_seat[i]];
-                fighters[i].SetBrain(f.policy, f.obsDim, _steered[i] ? GoalMode.None : f.goal, f.stopDist, f.vmax, f.shove, f.stylePose);
+                fighters[i].SetBrain(f.policy, f.obsDim, _steered[i] ? GoalMode.None : f.goal, f.stopDist, f.vmax, f.shove, f.stylePose, f.action);
                 fighters[i].getupPolicy = Array.Find(getupBrains, b => b != null && b.body == fighters[i].body)?.policy;
             }
         }
@@ -649,7 +652,7 @@ namespace PoKingHill
             string F(double v) => v.ToString("0.####", System.Globalization.CultureInfo.InvariantCulture);
             string json = $"{{\n \"candidate\": \"{NameOf(statsCandidate, "?")}\", \"rounds\": {n}, \"last_one_in\": {F((double)_ffaWin / n)}, \"out\": {F((double)_ffaLoss / n)}, " +
                           $"\"undecided\": {F((double)_ffaTie / n)}, \"median_win_time_s\": {F(median)}\n}}\n";
-            string path = System.IO.Path.GetFullPath(System.IO.Path.Combine(Application.dataPath, "..", "training", "assets", fighters[0].body, "ffa_stats_unity.json"));
+            string path = System.IO.Path.GetFullPath(System.IO.Path.Combine(Application.dataPath, "..", "training", "assets", fighters[0].body, statsFile.Length > 0 ? statsFile : "ffa_stats_unity.json"));
             System.IO.File.WriteAllText(path, json); Debug.Log("[DemoDirector] wrote " + path + "\n" + json);
             foreach (var f in fighters) f.paused = true;
             StatsDone();
@@ -704,7 +707,7 @@ namespace PoKingHill
             string json = $"{{\n \"rounds\": {n}, \"wins_a\": {_winsA}, \"wins_b\": {_winsB}, \"ties\": {_draws}, \"decided\": {F((double)(_winsA + _winsB) / n)},\n" +
                           $" \"median_time_s\": {F(Q(0.5))}, \"mean_time_s\": {F(mean)}, \"p25_time_s\": {F(Q(0.25))}, \"p75_time_s\": {F(Q(0.75))}\n}}\n";
             // The player has no training folder beside it: it writes next to the executable, like perf_unity.json.
-            string path = System.IO.Path.GetFullPath(Application.isEditor ? System.IO.Path.Combine(Application.dataPath, "..", "training", "assets", fighters[0].body, "duel_stats_unity.json")
+            string path = System.IO.Path.GetFullPath(Application.isEditor ? System.IO.Path.Combine(Application.dataPath, "..", "training", "assets", fighters[0].body, statsFile.Length > 0 ? statsFile : "duel_stats_unity.json")
                                                                           : System.IO.Path.Combine(Application.dataPath, "..", "duel_stats_unity.json"));
             System.IO.File.WriteAllText(path, json); Debug.Log("[DemoDirector] wrote " + path + "\n" + json);
             fighters[0].paused = fighters[1].paused = true;      // seats A and B: the pair the two-fighter gate measures

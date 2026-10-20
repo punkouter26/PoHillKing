@@ -99,7 +99,32 @@ def goal_command(root_quat, goal_vec_xy, stop_dist: float, vmax: float = 0.8, se
                         (2.0 * ang).clamp(-1.0, 1.0) * moving], dim=1)
 
 
+# Tactics: goal points other than "straight at the opponent", mirrored from Unity's Tactics.Goal (index = C# enum Tactic).
+# They only move the goal point fed to goal_command, so the commands stay inside the trained ranges.
+TACTICS = ("press", "flank_left", "flank_right", "regroup", "lurk")
+FLANK_OFFSET, LURK_RADIUS = 0.55, 0.6
+
+
+def tactic_goal(tactic, me_xy, opp_xy, base_stop):
+    """World xy vector from me to the goal point of each row's tactic (M,) long, and its stop distance (M,).
+    Press = (opp - me, base_stop), as trained; Flank = a point FLANK_OFFSET beside the opponent (stop 0); Regroup = the
+    summit centre (stop 0.2); Lurk = a spot on my own bearing at LURK_RADIUS from the centre (stop 0.1)."""
+    d = opp_xy - me_xy; n = d.norm(dim=1, keepdim=True) + 1e-6; perp = torch.stack([-d[:, 1], d[:, 0]], 1) / n
+    side = torch.where(tactic == 1, 1.0, -1.0)[:, None]
+    flank = d + side * perp * FLANK_OFFSET
+    r = me_xy.norm(dim=1, keepdim=True)
+    lurk = torch.where(r < 0.05, torch.zeros_like(me_xy), me_xy / r.clamp(min=1e-6) * LURK_RADIUS - me_xy)
+    t = tactic[:, None]
+    goal = torch.where(t == 0, d, torch.where(t <= 2, flank, torch.where(t == 3, -me_xy, lurk)))
+    stop = torch.where(tactic == 0, base_stop, torch.where(tactic <= 2, 0.0, torch.where(tactic == 3, 0.2, 0.1)))
+    return goal, stop
+
+
 if __name__ == "__main__":
+    tg, ts = tactic_goal(torch.tensor([0, 1, 2, 3, 4]), torch.tensor([[1.0, 0.0]] * 5), torch.tensor([[1.0, 1.0]] * 5), torch.full((5,), 0.3))
+    assert torch.allclose(tg[0], torch.tensor([0.0, 1.0])) and torch.allclose(tg[1], torch.tensor([-0.55, 1.0]), atol=1e-5), tg
+    assert torch.allclose(tg[2], torch.tensor([0.55, 1.0]), atol=1e-5) and torch.allclose(tg[3], torch.tensor([-1.0, 0.0])), tg
+    assert torch.allclose(tg[4], torch.tensor([-0.4, 0.0]), atol=1e-6) and torch.allclose(ts, torch.tensor([0.3, 0.0, 0.0, 0.2, 0.1])), (tg, ts)
     c = goal_command(torch.tensor([[1.0, 0, 0, 0], [0.7071068, 0, 0, 0.7071068]]), torch.tensor([[2.0, 0.0], [2.0, 0.0]]), 0.3)
     assert torch.allclose(c[0], torch.tensor([0.8, 0.0, 0.0]), atol=1e-6), c      # goal straight ahead
     assert c[1, 0].abs() < 1e-6 and c[1, 1] < -0.49 and c[1, 2] == -1.0, c          # goal to the right: sidestep + turn right

@@ -43,6 +43,7 @@ namespace PoKingHill
         public readonly int[] DofAdr;
         public readonly int[] ActId;       // actuator index per canonical joint
         public readonly double[] CtrlMin, CtrlMax;
+        public readonly double[] Kp, Kv, Tau;  // nominal position-actuator gains and force limit (ActionMap's torque window)
         public readonly int RootQposAdr;   // free joint: 7 qpos (x y z qw qx qy qz)
         public readonly int RootDofAdr;    // 6 dof (vx vy vz wx wy wz), angular part is body-frame
         public readonly int PelvisBodyId;
@@ -52,7 +53,7 @@ namespace PoKingHill
         {
             N = spec.joints.Length;
             QposAdr = new int[N]; DofAdr = new int[N]; ActId = new int[N];
-            CtrlMin = new double[N]; CtrlMax = new double[N];
+            CtrlMin = new double[N]; CtrlMax = new double[N]; Kp = new double[N]; Kv = new double[N]; Tau = new double[N];
             DefaultPose = spec.default_pose;
             var missing = new List<string>();
             for (int i = 0; i < N; i++)
@@ -66,6 +67,7 @@ namespace PoKingHill
                 ActId[i] = a;
                 CtrlMin[i] = m->actuator_ctrlrange[2 * a];
                 CtrlMax[i] = m->actuator_ctrlrange[2 * a + 1];
+                Kp[i] = m->actuator_gainprm[a * MujocoLib.mjNGAIN]; Kv[i] = -m->actuator_biasprm[a * MujocoLib.mjNBIAS + 2]; Tau[i] = m->actuator_forcerange[2 * a + 1];
             }
             int root = MujocoLib.mj_name2id(m, (int)MujocoLib.mjtObj.mjOBJ_JOINT, prefix + "floating_base_joint");
             PelvisBodyId = MujocoLib.mj_name2id(m, (int)MujocoLib.mjtObj.mjOBJ_BODY, prefix + "pelvis");

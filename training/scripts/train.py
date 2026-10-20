@@ -6,7 +6,14 @@ Every run writes runs/<rung>/<name>/manifest.json (cfg, git commit, seed, args, 
 tracks the graduation gate (AGENTS.md): mean episode reward over the 100 most recent episodes (rsl_rl's own
 buffer) and NaN/inf gradients in any update. --graduate-reward R exports the final policy to Unity (export_policy.py,
 <name>_policy.onnx) only if that mean is >= R at the end and no update had a NaN gradient. --tensorboard starts
-`tensorboard --logdir runs` (port 6006) unless one is already listening."""
+`tensorboard --logdir runs` (port 6006) unless one is already listening. Every finished run also writes
+graduation.json beside model_final.pt (the bars); export_policy.py refuses a checkpoint whose run failed them.
+
+Action path (koth/action_map.py): --action-map tanh, --action-scale <scale json from scripts/action_scale.py>,
+--torque-window. With --warm, a changed scale is folded into the warm-started actor (output rows, std, last-action
+normalizer), so it starts out with the same joint targets wherever the old one was inside its clamp.
+--curriculum ladder[:bar:demote] (koth/curriculum.py) draws the --opponent list (weakest first) by stages that advance
+on the learner's win share instead of on the iteration count."""
 import argparse, datetime, json, os, socket, statistics, subprocess, sys, time
 sys.stdout.reconfigure(line_buffering=True)
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
@@ -87,6 +94,29 @@ class Graduation:
                     first_iteration_at_target=self.first_pass_it, updates=self.updates, updates_with_nan_gradients=self.nan_updates, graduated=self.passed)
 
 
+def rescale_actions(runner, old_scale, new_scale):
+    """Fold a per-joint action-scale change into the actor: action_j -> action_j * old_j / new_j keeps every joint
+    target wherever the old action was inside +-1 (output layer rows, bias and std scaled), and the last-action
+    observation columns 70:99 of the actor and critic normalizers are scaled to match (the network sees the same
+    normalised inputs)."""
+    k = torch.as_tensor(old_scale, dtype=torch.float32, device=runner.device) / torch.as_tensor(new_scale, dtype=torch.float32, device=runner.device)
+    k = k.expand(29) if k.dim() == 0 else k
+    with torch.no_grad():
+        for name, model in (("actor", runner.alg._raw_actor), ("critic", runner.alg._raw_critic)):
+            sd = model.state_dict()
+            if name == "actor":
+                last = max((key for key in sd if key.startswith("mlp.") and key.endswith(".weight")), key=lambda key: int(key.split(".")[1]))
+                sd[last] *= k[:, None]; sd[last.replace("weight", "bias")] *= k
+                for key in sd:
+                    if key.startswith("distribution.") and sd[key].shape == (29,): sd[key] *= k
+            if "obs_normalizer._mean" in sd:     # rsl_rl normalises (x - mean) / (std + eps): keep that exact for x -> k x
+                eps = 1e-2; sd["obs_normalizer._mean"][..., 70:99] *= k
+                std = k * (sd["obs_normalizer._std"][..., 70:99] + eps) - eps
+                sd["obs_normalizer._std"][..., 70:99] = std; sd["obs_normalizer._var"][..., 70:99] = std ** 2
+            model.load_state_dict(sd)
+    print(f"action scale folded into the warm-started actor: factor min {float(k.min()):.2f} max {float(k.max()):.2f}")
+
+
 def critic_warmup(runner, updates: int):
     """For the first `updates` PPO updates only the critic learns: the actor's parameters (and its action std) take no
     gradient. A policy warm-started from an exported brain has a trained actor but a random value function, and
@@ -145,6 +175,11 @@ def main():
     ap.add_argument("--export-dir", default=None, help="folder for a graduated export (default: the Unity Models folder)")
     ap.add_argument("--tensorboard", action="store_true", help="start tensorboard --logdir runs")
     ap.add_argument("--critic-warmup", type=int, default=0, help="freeze the actor (and its std) for this many updates so a fresh critic can fit first (warm starts from ONNX have no critic)")
+    ap.add_argument("--action-map", choices=["clip", "tanh"], default=None, help="how the network output becomes an action (koth/action_map.py)")
+    ap.add_argument("--action-scale", default=None, help="per-joint action scale: a json from scripts/action_scale.py (or 29 comma-separated values)")
+    ap.add_argument("--torque-window", action="store_true", help="clamp targets to the torque-feasible window at the current state")
+    ap.add_argument("--no-reward-clip", action="store_true", help="do not clip the per-step shaped reward at zero")
+    ap.add_argument("--curriculum", default=None, help="koth/curriculum.py preset (ladder[:bar:demote]) or a spec json; needs --opponent (weakest first)")
     a = ap.parse_args()
     t_start = time.time()
     cfg = default_cfg(a.rung)
@@ -158,6 +193,14 @@ def main():
     if a.rim_brake: cfg["goal_cmd"]["rim_brake"] = tuple(a.rim_brake)
     for kv in a.reward:
         k, v = kv.split("="); assert k in cfg["reward"], k; cfg["reward"][k] = float(v)
+    if a.action_map or a.action_scale or a.torque_window:
+        act = dict(cfg.get("action") or {})
+        if a.action_map: act["map"] = a.action_map
+        if a.action_scale:
+            act["scale"] = json.load(open(a.action_scale))["scale"] if a.action_scale.endswith(".json") else [float(x) for x in a.action_scale.split(",")]
+        if a.torque_window: act["window"] = True
+        cfg["action"] = act
+    if a.no_reward_clip: cfg["reward_clip"] = False
     env = KothEnv(cfg, a.num_envs, seed=a.seed)
     run = a.name or time.strftime("%Y%m%d-%H%M%S")
     log_dir = os.path.join(ROOT, "runs", a.rung, run)
@@ -179,10 +222,22 @@ def main():
         runner.load(a.resume)
     if a.warm:
         warm_start(runner, a.warm)
+        from koth.action_map import ckpt_spec
+        old = ckpt_spec(a.warm)["scale"] or env.action_scale; new = env.amap["scale"] or env.action_scale
+        if old != new: rescale_actions(runner, old, new)
     if a.critic_warmup > 0:
         critic_warmup(runner, a.critic_warmup)
     env.curriculum_offset_iters = runner.current_learning_iteration      # disturbance curriculum continues on --resume
     grad = Graduation(runner, a.graduate_reward)
+    cur = None
+    if a.curriculum:
+        from koth.curriculum import Curriculum, from_arg
+        assert env.frozen is not None, "--curriculum needs --opponent"
+        cur = Curriculum(env, from_arg(a.curriculum, len(env.frozen.nets)))
+        log_c = runner.logger.log
+        def log_cur(*args, **kw):
+            cur.after_iteration(kw.get("it", 0)); return log_c(*args, **kw)
+        runner.logger.log = log_cur
     try:
         runner.learn(a.iters, init_at_random_ep_len=True)
     except BaseException:
@@ -191,6 +246,8 @@ def main():
     runner.export_policy_to_onnx(log_dir, "policy.onnx")
     manifest.update(status="finished", end_time=stamp(time.time()), minutes=round((time.time() - t_start) / 60, 1),
                     iterations=runner.current_learning_iteration + 1, bars=grad.summary(), unity_export=None)
+    if cur is not None: manifest["curriculum"] = cur.summary()
+    json.dump(dict(grad.summary(), checkpoint="model_final.pt", curriculum=cur.summary() if cur else None), open(os.path.join(log_dir, "graduation.json"), "w"), indent=1)
     if a.graduate_reward is not None:
         print("graduation:", json.dumps(grad.summary()))
         if grad.passed:
@@ -198,6 +255,8 @@ def main():
             from koth.build_mjcf import UNITY_MODELS
             path = os.path.join(a.export_dir or UNITY_MODELS, f"{a.export_name or run}_policy.onnx")
             export(os.path.join(log_dir, "model_final.pt"), path); manifest["unity_export"] = path
+            from koth.action_map import write_sidecar
+            write_sidecar(path, env.amap)
         else:
             print("graduation: not passed, no Unity export")
     write_manifest()

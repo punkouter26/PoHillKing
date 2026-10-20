@@ -143,6 +143,25 @@ Gates: `scripts/getup_stats.py` (CPU, 200 drops: success within the game's 5 s c
 `ParityBatch.RunGetupStats` (Unity, Testbed_flat_1p, `GetupProbe`); then the game rule: `duel_stats.py --getup` vs
 `ParityBatch.RunGetupDuelStats`. Runs and numbers: rl_optimization_log.md (2026-10-19).
 
+## 8. Calibration, action path, rewards and curriculum (added 2026-10-20)
+
+All opt-in; every existing rung is bitwise unchanged (`check_determinism.py`, r0 r1 r4league r4sp r5ffa getup).
+
+| option | how | Unity mirror |
+|---|---|---|
+| action map | `--action-map tanh`: a = tanh(raw) instead of clamp(raw, -1, 1) (`koth/action_map.py`) | `ActionMap.cs` via `<name>_action.json` |
+| per-joint scale | `--action-scale runs/audits/scale_<brain>.json` from `scripts/action_scale.py` (p95 of the audited brain's raw outputs x 0.5, twins equal, capped by the joint's reach). With `--warm`, the change is folded into the actor (output rows, std, last-action normaliser, exact to 3e-6 rad) | same sidecar |
+| torque window | `--torque-window`: target clamped to q + (kv qd -+ tau) / kp, nominal gains | same sidecar |
+| reward clip | `--no-reward-clip`; `rew/clip_share` and `rew/clipped_away` are logged on every run | none (reward only) |
+| potential shaping | rung `r4pbrs`: ring_advantage / opp_radius / self_edge / push_out off, `potential` 10 (F = 0.99 phi' - phi, phi = (opp radius - my radius) / 1.7, outside the clip, 0 at terminal states) | none |
+| tactics | rung `r4tactic`: learner goal point drawn from `obs.TACTICS` (Press 50 %, Flank L/R, Regroup, Lurk 12.5 % each), held 1-3 s; tracking 0.6 / heading 0.3 | `Tactics.Goal` (same law); inputs unchanged (112) |
+| curriculum | `--curriculum ladder[:bar:demote]` with `--opponent` weakest first: stage i draws mostly opponent i, last stage all evenly; advance at win share >= bar (0.5) over 20 iterations after >= 40 in the stage, step back below demote (0.3) (`koth/curriculum.py`) | none |
+
+Every finished run writes `graduation.json`; `export_policy.py` refuses a run with NaN updates or a missed
+`--graduate-reward` target unless `--force`, and writes or removes `<name>_action.json`. The CPU reference
+(`duel_stats.py`) reads the sidecar too. Queue: `scripts/queue_options.sh` (G1 runs repeat duel_u1's recipe and change
+one thing), then `scripts/queue_bodies.sh` (Kim's feet, Trump's hold). Results: rl_optimization_log.md 2026-10-20.
+
 ## New JSON keys for the Unity side (read with fallbacks)
 
 - `joint_map.json` (`training/assets/{g1,kim}/`, `Assets/PoKingHill/Models/`, `Models/kim/`), last key:
@@ -163,6 +182,16 @@ Gates: `scripts/getup_stats.py` (CPU, 200 drops: success within the game's 5 s c
   (Kim: her design table) and, with a checkpoint, the share of actions on the +-1 clamp, of ticks at the torque
   limit, and peak joint speeds. The G1 model matches the published peak torques on all 29 joints; leg kp is
   2-3x unitree_rl_gym's by design (log 2026-10-07).
+  2026-10-20: `--json` rows also carry raw-output p50/p95 (before the clamp); `scripts/audit_all.sh` audits every
+  shipped brain into `runs/audits/drive_<name>.json`.
+- `scripts/step_response.py`: per joint and body, step response with the pelvis held (rise, overshoot, settling,
+  steady-state error, torque limit), effective inertia, natural frequency and damping ratio, and a left/right torque
+  comparison of the standing hold.
+- `scripts/reward_audit.py` (`reward_audit_all.sh`): per-term reward shares on the training cfg, how often the zero
+  clip binds and how much penalty it erases, dominance, stall (bell vs win) and farm flags.
+- `eval.py` duel / free-for-all rows carry `contact_share` and `flags` (stall, contact_avoidance, self_ejection).
+- `ParityBatch.RunObsDump(robot, rounds, a, b, ffaCandidate, tag, brain)` records Unity's inputs (`ObsRecorder`) for
+  `obs_audit.py --unity ... [--brain <onnx name>]`.
 - `scripts/check_determinism.py`: reference (HEAD) vs working-tree env/eval, bitwise, plus throughput.
 - `scripts/prune_runs.py`: dry-run-first pruning of short (< 5,000 env steps), checkpoint-less or abandoned runs.
 

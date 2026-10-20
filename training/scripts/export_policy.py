@@ -4,8 +4,13 @@ Writes Assets/PoKingHill/Models[/<robot>]/<name>_policy.onnx and checks ONNX aga
 --value also writes <name>_value.onnx: the critic (obs normalizer folded in, input = the critic observation, output
 "value" (1, 1)), for a win-probability style bar in Unity. Its input layout is the env's critic observation:
 [103 clean locomotion obs, world linear velocity (3), pelvis height above ground (1), feet contact (2),
-DR params (mass scale, friction, kp scale) (3)] + the 9 combat inputs for combat brains (112 or 121 wide)."""
-import argparse, os, sys
+DR params (mass scale, friction, kp scale) (3)] + the 9 combat inputs for combat brains (112 or 121 wide).
+
+A brain trained with a changed action path (koth/action_map.py: tanh map, per-joint scale, torque window) gets
+<name>_action.json beside the ONNX, which Unity's PolicyRunner and duel_stats.py read; exporting a brain with the
+original path removes a stale one. A checkpoint whose run wrote graduation.json / manifest.json with a failed bar (a NaN
+gradient, or a --graduate-reward target not reached) is refused unless --force: it has not graduated (AGENTS.md)."""
+import argparse, json, os, sys
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 import numpy as np, torch, onnx, onnxruntime as ort
 from koth.actor import Actor
@@ -22,6 +27,22 @@ def export_module(net: torch.nn.Module, dim: int, path: str, output_name: str = 
     sess = ort.InferenceSession(path, providers=["CPUExecutionProvider"]); x = torch.randn(1000, dim) * 2
     with torch.no_grad(): ref = net(x).numpy()
     return float(np.abs(ref - np.concatenate([sess.run(None, {"obs": x[i:i + 1].numpy()})[0] for i in range(1000)])).max())
+
+
+def graduation_problem(ckpt: str) -> str | None:
+    """Why the run that wrote ckpt has not graduated (None = it has, or there is no record: league files, rebuilt ONNX)."""
+    d = os.path.dirname(os.path.abspath(ckpt))
+    for f in ("graduation.json", "manifest.json"):
+        p = os.path.join(d, f)
+        if not os.path.exists(p): continue
+        import json
+        g = json.load(open(p)); g = g.get("bars", g) if f == "manifest.json" else g
+        if not g: continue
+        if g.get("updates_with_nan_gradients", 0): return f"{g['updates_with_nan_gradients']} PPO updates had NaN/inf gradients ({f})"
+        if g.get("target_mean_reward_100_episodes") is not None and not g.get("graduated"):
+            return f"last-100-episode mean reward {g.get('final_mean_reward_100_episodes')} below the target {g['target_mean_reward_100_episodes']} ({f})"
+        return None
+    return None
 
 
 def export(ckpt: str, path: str, which: str = "actor") -> int:
@@ -41,6 +62,14 @@ if __name__ == "__main__":
     ap = argparse.ArgumentParser(); ap.add_argument("--ckpt", required=True); ap.add_argument("--name", required=True)
     ap.add_argument("--value", action="store_true", help="also export the critic to <name>_value.onnx")
     ap.add_argument("--out-dir", default=UNITY_MODELS, help="output folder (default: the Unity Models folder)")
+    ap.add_argument("--force", action="store_true", help="export even though the run did not graduate")
     a = ap.parse_args()
-    export(a.ckpt, os.path.join(a.out_dir, f"{a.name}_policy.onnx"))
+    why = graduation_problem(a.ckpt)
+    if why and not a.force: sys.exit(f"refused: {a.ckpt} has not graduated: {why} (--force to export anyway)")
+    if why: print(f"warning: exporting a brain that has not graduated: {why}")
+    out = os.path.join(a.out_dir, f"{a.name}_policy.onnx")
+    export(a.ckpt, out)
+    from koth.action_map import ckpt_spec, write_sidecar
+    side = write_sidecar(out, ckpt_spec(a.ckpt))
+    if side: print("wrote", side, json.dumps(ckpt_spec(a.ckpt))[:160])
     if a.value: export(a.ckpt, os.path.join(a.out_dir, f"{a.name}_value.onnx"), which="critic")

@@ -18,6 +18,8 @@ namespace PoKingHill
         [Tooltip("a_ or b_")] public string robotPrefix = "a_";
         [Tooltip("Which kind of body this is (g1, kim): a brain only fits the body it was trained on")] public string body = "g1";
         [Tooltip("ONNX policy. Leave empty for passive hold.")] public ModelAsset policy;
+        [Tooltip("Optional <name>_action.json beside the policy (training/koth/action_map.py): tanh map, per-joint scale, torque window. Empty = the original clamp path.")]
+        public TextAsset actionMap;
         public Vector3 command;   // vx, vy, yaw rate
         [Tooltip("None: use the command field. Center/Opponent: command is computed every tick by GoalCommand (same law as training).")]
         public GoalMode goal = GoalMode.None;
@@ -61,6 +63,9 @@ namespace PoKingHill
         public float GaitPhase => _phase;
         /// <summary>The shove style's low-passed action (rollouts copy it to continue the filter).</summary>
         public float[] FilteredAction => _actF;
+        /// <summary>The fight brain's action path (null = the original clamp path), for rollouts that mirror PolicyTick.</summary>
+        public ActionMap Action => _amap;
+        ActionMap _amap;
 
         JointMapSpec _spec;
         Worker _worker, _getupWorker;
@@ -162,10 +167,12 @@ namespace PoKingHill
             for (int i = 0; i < Map.N; i++)
             {
                 RawAction[i] = act[i];
-                float a = Mathf.Clamp(act[i], -1f, 1f);
+                float a = _amap != null ? _amap.ToAction(act[i]) : Mathf.Clamp(act[i], -1f, 1f);
                 LastAction[i] = a;
                 float f = shoveStyle ? ShoveSmooth * _actF[i] + (1f - ShoveSmooth) * a : a; _actF[i] = f;
-                Ctrl[i] = System.Math.Clamp(Map.DefaultPose[i] + blend * _shoveOffset[i] + _spec.action_scale * f, Map.CtrlMin[i], Map.CtrlMax[i]);
+                double rest = Map.DefaultPose[i] + blend * _shoveOffset[i];
+                Ctrl[i] = _amap == null ? System.Math.Clamp(rest + _spec.action_scale * f, Map.CtrlMin[i], Map.CtrlMax[i])
+                    : _amap.Target(i, rest, f, _spec.action_scale, d->qpos[Map.QposAdr[i]], d->qvel[Map.DofAdr[i]], Map.Kp[i], Map.Kv[i], Map.Tau[i], Map.CtrlMin[i], Map.CtrlMax[i]);
             }
             _phase += 2f * Mathf.PI * ObsBuilder.GaitFreqHz * _spec.ctrl_dt;
             if (_phase > 2f * Mathf.PI) _phase -= 2f * Mathf.PI;
@@ -233,16 +240,17 @@ namespace PoKingHill
 
         void LoadBrain()
         {
+            _amap = policy != null ? ActionMap.Parse(actionMap) : null;
             if (policy == null) return;
             _worker = new Worker(ModelLoader.Load(policy), BackendType.CPU);
             Obs = new float[policyObsDim]; _input = new Tensor<float>(new TensorShape(1, policyObsDim));
         }
 
         /// <summary>Swap the brain at runtime (menu fighter selection). policy = null gives the passive stance.</summary>
-        public void SetBrain(ModelAsset newPolicy, int obsDim, GoalMode newGoal, float stopDist, float vmax, bool shove = false, string pose = "shove")
+        public void SetBrain(ModelAsset newPolicy, int obsDim, GoalMode newGoal, float stopDist, float vmax, bool shove = false, string pose = "shove", TextAsset action = null)
         {
             _worker?.Dispose(); _input?.Dispose(); _worker = null; _input = null;
-            policy = newPolicy; policyObsDim = obsDim; goal = newGoal; goalStopDist = stopDist; goalVmax = vmax; command = Vector3.zero; shoveStyle = shove;
+            policy = newPolicy; policyObsDim = obsDim; actionMap = action; goal = newGoal; goalStopDist = stopDist; goalVmax = vmax; command = Vector3.zero; shoveStyle = shove;
             tactic = Tactic.Press; _getup = false;
             if (pose != stylePose) { stylePose = pose; SetStyleOffsets(); }
             LoadBrain(); ResetClock();

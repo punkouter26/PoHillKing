@@ -16,7 +16,8 @@ from __future__ import annotations
 import json, math, os
 import numpy as np, torch, mujoco, warp as wp, mujoco_warp as mjw
 from tensordict import TensorDict
-from koth.obs import build_obs, build_combat, quat_rotate_inverse, goal_command, down_like, OBS_DIM, COMBAT_DIM, GAIT_FREQ_HZ, STYLE_POSES, SHOVE_FAR, SHOVE_NEAR, SHOVE_SMOOTH
+from koth.obs import build_obs, build_combat, quat_rotate_inverse, goal_command, down_like, tactic_goal, OBS_DIM, COMBAT_DIM, GAIT_FREQ_HZ, STYLE_POSES, SHOVE_FAR, SHOVE_NEAR, SHOVE_SMOOTH
+from koth.action_map import spec_of as action_spec, ckpt_spec as ckpt_action_spec, is_default as action_is_default
 from koth.actor import Actor
 from koth.rules import PLATEAU_R, SLOPE_K, OUT_RADIUS, FALL_HEIGHT, TRAIN_TIP_UP
 
@@ -65,7 +66,8 @@ def default_cfg(rung: str = "r0") -> dict:
                     lin_vel_z=-0.5, feet_air_time=2.0, feet_slip=-0.1, feet_phase=1.0, pose=-0.1, joint_deviation_hip=-0.25,
                     joint_deviation_knee=-0.1, dof_pos_limits=-1.0, action_rate=-0.01, joint_vel=-2e-4, stand_still=-0.1,
                     tracking_heading=1.0, plateau=0.0, off_rim=0.0, ring_advantage=0.0, opp_radius=0.0, self_edge=0.0, push_out=0.0, hand_push=0.0, win=0.0, draw=0.0, termination=-1.0,
-                    stalemate=0.0, belly_push=0.0, arm_contact=0.0, getup_height=0.0, getup_upright=0.0, getup_pose=0.0, getup_still=0.0, getup_rise=0.0),
+                    stalemate=0.0, belly_push=0.0, arm_contact=0.0, getup_height=0.0, getup_upright=0.0, getup_pose=0.0, getup_still=0.0, getup_rise=0.0,
+                    potential=0.0),
         tracking_sigma=0.25, swing_height=0.12, terminate_on_leg_contact=True, max_radius=8.0, combat=False,
         contact_free=False,        # True: within reach of the opponent, arms/waist are exempt from the pose penalty
         gait_free=False,           # True: within reach of the opponent, the gait-clock rewards are off (feet may plant)
@@ -79,6 +81,10 @@ def default_cfg(rung: str = "r0") -> dict:
         combat2=False,             # second combat block for the second-nearest opponent (121 inputs; needs > 2 robots to differ)
         stalemate_rule=dict(dist=0.6, speed=0.1, seconds=2.0),   # reward["stalemate"] fires after `seconds` this close and slow
         push_out_cap=0.0,          # > 0: at most this much push_out reward per episode
+        action=None,               # koth/action_map.py: dict(map "clip"|"tanh", scale None|[29], window bool); None = the original path
+        reward_clip=True,          # clip each step's shaped sum at zero (terminal terms and the potential are outside the clip)
+        potential_gamma=0.99,      # reward["potential"]: F = gamma * phi(s') - phi(s), phi = (opponent radius - my radius) / OUT_RADIUS
+        tactics=None,              # dict(probs=[5], hold_s=[lo, hi]): learner goal points from obs.TACTICS (Unity Tactics.Goal), held per segment
         fatigue=dict(enabled=False, tau_s=10.0, min_scale=0.6, gain=2.0, omega_ref=10.0, obs=False),
         getup=None,                # dict (rung "getup"): episodes start from drops in random orientations and never end on a fall
     )
@@ -155,6 +161,23 @@ def default_cfg(rung: str = "r0") -> dict:
         # yaw, elbows and ankles worst), so both are now built into the action path: see SHOVE_* and step().
         cfg.update(contact_free=False, shove=True)
         cfg["reward"].update(self_edge=-5.0, termination=-25.0)
+    elif rung == "r4pbrs":                # r4league with the ring shaping replaced by one potential (2026-10-20, option 8)
+        # ring_advantage, opp_radius, self_edge and push_out are shaped by hand and none is a potential difference: each can
+        # be farmed without winning (r4att_a stood still for flat ring_advantage, push_out needed a per-episode cap). A
+        # potential-based term F = gamma phi(s') - phi(s), phi = (opp radius - my radius) / OUT_RADIUS (Ng et al. 1999)
+        # cannot change which policy is optimal; it only says "pushing outward is progress". It is added outside the zero
+        # clip (a clipped potential is no longer a potential). Win, loss and draw stay as in r4league.
+        cfg.update(default_cfg("r4league"))
+        cfg["reward"].update(ring_advantage=0.0, opp_radius=0.0, self_edge=0.0, push_out=0.0, potential=10.0)
+    elif rung == "r4tactic":              # r4league, but the learner's goal point follows a random tactic (option 6)
+        # Unity's Tactician lost to plain Press in every variant (log 2026-10-19): the brains only ever walked straight at the
+        # opponent, so a rollout that moves the goal point asks for behaviour they never practised. Here half the segments
+        # are Press and the rest Flank left/right, Regroup or Lurk (Tactics.Goal), held 1-3 s; the command still comes from
+        # the same goal law and the network inputs are unchanged (112), so the brain drops into the Tactician as it is.
+        # Tracking pays more than in r4league so that the commanded goal point matters.
+        cfg.update(default_cfg("r4league"))
+        cfg.update(tactics=dict(probs=[0.5, 0.125, 0.125, 0.125, 0.125], hold_s=[1.0, 3.0]))
+        cfg["reward"].update(tracking_lin_vel=0.6, tracking_heading=0.3)
     elif rung == "r4probe":               # a_ walks into b_ (no stop distance); b_ holds the plateau, starts at the rim
         cfg.update(scene="scene_koth_2p_train.xml", robots=["a_", "b_"], arena=True, goal=["opponent", "center"])
         cfg["spawn"].update(r=[[0.0, 0.5], [1.25, 1.35]])
@@ -285,12 +308,19 @@ class FrozenPool:
         for c, _ in specs:
             if c not in loaded: loaded[c] = FrozenPolicy(c, device, stochastic)
         self.nets = [loaded[c] for c, _ in specs]
+        self.amaps = [ckpt_action_spec(c) for c, _ in specs]          # each opponent's own action path (koth/action_map.py)
         self.slots = slots
         self.choice = torch.randint(0, len(self.nets), (num_rows,), device=device)
+        self.weights = None                   # draw weights per entry (koth/curriculum.py); None = uniform
+
+    def set_weights(self, w):
+        w = torch.tensor(w, dtype=torch.float32, device=self.choice.device); assert len(w) == len(self.nets) and w.sum() > 0
+        self.weights = w / w.sum()
 
     def resample(self, world_ids):
         rows = world_ids if self.slots == 1 else (world_ids[:, None] * self.slots + torch.arange(self.slots, device=world_ids.device)).reshape(-1)
-        self.choice[rows] = torch.randint(0, len(self.nets), (len(rows),), device=self.choice.device)
+        if self.weights is None: self.choice[rows] = torch.randint(0, len(self.nets), (len(rows),), device=self.choice.device)
+        else: self.choice[rows] = torch.multinomial(self.weights, len(rows), replacement=True)
 
     def __call__(self, obs):
         out = torch.empty(obs.shape[0], 29, device=obs.device)
@@ -394,6 +424,22 @@ class KothEnv:
         self.jnt_lo_a = T(mjm.jnt_range[js, 0], torch.float32); self.jnt_hi_a = T(mjm.jnt_range[js, 1], torch.float32)      # (A, 29), for resets
         self.jnt_lo, self.jnt_hi = rows(self.jnt_lo_a), rows(self.jnt_hi_a)
         self.ctrl_lo = rows(T(mjm.actuator_ctrlrange[aid, 0], torch.float32)); self.ctrl_hi = rows(T(mjm.actuator_ctrlrange[aid, 1], torch.float32))
+        # Action path (koth/action_map.py), per row: the learner's from cfg "action", each frozen opponent's from its own
+        # checkpoint (re-read whenever the pool draws). With every row on the original path the step is unchanged.
+        self.amap = action_spec(cfg.get("action"))
+        maps = [self.amap] + (self.frozen.amaps if self.frozen is not None else [])
+        self.any_amap = not all(action_is_default(x) for x in maps)
+        if self.any_amap:
+            self.win_kp = rows(T(mjm.actuator_gainprm[aid, 0], torch.float32)); self.win_kv = rows(T(-mjm.actuator_biasprm[aid, 2], torch.float32))
+            self.win_tau = rows(T(mjm.actuator_forcerange[aid, 1], torch.float32))
+            to_t = lambda x: (torch.tensor(x["map"] == "tanh", device=device), torch.tensor(x["scale"] if x["scale"] is not None else [self.action_scale] * 29, dtype=torch.float32, device=device),
+                              torch.tensor(bool(x["window"]), device=device))
+            self._amap_t = [to_t(x) for x in maps]                     # 0 = learner, 1.. = pool entries
+            lt, ls, lw = self._amap_t[0]
+            self.row_tanh = lt.repeat(M).clone(); self.row_scale = ls.repeat(M, 1).clone(); self.row_window = lw.repeat(M).clone()
+            if self.frozen is not None:
+                self.pool_tanh = torch.stack([t for t, _, _ in self._amap_t[1:]]); self.pool_scale = torch.stack([s_ for _, s_, _ in self._amap_t[1:]])
+                self.pool_window = torch.stack([w_ for _, _, w_ in self._amap_t[1:]])
         rest = lambda f: float(mjd.xpos[f][2] - (0.0 if not self.arena else float(terrain_height(torch.tensor(mjd.xpos[f][:2], dtype=torch.float32), True))))
         self.foot_rest_z = rows(T([rest(int(self.feet_body[a, 0])) for a in range(A)], torch.float32))[:, None]
 
@@ -419,6 +465,11 @@ class KothEnv:
         self.out = torch.zeros(M, dtype=torch.bool, device=device)        # > 2 robots: eliminated this round (latched)
         self.stale_t = z(M); self.push_out_sum = z(M)                    # anti-stalemate timer, push_out paid this episode
         self.fatigue = z(M, 29)                                          # per-joint fatigue state in [0, 1]
+        self.phi_prev = z(M)                                             # reward["potential"]: phi of the state the step started from
+        self.tactic = torch.zeros(M, dtype=torch.long, device=device); self.tactic_t = z(M)    # cfg tactics: current tactic, seconds left
+        self.outcomes = torch.zeros(7, dtype=torch.float64, device=device)   # won, lost, drawn, rows, fallen, standing, steps (koth/curriculum.py)
+        self._rows_const = torch.full((), float(M), dtype=torch.float64, device=device)
+        self.push_scale_override = None; self.curriculum_log = None
         self.common_step = 0; self.curriculum_offset_iters = 0           # env steps taken (disturbance curriculum)
         if A > 2: self._nbr1 = self._nbr2 = torch.arange(M, device=device)
         if self.fatigue_on:
@@ -515,11 +566,45 @@ class KothEnv:
     def _update_goal_commands(self):
         if self.cfg["goal"] is None: return
         pos, quat, _, _ = self._root()
-        cmd = goal_command(quat, self._goal_vec(pos), self.goal_stop, self.goal_vmax, pos[:, :2].norm(dim=1), self.cfg["goal_cmd"].get("rim_brake"))
+        gvec, stop = self._goal_vec(pos), self.goal_stop
+        if self.cfg.get("tactics"):                       # learner rows with a tactic other than Press walk at its goal point
+            tg, ts = tactic_goal(self.tactic, pos[:, :2], pos[:, :2] + gvec, self.goal_stop)
+            use = (self.tactic > 0) & self.goal_is_opp
+            gvec = torch.where(use[:, None], tg, gvec); stop = torch.where(use, ts, stop)
+        cmd = goal_command(quat, gvec, stop, self.goal_vmax, pos[:, :2].norm(dim=1), self.cfg["goal_cmd"].get("rim_brake"))
         if self.frozen is not None and self.frozen.any_stand:
             self.goal_is_none[self.orows] = self.frozen.stands[self.frozen.choice]     # per opponent: is it a stander?
         cmd[self.goal_is_none] = 0.0                       # "stand": zero command, the robot just holds its ground
         self.command[:] = cmd
+
+    def _resample_tactics(self, rows):
+        """cfg tactics: a new tactic (obs.TACTICS index) and hold time for these rows; frozen opponents always Press."""
+        tc = self.cfg["tactics"]; n = len(rows)
+        t = torch.multinomial(torch.tensor(tc["probs"], dtype=torch.float32, device=self.device), n, replacement=True)
+        if self.frozen is not None: t = torch.where(rows % self.A == 0, t, 0)
+        self.tactic[rows] = t; self.tactic_t[rows] = self._rand(n, *tc["hold_s"])
+
+    def _phi(self, pos):
+        """Potential of each row's state: (opponent radius - my radius) / OUT_RADIUS, 0 without an opponent."""
+        if self.A < 2: return torch.zeros(self.M, device=self.device)
+        r = pos[:, :2].norm(dim=1); return ((self._opp(pos)[:, :2].norm(dim=1) - r) / OUT_RADIUS).clamp(-1.0, 1.0)
+
+    def _count_outcomes(self, fallen, decided, timeout, lost_w=None, won_w=None):
+        """Accumulate, on the GPU, the learner's (robot a_) round outcomes: won, lost, drawn, plus rows, fallen rows,
+        standing rows (getup) and steps. read_outcomes() returns and clears them (one sync per PPO iteration)."""
+        N, A = self.N, self.A
+        if A == 1: won = lost = drew = torch.zeros(N, device=self.device)
+        else:
+            f = fallen.view(N, A)
+            lost = (lost_w if lost_w is not None else f[:, 0]).float()
+            won = (won_w if won_w is not None else f[:, 1:].any(1) & ~f[:, 0]).float()
+            drew = (timeout & ~decided).float()
+        st = self._standing.sum() if self.cfg.get("getup") else torch.zeros((), device=self.device)
+        c = self._rows_const
+        self.outcomes += torch.stack([won.sum().double(), lost.sum().double(), drew.sum().double(), c, fallen.sum().double(), st.double(), c])
+
+    def read_outcomes(self) -> list:
+        out = self.outcomes.tolist(); self.outcomes.zero_(); return out
 
     # ------------------------------------------------------------------ reset / randomization
     def _randomize(self, ids):
@@ -589,7 +674,12 @@ class KothEnv:
         self.push_timer[rows] = self._rand(len(rows), *self.cfg["push"]["interval_s"])
         self.proj_timer[ids] = self._rand(n, *self.cfg["projectile"]["interval_s"])
         if self.cfg["goal"] is None: self._resample_commands(rows)
-        if getattr(self, "frozen", None) is not None: self.frozen.resample(ids)
+        if self.cfg.get("tactics"): self._resample_tactics(rows)
+        if getattr(self, "frozen", None) is not None:
+            self.frozen.resample(ids)
+            if self.any_amap:                       # frozen rows take the action path of the opponent just drawn
+                ch = self.frozen.choice
+                self.row_tanh[self.orows] = self.pool_tanh[ch]; self.row_scale[self.orows] = self.pool_scale[ch]; self.row_window[self.orows] = self.pool_window[ch]
         self._randomize(ids)
 
     def reset(self):
@@ -602,6 +692,7 @@ class KothEnv:
     # ------------------------------------------------------------------ disturbances
     def _disturb_scale(self):
         """Disturbance curriculum factor (None = off): curriculum_start -> 1 over cfg push curriculum_iters."""
+        if self.push_scale_override is not None: return self.push_scale_override       # koth/curriculum.py stage
         p = self.cfg["push"]; iters = p.get("curriculum_iters", 0)
         if not iters: return None
         done_it = self.curriculum_offset_iters + self.common_step / p.get("steps_per_iter", 24)
@@ -690,7 +781,9 @@ class KothEnv:
         if self.frozen is not None:
             full = torch.empty(M, 29, device=self.device); full[self.lrows] = actions.to(self.device)
             full[self.orows] = self.frozen(self._obs_full["policy"][self.orows]); actions = full
-        self.action = torch.clamp(actions.to(self.device), -1, 1)
+        raw = actions.to(self.device)
+        if self.any_amap: self.action = torch.where(self.row_tanh[:, None], torch.tanh(raw), torch.clamp(raw, -1, 1))
+        else: self.action = torch.clamp(raw, -1, 1)
         act = self.action
         if self.cfg["shove"] or (self.frozen is not None and self.frozen.any_shove):
             self.style[:] = self.cfg["shove"]
@@ -702,7 +795,12 @@ class KothEnv:
             act = self.act_f
             p = self._root()[0]; dist = (self._opp(p)[:, :2] - p[:, :2]).norm(dim=1)
             self.pose_offset = (((SHOVE_FAR - dist) / (SHOVE_FAR - SHOVE_NEAR)).clamp(0, 1) * self.style.float() * ramp)[:, None] * self.shove_offset
-        target = torch.clamp(self.default_pose + self.pose_offset + self.action_scale * act, self.ctrl_lo, self.ctrl_hi)
+        if not self.any_amap: target = torch.clamp(self.default_pose + self.pose_offset + self.action_scale * act, self.ctrl_lo, self.ctrl_hi)
+        else:
+            target = self.default_pose + self.pose_offset + self.row_scale * act
+            jq, jv = self._joints(); kvq = self.win_kv * jv            # torque-feasible window at the current state (action_map.py)
+            windowed = torch.minimum(torch.maximum(target, jq + (kvq - self.win_tau) / self.win_kp), jq + (kvq + self.win_tau) / self.win_kp)
+            target = torch.clamp(torch.where(self.row_window[:, None], windowed, target), self.ctrl_lo, self.ctrl_hi)
         if A > 2: target = torch.where(self.out[:, None], 0.0, target)   # eliminated: limp, as Unity's paused runner (ctrl 0)
         # one-step actuation latency on a random subset of robots (DR)
         apply = torch.where(self.latency[:, None], self.pending_ctrl, target); self.pending_ctrl = target
@@ -749,11 +847,23 @@ class KothEnv:
         if draw_on:                                  # the bell is a real terminal state in a duel, not a truncation
             drew = (timeout & ~decided).repeat_interleave(A); d_r = self.cfg["reward"]["draw"] * drew.float()
             rew += d_r; self.reward_terms["draw"] = d_r
+        if self.cfg["reward"].get("potential", 0.0) != 0.0:     # potential-based shaping, outside the clip (r4pbrs)
+            # phi(s') of a terminal state is 0 (Ng et al.): a round that ended pays -phi(s) for its last step. A truncation
+            # (the bell without a draw reward) keeps gamma phi(s'), as the critic bootstraps through it.
+            terminal = (fallen.view(N, A).any(1) | decided).repeat_interleave(A) | (drew if draw_on else torch.zeros_like(done))
+            phi = self._phi(pos)
+            pot = self.cfg["reward"]["potential"] * (self.cfg["potential_gamma"] * phi * (~terminal).float() - self.phi_prev)
+            pot = torch.where(nan, torch.zeros_like(pot), pot)
+            rew += pot; self.reward_terms["potential"] = pot
+        self._count_outcomes(fallen, decided, timeout, lost if A > 2 else None, won_w if A > 2 else None)
         if A > 2: time_outs = (timeout & ~decided).repeat_interleave(A) & (~drew if draw_on else torch.ones_like(done))
         else: time_outs = (done & ~fallen) if not draw_on else (done & ~fallen & ~drew)
         lr = self.lrows if self.frozen is not None else slice(None)          # log the learner rows only
         self.extras = {"time_outs": time_outs, "log": {f"rew/{k}": v[lr].mean() for k, v in self.reward_terms.items()},
                        "fallen": fallen, "nan": nan, "radius": radius}
+        pre = self._pre_clip[lr]                                              # option 7: how often the zero clip binds, and how much it removes
+        self.extras["log"]["rew/clip_share"] = (pre < 0).float().mean(); self.extras["log"]["rew/clipped_away"] = (-pre).clamp(min=0).mean()
+        if self.curriculum_log: self.extras["log"].update({f"curriculum/{k}": v for k, v in self.curriculum_log.items()})
         self.extras["log"]["ep/leg_contact_term"] = leg.float().mean(); self.extras["log"]["ep/fallen"] = fallen.float().mean()
         self.extras["cause"] = torch.stack([tipped, low, leg], 1)          # why a row counted as fallen (besides ring-out)
         if A >= 2: self.extras["sep"] = self._sep
@@ -770,8 +880,12 @@ class KothEnv:
         if self.cfg["goal"] is None:
             resample = (self.episode_length_buf % int(self.cfg["command"]["resample_s"] / self.ctrl_dt) == 0).nonzero(as_tuple=True)[0]
             if len(resample): self._resample_commands(self._rows(resample))
+        if self.cfg.get("tactics"):
+            self.tactic_t -= self.ctrl_dt; due = (self.tactic_t <= 0).nonzero(as_tuple=True)[0]
+            if len(due): self._resample_tactics(due)
         self.reset_idx(world_done.nonzero(as_tuple=True)[0])
         self._update_goal_commands()
+        if self.cfg["reward"].get("potential", 0.0) != 0.0: self.phi_prev = self._phi(self._root()[0])   # reset rows start from their new state
         obs = self.get_observations()
         self.extras["observations"] = obs
         if self.frozen is not None:
@@ -867,7 +981,8 @@ class KothEnv:
         # Clip the per-step sum at zero (as mujoco_playground does). Without it the penalties outweigh the
         # tracking terms early on and the policy learns to end the episode fast: run r0_a went from episode
         # length 25 to 4.8 steps in 20 iterations while "reward" rose.
-        return torch.stack(list(self.reward_terms.values()), 0).sum(0).clamp(min=0.0)
+        total = torch.stack(list(self.reward_terms.values()), 0).sum(0); self._pre_clip = total
+        return total.clamp(min=0.0) if self.cfg.get("reward_clip", True) else total
 
     # ------------------------------------------------------------------ observations
     def get_observations(self) -> TensorDict:

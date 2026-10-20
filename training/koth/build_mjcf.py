@@ -281,7 +281,23 @@ def hold_ctrl(m: mujoco.MjModel, q0: np.ndarray, rounds: int = 6, settle: float 
         for _ in range(int(settle / m.opt.timestep)):
             mujoco.mj_step(m, d)
         ctrl += q0[act_q] - d.qpos[act_q]
-    return np.clip(ctrl, m.actuator_ctrlrange[:, 0], m.actuator_ctrlrange[:, 1])
+    return np.clip(symmetric_hold(m, q0[act_q], ctrl), m.actuator_ctrlrange[:, 0], m.actuator_ctrlrange[:, 1])
+
+
+def symmetric_hold(m: mujoco.MjModel, q0a: np.ndarray, ctrl: np.ndarray, tol: float = 1e-3) -> np.ndarray:
+    """Mirror-average the hold offsets (ctrl - q0) of every left/right actuator pair when any pair differs by more than
+    tol rad (roll and yaw mirror with a sign flip). A double stance is statically indeterminate: the settle can end in a
+    lateral lean that splits the weight unevenly (Trump: ankle roll offsets -0.016 / -0.002 rad, scripts/step_response.py
+    2026-10-20). The G1 and Kim settle symmetric to 4e-5 rad and are left alone."""
+    names = [mujoco.mj_id2name(m, mujoco.mjtObj.mjOBJ_ACTUATOR, i) or "" for i in range(m.nu)]
+    pairs = [(i, names.index(n.replace("left_", "right_")), -1.0 if any(k in n for k in ("roll", "yaw")) else 1.0)
+             for i, n in enumerate(names) if "left_" in n and n.replace("left_", "right_") in names]
+    off = ctrl - q0a
+    if not pairs or max(abs(off[l] - sg * off[r]) for l, r, sg in pairs) <= tol: return ctrl
+    out = ctrl.copy()
+    for l, r, sg in pairs:
+        o = (off[l] + sg * off[r]) / 2; out[l] = q0a[l] + o; out[r] = q0a[r] + sg * o
+    return out
 
 
 def dump_model(m: mujoco.MjModel) -> dict:

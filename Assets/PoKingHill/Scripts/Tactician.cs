@@ -49,7 +49,7 @@ namespace PoKingHill
         {
             public PolicyRunner runner; public MlpNet net, value; public int obsDim; public JointMap map, opp, opp2;
             public GoalMode goal; public float stop, vmax; public bool shove; public float[] offsets = new float[NJ];
-            public float[] last = new float[NJ], actF = new float[NJ]; public float phase; public Tactic tactic; public float keyZ;
+            public float[] last = new float[NJ], actF = new float[NJ]; public float phase; public Tactic tactic; public float keyZ; public ActionMap amap;
         }
         class Plan { public readonly Side me = new(), them = new(); public int seat; public bool themActive; public readonly float[] score = new float[4]; public readonly float[,] sampled = new float[4, MaxSamples]; }
         class Job
@@ -174,7 +174,7 @@ namespace PoKingHill
             s.runner = r; s.net = net; s.value = value != null && value.OutputDim == 1 ? value : null; s.obsDim = r.policyObsDim; s.map = r.Map;
             s.opp = r.opponent != null ? r.opponent.Map : null; s.opp2 = r.opponent2 != null ? r.opponent2.Map : s.opp;
             s.goal = r.goal; s.stop = r.goalStopDist; s.vmax = r.goalVmax; s.shove = r.shoveStyle; s.tactic = r.tactic; s.phase = r.GaitPhase;
-            s.keyZ = r.Spec != null ? r.Spec.key_root_z : 0.75f;
+            s.keyZ = r.Spec != null ? r.Spec.key_root_z : 0.75f; s.amap = r.Action;
             Array.Copy(r.StyleOffsets, s.offsets, NJ); Array.Copy(r.LastAction, s.last, NJ); Array.Copy(r.FilteredAction, s.actF, NJ);
         }
 
@@ -275,9 +275,11 @@ namespace PoKingHill
             }
             for (int i = 0; i < map.N; i++)
             {
-                float a = Mathf.Clamp(w.act[i], -1f, 1f); last[i] = a;
+                float a = s.amap != null ? s.amap.ToAction(w.act[i]) : Mathf.Clamp(w.act[i], -1f, 1f); last[i] = a;
                 float f = s.shove ? PolicyRunner.ShoveSmooth * actF[i] + (1f - PolicyRunner.ShoveSmooth) * a : a; actF[i] = f;
-                ctrl[i] = Math.Clamp(map.DefaultPose[i] + blend * s.offsets[i] + _scale * f, map.CtrlMin[i], map.CtrlMax[i]);
+                double rest = map.DefaultPose[i] + blend * s.offsets[i];
+                ctrl[i] = s.amap == null ? Math.Clamp(rest + _scale * f, map.CtrlMin[i], map.CtrlMax[i])
+                    : s.amap.Target(i, rest, f, _scale, d->qpos[map.QposAdr[i]], d->qvel[map.DofAdr[i]], map.Kp[i], map.Kv[i], map.Tau[i], map.CtrlMin[i], map.CtrlMax[i]);
             }
             phase += 2f * Mathf.PI * ObsBuilder.GaitFreqHz * _ctrlDt; if (phase > 2f * Mathf.PI) phase -= 2f * Mathf.PI;
         }

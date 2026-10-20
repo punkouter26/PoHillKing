@@ -230,15 +230,22 @@ namespace PoKingHill.EditorTools
             // value = the critic exported next to the policy by export_policy.py --value, when present (drives the win-odds bar)
             // mlp / valueMlp = the same weights for the Tactician's rollouts (scripts/export_mlp.py), when exported
             TextAsset Mlp(string dir, string file) => AssetDatabase.LoadAssetAtPath<TextAsset>($"{dir}/{file}.bytes");
+            // action = <file>_action.json (export_policy.py), when the brain was trained with a changed action path
+            TextAsset Action(string dir, string file) => AssetDatabase.LoadAssetAtPath<TextAsset>($"{dir}/{file}_action.json");
             Fighter F(string name, string badge, string file, int dim, GoalMode goal) => new Fighter { name = name, shortName = badge, obsDim = dim, goal = goal,
-                policy = Onnx(file + "_policy"), value = Onnx(file + "_value"), mlp = Mlp(ModelDir, file + "_mlp"), valueMlp = Mlp(ModelDir, file + "_value_mlp") };
+                policy = Onnx(file + "_policy"), value = Onnx(file + "_value"), mlp = Mlp(ModelDir, file + "_mlp"), valueMlp = Mlp(ModelDir, file + "_value_mlp"), action = Action(ModelDir, file) };
             var walker = F("G1 Walker (stands its ground)", "Walker", "r1", 103, GoalMode.None); walker.steerable = true;
             var roster = new List<Fighter> { F("G1 All-rounder (champion)", "All-rounder", "attacker", 112, GoalMode.Opponent), F("G1 Duelist (generation 7)", "Duelist", "duelist", 112, GoalMode.Opponent),
                                              F("G1 Rammer (generation 1)", "Rammer", "rammer", 112, GoalMode.Opponent), walker };
             // The free-for-all brain (scripts/train.py --rung r5ffa) joins when it has been exported; its input size comes from the file.
             var ffa = Onnx("ffa_policy");
             if (ffa != null) roster.Insert(1, new Fighter { name = "G1 Free-for-all (trained 4-way)", shortName = "Free-for-all", obsDim = InputsOf(ffa), goal = GoalMode.Opponent, policy = ffa, value = Onnx("ffa_value"),
-                                                            mlp = Mlp(ModelDir, "ffa_mlp"), valueMlp = Mlp(ModelDir, "ffa_value_mlp") });
+                                                            mlp = Mlp(ModelDir, "ffa_mlp"), valueMlp = Mlp(ModelDir, "ffa_value_mlp"), action = Action(ModelDir, "ffa") });
+            // A brain trained with varied goal points (rung r4tactic: Press, flanks, regroup, lurk; scripts/export_policy.py
+            // --name tactical) joins when exported: the one the Tactician's rollouts are meant for (Tactician A/B gate).
+            var tactical = Onnx("tactical_policy");
+            if (tactical != null) roster.Add(new Fighter { name = "G1 Tactical (trained on tactics)", shortName = "Tactical", obsDim = InputsOf(tactical), goal = GoalMode.Opponent, policy = tactical,
+                                                           value = Onnx("tactical_value"), mlp = Mlp(ModelDir, "tactical_mlp"), valueMlp = Mlp(ModelDir, "tactical_value_mlp"), action = Action(ModelDir, "tactical") });
             // A human is offered only when this scene has its body (koth_6p: Kim e_, Trump f_) and a brain of theirs exists:
             // the fighting brain (Models/<body>/fighter_policy.onnx, 112 inputs) when exported, else the walker that
             // walks at the nearest opponent. vmax: the walking speed the fighter was trained with (Trump's style: 0.7).
@@ -255,7 +262,7 @@ namespace PoKingHill.EditorTools
                 return new Fighter { name = name, shortName = badge, body = body, policy = policy, obsDim = policy != null ? InputsOf(policy) : 103, goal = GoalMode.Opponent, stopDist = 0f,
                                      vmax = fights ? fighterVmax : 0.8f, available = policy != null && hasBody, inGame = policy != null && hasBody,
                                      shove = pose != null, stylePose = pose ?? "shove", value = Own(file + "_value"),
-                                     mlp = fights ? Mlp(ModelsOf(body), file + "_mlp") : null, valueMlp = fights ? Mlp(ModelsOf(body), file + "_value_mlp") : null,
+                                     mlp = fights ? Mlp(ModelsOf(body), file + "_mlp") : null, valueMlp = fights ? Mlp(ModelsOf(body), file + "_value_mlp") : null, action = Action(ModelsOf(body), file),
                                      note = !hasBody ? $"no {badge} body in this scene" : policy == null ? "no brain yet" : fights ? "" : "walks at you, never trained to fight" };
             }
             roster.Add(Human("kim", "Kim", "Kim", 1f));
@@ -471,7 +478,9 @@ namespace PoKingHill.EditorTools
         /// All-rounder). A human candidate (Kim, Trump) plays in the six-body scene (koth_6p, Gate_ffa_6p.unity) against
         /// three G1 drawn from the same pool, the other human body parked: the Python reference is eval.py --rung
         /// &lt;body&gt;_ffa with that pool. Writes training/assets/&lt;candidate body&gt;/ffa_stats_unity.json.</summary>
-        public static void RunFfaStats(string candidate)
+        public static void RunFfaStats(string candidate) { if (RunFfaStatsScene(candidate)) EditorApplication.EnterPlaymode(); }
+
+        static bool RunFfaStatsScene(string candidate)
         {
             bool human = candidate == "Kim" || candidate == "Trump";
             string gate = human ? GateFfaMixedScene : GateFfaScene;
@@ -482,9 +491,27 @@ namespace PoKingHill.EditorTools
             int Find(string badge) => Array.FindIndex(dd.roster, f => f.Badge == badge && f.available);
             string want = candidate != "" ? candidate : Find("Free-for-all") >= 0 ? "Free-for-all" : "All-rounder";
             dd.statsCandidate = Find(want);
-            if (dd.statsCandidate < 0) { Debug.LogError("[ParityBatch] no available roster agent named " + want); if (Cli.Exit) EditorApplication.Exit(3); return; }
+            if (dd.statsCandidate < 0) { Debug.LogError("[ParityBatch] no available roster agent named " + want); if (Cli.Exit) EditorApplication.Exit(3); return false; }
             dd.statsPool = new[] { Find("All-rounder"), Find("All-rounder"), Find("Duelist"), Find("Rammer"), Find("Walker") }.Where(i => i >= 0).ToArray();
             dd.statsRounds = int.Parse(Cli.Arg("-kothRounds", "200"));
+            return true;
+        }
+
+        /// <summary>Observation dump for training/scripts/obs_audit.py: the duel statistics gate (robot, roster seats a / b,
+        /// N rounds) or, with ffaCandidate, the free-for-all gate (a human candidate plays in the six-body scene), with an
+        /// ObsRecorder that writes training/assets/&lt;body&gt;/unity_obs_&lt;tag&gt;.jsonl when the gate leaves play mode.
+        /// Compare with: obs_audit.py --ckpt &lt;the brain's checkpoint&gt; --unity training/assets/&lt;body&gt;/unity_obs_&lt;tag&gt;.jsonl.</summary>
+        public static void RunObsDump() => RunObsDump(Cli.Arg("-kothRobot", "g1"), int.Parse(Cli.Arg("-kothRounds", "60")), int.Parse(Cli.Arg("-kothA", "0")), int.Parse(Cli.Arg("-kothB", "0")),
+                                                      Cli.Arg("-kothCandidate", null), Cli.Arg("-kothTag", null), Cli.Arg("-kothBrain", ""));
+
+        public static void RunObsDump(string robot, int rounds, int a, int b, string ffaCandidate = null, string tag = null, string brainFilter = "")
+        {
+            if (ffaCandidate != null) { if (!RunFfaStatsScene(ffaCandidate)) return; }
+            else RunDuelStats(robot, rounds, a, b, play: false);
+            var dd = UnityEngine.Object.FindAnyObjectByType<DemoDirector>(); dd.statsRounds = rounds;
+            var rec = dd.gameObject.AddComponent<ObsRecorder>();
+            rec.tag_ = tag ?? (ffaCandidate != null ? $"ffa_{ffaCandidate.ToLowerInvariant().Replace(' ', '_')}" : $"duel_{robot}_{a}_{b}"); rec.brainFilter = brainFilter ?? "";
+            dd.statsFile = $"unity_obs_{rec.tag_}_stats.json";       // beside the dump: the gate's own reference files stay as they are
             EditorApplication.EnterPlaymode();
         }
 

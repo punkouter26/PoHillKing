@@ -21,7 +21,7 @@ ap.add_argument("--no-noise", action="store_true")
 ap.add_argument("--shove", action="store_true", help="the tested policy fights in the shove style (arm pose + action smoothing)")
 ap.add_argument("--style-pose", default=None, help="with --shove: the styled rest pose (bull: Trump's charge)")
 a = ap.parse_args()
-cfg = eval_cfg("r4league", shove=a.shove, opponent=a.opponent, noise=not a.no_noise, style_pose=a.style_pose)     # eval.py's r4league settings
+cfg = eval_cfg("r4league", shove=a.shove, opponent=a.opponent, noise=not a.no_noise, style_pose=a.style_pose, ckpt=a.ckpt)     # eval.py's r4league settings
 env = KothEnv(cfg, a.num_envs, seed=0); policy = load_policy(env, a.ckpt)
 torch.manual_seed(1000); obs = env.reset()
 n = change = arm = hands = trunk_t = arm_t = 0.0; total = 0

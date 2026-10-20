@@ -23,6 +23,7 @@ import numpy as np
 HERE = os.path.dirname(os.path.abspath(__file__))
 REPO = os.path.normpath(os.path.join(HERE, "..", ".."))
 EDGE_KG = 0.02          # each rounded foot edge; the Unity importer ignores mass="0" and falls back to density
+FOOT_GAP = 0.004        # least gap between the two feet's contact geoms in the rest pose (collision_audit.py)
 # capsule radius caps (m) when a profile does not set its own: a scan's soft tissue is wider than the body's frame
 CAPS = dict(pelvis=0.12, abdomen=0.11, chest=0.11, head=0.11, thigh=0.085, upper_arm=0.045, hand=0.03)
 
@@ -107,14 +108,18 @@ def build(P) -> str:
         b = body(b, f"{side}_ankle_pitch_link", a, f"{side}_ankle_pitch_joint", "ankle_pitch", dummy=DUMMY["ankle"])
         b = body(b, f"{side}_ankle_roll_link", (0, 0, 0), f"{side}_ankle_roll_joint", "ankle_roll")
         heel = B["Foot.L"]["lo"][0] - ankle[0]; tip = B["Toe.L"]["hi"][0] - ankle[0]; half_w = max(span("Foot.L", 1), 0.04); sole = -ankle[2]
-        ET.SubElement(b, "site", name=f"{side}_foot", pos=f((heel + tip) / 2, 0, sole))
-        ET.SubElement(b, "geom", {"name": f"{side}_foot_box_collision", "class": f"{R}_foot_box", "pos": f((heel + tip) / 2, 0, sole + 0.012),
+        # A narrow stance (Kim) put the two foot boxes 3.6 mm into each other in the rest pose, so every episode began with
+        # her feet pressing apart (collision audit 2026-10-19). Move each foot's contact geoms outward until the gap is
+        # FOOT_GAP; a body whose feet already clear (Trump) is unchanged.
+        shift = max(0.0, half_w + FOOT_GAP / 2 - (ankle[1] - hips_c[1])); out = s * shift if shift > 0 else 0.0
+        ET.SubElement(b, "site", name=f"{side}_foot", pos=f((heel + tip) / 2, out, sole))
+        ET.SubElement(b, "geom", {"name": f"{side}_foot_box_collision", "class": f"{R}_foot_box", "pos": f((heel + tip) / 2, out, sole + 0.012),
                                   "size": f((tip - heel) / 2, half_w, 0.012), "mass": f(M * FR["foot"] - DUMMY["ankle"] - 3 * EDGE_KG)})
         for i, y in ((1, -half_w * 0.7), (3, half_w * 0.7)):      # rounded toe edges, as on the G1's foot
             ET.SubElement(b, "geom", {"name": f"{side}_foot{i}_collision", "class": f"{R}_foot_capsule", "size": "0.012", "mass": f(EDGE_KG),
-                                      "fromto": f(tip - 0.07, y, sole + 0.014, tip - 0.015, y, sole + 0.014)})
+                                      "fromto": f(tip - 0.07, y + out, sole + 0.014, tip - 0.015, y + out, sole + 0.014)})
         ET.SubElement(b, "geom", {"name": f"{side}_foot2_collision", "class": f"{R}_foot_capsule", "size": "0.022", "mass": f(EDGE_KG),
-                                  "fromto": f(heel + 0.025, 0, sole + 0.024, tip - 0.025, 0, sole + 0.024)})
+                                  "fromto": f(heel + 0.025, out, sole + 0.024, tip - 0.025, out, sole + 0.024)})
 
     b = body(pelvis, "waist_yaw_link", waist - hips_c, "waist_yaw_joint", "waist_yaw", dummy=DUMMY["waist"])
     b = body(b, "waist_roll_link", (0, 0, 0), "waist_roll_joint", "waist_roll", dummy=DUMMY["waist"])

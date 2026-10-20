@@ -9,7 +9,10 @@ Writes training/assets/<robot>/duel_stats_python.json (policies from Assets/PoKi
 once; a fall inside the plateau (radius < 1.5 m) hands the robot to the get-up brain (getup_policy.onnx, zero command)
 and starts a 5 s count; standing (up > 0.9, pelvis above 85 % of the standing height) for 0.4 s gives it back to the
 fight brain, the count running out is a knock-out; at most 2 get-ups per robot per round. Writes
-duel_stats_getup_python.json."""
+duel_stats_getup_python.json.
+
+A brain exported with <name>_action.json (koth/action_map.py: tanh map, per-joint scale, torque window) is run through
+that action path, as Unity's PolicyRunner does."""
 import argparse, json, os, sys
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 import numpy as np, torch, mujoco, onnxruntime as ort
@@ -17,6 +20,7 @@ from koth.obs import goal_command, GAIT_FREQ_HZ, STYLE_POSES, SHOVE_FAR, SHOVE_N
 from koth.build_mjcf import ASSETS, UNITY_MODELS
 from koth.rules import is_out, ground_z, OUT_RADIUS, PLATEAU_R, FALL_UP, FALL_HEIGHT
 from koth import cpu_sim
+from koth.action_map import NumpyMap, read_sidecar
 
 ap = argparse.ArgumentParser(); ap.add_argument("--policy", default="attacker"); ap.add_argument("--rounds", type=int, default=200)
 ap.add_argument("--seconds", type=float, default=25.0); ap.add_argument("--seed", type=int, default=0)
@@ -26,9 +30,11 @@ ap.add_argument("--vmax", type=float, default=1.0, help="goal-law walking speed,
 ap.add_argument("--getup", action="store_true", help="the game's get-up rule with getup_policy.onnx (see the docstring)")
 ap.add_argument("--getup-seconds", type=float, default=5.0); ap.add_argument("--max-getups", type=int, default=2); a = ap.parse_args()
 spec = json.load(open(os.path.join(ASSETS, "joint_map.json")))
-sess = ort.InferenceSession(os.path.join(UNITY_MODELS, f"{a.policy}_policy.onnx"), providers=["CPUExecutionProvider"])
+policy_path = os.path.join(UNITY_MODELS, f"{a.policy}_policy.onnx")
+sess = ort.InferenceSession(policy_path, providers=["CPUExecutionProvider"])
 m = mujoco.MjModel.from_xml_path(os.path.join(ASSETS, "scene_koth_2p_train.xml")); d = mujoco.MjData(m)
 R = cpu_sim.robots(m, spec["joints"], ("a_", "b_"))
+for s_ in R: s_["amap"] = NumpyMap(read_sidecar(policy_path), spec["action_scale"], *NumpyMap.gains(m, s_["aid"]))
 pool = cpu_sim.pool(m, spec["pool_bodies"])
 default = np.array(spec["default_pose"])
 shove_offset = np.array([next((v - default[i] for k, v in STYLE_POSES[a.style_pose].items() if k in j), 0.0) for i, j in enumerate(spec["joints"])])
@@ -76,13 +82,13 @@ for rnd in range(a.rounds):
                 continue
             cmd = goal_command(T(quat), T([d.qpos[o["rq"]] - d.qpos[rq], d.qpos[o["rq"] + 1] - d.qpos[rq + 1]]), 0.0, a.vmax)[0].numpy()
             obs = cpu_sim.observe(d, s, default, cmd, s["phase"], other=o)[0].numpy().astype(np.float32)
-            act = np.clip(sess.run(None, {"obs": obs[None]})[0][0], -1, 1).astype(np.float32)
+            act = s["amap"].to_action(sess.run(None, {"obs": obs[None]})[0][0])
             f = act.astype(np.float64); off = 0.0
             if a.shove:
                 f = s["f"] = SHOVE_SMOOTH * s["f"] + (1 - SHOVE_SMOOTH) * f
                 dist = np.hypot(d.qpos[o["rq"]] - d.qpos[rq], d.qpos[o["rq"] + 1] - d.qpos[rq + 1])
                 off = np.clip((SHOVE_FAR - dist) / (SHOVE_FAR - SHOVE_NEAR), 0, 1) * shove_offset
-            s["ctrl"] = np.clip(default + off + spec["action_scale"] * f, s["lo"], s["hi"]); s["last"] = act
+            s["ctrl"] = s["amap"].target(default + off, f, d.qpos[s["qadr"]], d.qvel[s["dadr"]], s["lo"], s["hi"]); s["last"] = act
             s["phase"] = np.float32(s["phase"] + np.float32(2 * np.pi * GAIT_FREQ_HZ * spec["ctrl_dt"]))
             if s["phase"] > 2 * np.pi: s["phase"] = np.float32(s["phase"] - np.float32(2 * np.pi))
         cpu_sim.step(m, d, pool, park, R, spec["decimation"])
