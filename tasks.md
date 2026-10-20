@@ -132,5 +132,20 @@ Per-rung procedure: train → TensorBoard → viewer spot-check → `record_refe
 - [x] E.7 Stamina + hype: kp/bias scale 0.85-1.15 from joint power (inside the trained ±20 %), badge tap / chat `!hype`, steam FX, critic sees the kp scale.
 - [x] E.8 Settings split into Settings + Connect (fixes the overflowing sheet); weather city (Open-Meteo). UI report `SCREENSHOTS/ui-261019/report.html`; training report `SCREENSHOTS/training-261019-getup/index.html`.
 
+## Phase F — Graphics and audio pass (2026-10-19)
+
+Render and audio only: no physics input changes, every component inert in the statistics gates (duel gate re-run: pass).
+- [x] F.1 Ambience beds in `ImpactSynth`: wind (Hazards gusts, live wind speed), surf (sea level, storm), crowd (swells on hype, knock-outs, round end, a gasp at the rim), quake rumble.
+- [x] F.2 Contact sounds by material and body: G1-on-G1 clank, flesh smack and a grunt in the body's voice (Kim / Trump), sliding-foot scrape and fighter-on-fighter grind from the contact list every 20 ms.
+- [x] F.3 Mix and 3D sound: `SoundPool` 3D one-shots (clips synthesized at start), channels Master / Hits / Ambience / Voice, ambience ducks under the commentary voice, low-pass under water and in slow motion.
+- [x] F.4 `TimeWarp`: slow motion when a capture point crosses the rim, hit stop on the hardest hits; `Time.timeScale` only, never in gates or replays.
+- [x] F.5 Shockwave (`ShockwaveFeature` renderer feature, only queued while a wave runs) and ground dust ring on hard hits.
+- [x] F.6 Lightning (bolt, flash, distance-delayed thunder) past half storm or with a live thunderstorm; red danger light on the fighter furthest past the rim.
+- [x] F.7 `FX/Fighter.shader` on every opaque fighter material: seat-colour rim (red at the edge), wear from contact force, wet after the sea (plus drips), impact flash.
+- [ ] F.8 Blender MCP summit upgrade: blocked, Blender is not installed on this machine.
+- [x] F.9 `QualityTier`: Low / Medium / High / Auto presets (Auto steps down in a player under 45 FPS), two-line telemetry pill, `perf` block in the telemetry JSONL.
+- [x] F.10 Self-collision audit (`training/scripts/collision_audit.py`, EditMode `CollisionTests`): G1 and Trump clean; Kim's foot boxes overlap 3.5 mm in her rest pose (fix at her next retrain).
+- Settings split again: Match (rules) and Show (picture, sound). UI report `SCREENSHOTS/gfx-261019/report.html`; audit `SCREENSHOTS/collision-261019/report.html`.
+
 ## Deferred (out of scope this build)
 Unitree H1; custom skinned rigs; external map meshes; R6 victory dance (DeepMimic tracking); AMP motion prior; Android performance target.

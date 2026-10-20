@@ -395,3 +395,35 @@ deviation from a lucky one. The Tactician stays as an experimental show option (
 four brains (EditMode `FeatureTests`). New components cost nothing measurable on the physics tick: six-way match, editor,
 tick 1.0-1.15 ms with ContactLedger, Biometrics, Stamina on or off. Stamina keeps the servo scale inside 0.85-1.15
 (trained kp randomisation +-20 %); off in every gate. EditMode tests 40/40.
+
+## 2026-10-19 (night) — graphics and audio pass, self-collision audit
+
+Nine of ten GFX & Audio options (the tenth, a Blender MCP summit upgrade, waits for Blender on this machine). All render or
+audio only: no observation, action, ctrl or model change, and every new component is inert in the statistics gates.
+
+- **Duel statistics gate re-run** (`RunDuelStats`, champion vs itself, 200 rounds, gate scene rebuilt with every new
+  component): decided 100 % (94 / 106 / 0), median 7.70 s (5.66 / 10.70). Previous Unity run 99 %, 8.05 s (5.07 / 11.08);
+  Python 98.5 %, 8.40 s (5.64 / 12.16): pass, the median moved by about one standard error (~0.35 s for 200 rounds) and
+  keeps the known Unity-ends-sooner offset. `duel_stats_unity.json` updated. EditMode 43/43 (new `CollisionTests` x3),
+  PlayMode 3/3.
+- **Self-collision audit** (`training/scripts/collision_audit.py`, report `SCREENSHOTS/collision-261019/`, Unity mirror
+  `EditorTools.CollisionAudit` + `CollisionTests`, which find the same pairs and depths). Fighter `a_` of each
+  `scene_koth_2p`: 32 self-pairs collide (foot / shin against the other leg); everything else is off by design, against
+  AGENTS.md section 3. G1 and Trump: no overlap on a colliding pair in zero, rest or T-pose. **Kim: her foot boxes
+  interpenetrate 3.5 mm (and two 0.5 mm foot pairs) in her rest pose**, so every Kim episode starts with her feet pressing on
+  each other; fixing her stance or foot width changes her physics and waits for her next retrain (the test allows exactly
+  these three pairs at their depth). With every non-adjacent pair on, the humans' pelvis capsule would overlap the thighs by
+  136 mm (Kim) / 166 mm (Trump) at rest: turning AGENTS.md's rule on needs excludes for the dummy hip chain first.
+- **Audio levels** (editor, six-way fights, Master Mid / Ambience Mid, RMS after the mix): wind 0.008-0.025, surf
+  0.004-0.033, crowd 0.017-0.062. The first crowd setting was 6x louder (RMS up to 0.51 at a round's end) and clipped the
+  filter at 1.0; after the retune its peak stays at 0.44-0.52. 5 six-way rounds: 237 thuds, 143 clanks, 2 smacks, 1 grunt,
+  387 3D one-shots, 9 slow-motions, 5 hit stops.
+- **Player performance** (release, 540x960, `-kothPerf 30`, six-way, everything on, quality High): 54.5 / 59.1 FPS in two
+  runs, frame p50 16.7 ms, p99 26-27 ms (one 2.1 s launch hitch in run 1 only); physics tick 1.0 ms mean (p99 2.9) for six
+  bodies, 459-477 of 500 steps/s. In the editor the frame rate is about 40 FPS whatever the quality preset or Effects
+  switch: the six-body physics, not rendering, bounds it there.
+- **Rejected looks on the way** (captures in `SCREENSHOTS/gfx-261019`): danger rim from 35 cm inside the rim lit almost
+  every fighter red (now 12 cm, as the danger light); 4 mm scratches aliased into glitter (now 9 mm with a pixel-width fade);
+  hit flash from contact force > 150 N stayed on while fighters leaned on each other (now only on `MatchEvents.Impact`);
+  a 0.9 m bolt looked like a cartoon at 40 m (now ~2 px at any distance); the first shockwave was invisible at phone size, the
+  second read as a fog band.

@@ -1,0 +1,124 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Graphics and Audio Pass</title>
+<style>
+  :root { --bg: #f6f6f4; --ink: #1d1d1f; --dim: #5d5d63; --card: #ffffff; --line: #ddd; --bad: #c0392b; --good: #1e8449; --pin: #e8a300; --pin-ink: #1a1406; }
+  @media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) { --bg: #151517; --ink: #ececef; --dim: #a0a0a8; --card: #1f1f23; --line: #333; --bad: #ff6b5b; --good: #4cd18a; } }
+  :root[data-theme="dark"] { --bg: #151517; --ink: #ececef; --dim: #a0a0a8; --card: #1f1f23; --line: #333; --bad: #ff6b5b; --good: #4cd18a; }
+  body { margin: 0; padding: 24px 16px 48px; background: var(--bg); color: var(--ink); font: 16px/1.5 system-ui, sans-serif; }
+  main { max-width: 1000px; margin: 0 auto; }
+  h1 { font-size: 26px; margin: 0 0 4px; } h2 { font-size: 20px; margin: 40px 0 8px; }
+  p.sub { color: var(--dim); margin: 0 0 24px; }
+  .pair { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 16px; }
+  figure { margin: 0; background: var(--card); border: 1px solid var(--line); border-radius: 12px; padding: 12px; }
+  .shot { position: relative; }
+  .shot img { width: 100%; height: auto; border-radius: 8px; display: block; }
+  .pin { position: absolute; transform: translate(-50%, -50%); width: 26px; height: 26px; border-radius: 13px; background: var(--pin); color: var(--pin-ink);
+         font: 700 14px/26px system-ui, sans-serif; text-align: center; box-shadow: 0 0 0 3px rgba(0,0,0,.45); }
+  figcaption { font-size: 14px; color: var(--dim); margin-top: 8px; }
+  figcaption ol { margin: 6px 0 0; padding-left: 20px; }
+  .tag { font-weight: 600; } .bad { color: var(--bad); } .good { color: var(--good); }
+  code { font-size: 14px; }
+  table { border-collapse: collapse; font-size: 14px; margin-top: 8px; display: block; overflow-x: auto; }
+  td, th { border-bottom: 1px solid var(--line); padding: 4px 10px 4px 0; text-align: left; vertical-align: top; }
+</style>
+</head>
+<body>
+<main>
+  <h1>Graphics and audio pass</h1>
+  <p class="sub">261019. Nine of the ten GFX &amp; Audio options; option 8 (Blender MCP summit upgrade) is blocked because Blender is not installed on this machine.
+  Captures: Unity Game view at 960 x 2658 (the 9:16 column), or rendered straight from the game camera where an effect lasts under half a second
+  (marked "camera render", no HUD). Numbered pins mark what changed. Nothing here touches the physics: every new component is render or audio only,
+  and inert in the statistics gates.</p>
+
+  <h2>1. Settings split again: Match and Show</h2>
+  <p>The new switches (slow motion, quality, three mix channels) did not fit the Settings tab, which already filled the sheet. The rules stay in
+  <b>Match</b>; how the match looks and sounds moved to <b>Show</b>. Two layout faults of the old tab are fixed on the way: "Opportunist" overflowed its
+  segment, "Camera cut-aways" wrapped onto two lines.</p>
+  <div class="pair">
+    <figure><div class="shot"><img src="before/01_settings.png" alt="Before: one Settings tab with match and show options"><span class="pin" style="left:33%;top:55%">1</span><span class="pin" style="left:64%;top:80%">2</span><span class="pin" style="left:50%;top:76%">3</span></div>
+      <figcaption><span class="tag bad">Before</span><ol><li>"Opportunist" runs past its segment.</li><li>"Camera cut-aways" wraps.</li><li>One Sound level for everything.</li></ol></figcaption></figure>
+    <figure><div class="shot"><img src="after/01_match_tab.png" alt="After: Match tab with rounds, sea, targets and rules"><span class="pin" style="left:50%;top:52%">1</span><span class="pin" style="left:35%;top:73%">2</span><span class="pin" style="left:17%;top:89.5%">3</span></div>
+      <figcaption><span class="tag good">After</span><ol><li>Five tabs: Play, Agents, Match, Show, Connect (tab text 28 px so all five fit).</li><li>Target buttons sized by their label: "Opportunist" fits.</li><li>Hazards joins the rules.</li></ol></figcaption></figure>
+    <figure><div class="shot"><img src="after/02_show_tab.png" alt="After: Show tab with camera, quality, effect switches and four sound levels"><span class="pin" style="left:40%;top:55%">1</span><span class="pin" style="left:72%;top:59%">2</span><span class="pin" style="left:15%;top:73%">3</span></div>
+      <figcaption><span class="tag good">After</span><ol><li>Quality: Auto, Low, Medium, High (QualityTier).</li><li>Slow motion (TimeWarp), on by default.</li><li>Master, Hits, Ambience, Voice: each channel is a multiplier on Master.</li></ol></figcaption></figure>
+  </div>
+
+  <h2>2. Fighters: seat-colour rim, edge danger, impact flash</h2>
+  <p>Every opaque fighter material (the G1 parts and the two scanned humans) is rebuilt at start on <code>FX/Fighter.shader</code>, a URP PBR shader with
+  four match-driven layers: a fresnel rim in the seat colour, wear, wet, and a hit flash. The rim turns a pulsing red once the fighter's capture point is
+  within 12 cm of the rim, and a red point light follows the fighter furthest past it. Hair and other alpha-tested materials keep their own shader.</p>
+  <div class="pair">
+    <figure><div class="shot"><img src="before/02_fight.png" alt="Before: six-way fight, plain paint"><span class="pin" style="left:35%;top:52%">1</span></div>
+      <figcaption><span class="tag bad">Before</span><ol><li>Seat colour only on torso, pelvis and head; no cue for who is about to fall.</li></ol></figcaption></figure>
+    <figure><div class="shot"><img src="after/03_fight_hud.png" alt="After: fighters with seat-colour rims, telemetry line"><span class="pin" style="left:50%;top:7%">1</span><span class="pin" style="left:45%;top:45%">2</span><span class="pin" style="left:92%;top:70%">2</span></div>
+      <figcaption><span class="tag good">After</span><ol><li>Telemetry pill (debug switch): mean FPS, then a smaller second line with the 95th-percentile frame time and the tier in force (a first one-line version ran over the title).</li><li>Seat-colour rims: Trump (yellow seat), the Duelist (green).</li></ol></figcaption></figure>
+    <figure><div class="shot"><img src="after/07_danger.png" alt="Camera render: Trump at the edge lit red, red rim"><span class="pin" style="left:90%;top:50%">1</span></div>
+      <figcaption><span class="tag good">After</span> (camera render)<ol><li>Trump's capture point is past the rim: red pulsing rim and the danger light.</li></ol></figcaption></figure>
+  </div>
+
+  <h2>3. Wear and the wet look</h2>
+  <p>Wear builds up per part from the pushing force it takes (contacts with other fighters, and the ground for anything but the feet; 2500 N s wears a
+  part fully) and is cleared when a match starts. Scratches are object-space lines that fade once thinner than a pixel. Wet (darker, glossy) comes from
+  being below the sea and dries over 20 s; a fighter out of the sea also drips for a few seconds.</p>
+  <div class="pair">
+    <figure><div class="shot"><img src="after/06_wear.png" alt="Camera render: G1 parts with wear 0.5"><span class="pin" style="left:20%;top:57%">1</span></div>
+      <figcaption><span class="tag good">After</span> (camera render, wear forced to 0.5 for the capture)<ol><li>Grime and short bare-metal scratches.</li></ol></figcaption></figure>
+    <figure><div class="shot"><img src="after/06_wear_wet.png" alt="Camera render: humans wet and glossy"><span class="pin" style="left:60%;top:42%">1</span><span class="pin" style="left:48%;top:58%">2</span></div>
+      <figcaption>First tuning pass (camera render, wear 0.9 and wet forced)<ol><li>Wet: Kim's skin and hair glossy.</li><li><span class="bad">Rejected look</span>: the red danger rim lit nearly everyone (it started 35 cm inside the rim) and 4 mm scratches aliased into glitter. Both fixed: 12 cm threshold, coarser lines with a pixel-width fade (left).</li></ol></figcaption></figure>
+  </div>
+
+  <h2>4. Shockwave and lightning</h2>
+  <p>A hard hit (impact strength 0.7 and up) sends a screen-space ring out from it through the <code>ShockwaveFeature</code> renderer feature (added to
+  both URP renderers; the pass is only queued while a wave runs, so it costs nothing otherwise) plus a dust ring along the ground. Once the storm is past
+  half way, or the live weather has a thunderstorm, lightning strikes the sea every 5-12 s: a bolt about 2 px wide whatever the distance, a double flash of
+  a directional light, and thunder from the strike's direction, delayed by the distance.</p>
+  <div class="pair">
+    <figure><div class="shot"><img src="after/04_shockwave.png" alt="Camera render with a shockwave ring 0.12 s after a hit"></div>
+      <figcaption><span class="tag good">After</span> (camera render, wave 0.12 s into its 0.45 s, triggered on the fighter at the centre)</figcaption></figure>
+    <figure><div class="shot"><img src="after/04_shockwave_diff.png" alt="Difference against the same frame without the wave: a ring"></div>
+      <figcaption>Difference against the same frame without the wave (x6): 18 % of the pixels move, all in a ring centred on the hit. A first setting
+      (wider ring, weaker push) was invisible at phone size; a second one with a bright rim read as a fog band; this is the third.</figcaption></figure>
+    <figure><div class="shot"><img src="after/05_lightning.png" alt="Camera render: a lightning bolt over the sea behind the fighters"><span class="pin" style="left:30%;top:16%">1</span></div>
+      <figcaption><span class="tag good">After</span> (camera render, strike forced)<ol><li>The bolt, 34 m out; the flash lights the far mountains.</li></ol></figcaption></figure>
+  </div>
+
+  <h2>5. Sound (measured, not captured)</h2>
+  <p>Still no audio files: <code>SoundPool</code> synthesizes its clips at start, the beds run in <code>ImpactSynth.OnAudioFilterRead</code>. Levels below
+  are the RMS of each bed after the mix (Master Mid, Ambience Mid), from the editor during six-way fights; the filter's peak stayed at 0.44-0.52 after the
+  crowd was turned down (it clipped at 1.0 on the first pass).</p>
+  <table>
+    <tr><th>Voice</th><th>Source</th><th>Measured</th></tr>
+    <tr><td>Hits</td><td>3D one-shots at the hit (SoundPool: distance roll-off, direction, doppler): thud, clank for G1 on G1, smack for a hit human, grunt in that body's voice (Trump low, Kim high)</td><td>5 rounds: 237 thuds, 143 clanks, 2 smacks, 1 grunt, 387 one-shots</td></tr>
+    <tr><td>Friction</td><td>Contact list every 20 ms: a planted foot sliding scrapes, two fighters rubbing grind (metal for G1 pairs)</td><td>slide 0.4-1.0, grind up to 0.73</td></tr>
+    <tr><td>Wind</td><td>Two low-passed noises, gusting; louder in Hazards gusts and with the live wind speed</td><td>RMS 0.008-0.025</td></tr>
+    <tr><td>Surf</td><td>Brown noise swelling every ~6.5 s, grows as the sea rises</td><td>RMS 0.004-0.033</td></tr>
+    <tr><td>Crowd</td><td>Noise through three formants, murmuring; swells on hype, knock-outs, the end of a round, a gasp when a fighter teeters at the rim</td><td>RMS 0.017-0.062 (was 0.14-0.51 before the retune)</td></tr>
+    <tr><td>Rumble</td><td>Very low noise during a Quake hazard</td><td>only during quakes</td></tr>
+    <tr><td>Mix</td><td>Ambience ducks to 45 % while the commentary voice speaks; everything low-passed under water and in slow motion</td><td></td></tr>
+  </table>
+
+  <h2>6. Slow motion, quality and telemetry</h2>
+  <p><code>TimeWarp</code> slows time to 0.3x for 0.7 s the first time in a round a fighter's capture point crosses the rim heading out, and nearly freezes
+  for 70 ms on the hardest hits (5 rounds: 9 slow-motions, 5 hit stops). Only <code>Time.timeScale</code> changes, so each 2 ms physics step is the same; it
+  never runs in the gates, in replays, or while something else owns the time scale. <code>QualityTier</code> presets set post-processing, shadows,
+  anti-aliasing, particle and decal budgets and (in a player only) the render scale; Auto steps down in a player build when a fight stays under 45 FPS.
+  Each round's telemetry line in the JSONL now carries <code>perf</code>: FPS, mean and p95 frame time, managed KB per frame, tier.</p>
+
+  <h3>Player performance</h3>
+  <p>Release player (<code>ParityBatch.BuildPlayer</code>, 540 x 960, i7-10750H, <code>-kothPerf 30</code>, six-way scene, quality Auto = High, all effects on):
+  run 1 54.5 FPS mean, frame p50 16.7 ms / p99 27.0 ms, one 2.1 s hitch at launch; run 2 59.1 FPS, p50 16.7 / p99 26.4 ms, max 81 ms. Physics is the heavy part:
+  a 2 ms step of six bodies takes 1.0 ms (p99 2.9), so 477 of the 500 steps/s keep up. The new materials and shaders compile into the player (no missing-shader
+  fallback). There is no earlier six-way measurement to compare against: the last <code>-kothPerf</code> numbers (60 FPS) were for the two-fighter scene.</p>
+
+  <h2>7. Self-collision audit</h2>
+  <p><a href="../collision-261019/report.html">Self-collision audit</a> (<code>training/scripts/collision_audit.py</code>, and EditMode
+  <code>CollisionTests</code> on the Unity XML): self-collision is enabled only foot/shin against the other leg (32 pairs per body).
+  G1 and Trump are clean in zero, rest and T-pose; <span class="bad">Kim's foot boxes overlap 3.5 mm in her rest pose</span>, a pair the simulation
+  collides, so every Kim episode starts with her feet pressed together. Fixing it changes her physics and needs her next retrain.</p>
+</main>
+</body>
+</html>

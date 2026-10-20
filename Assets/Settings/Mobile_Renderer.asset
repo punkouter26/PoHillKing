@@ -47,8 +47,8 @@ MonoBehaviour:
     probeVolumeBlendStatesCS: {fileID: 0}
   m_RendererFeatures:
   - {fileID: -8375006419843705168}
-  m_RendererFeatureMap: b09699a90800c68bl
-  xrSystemData: {fileID: 0}
+  - {fileID: 3762030430350972876}
+  m_RendererFeatureMap: b09699a90800c68bcc97478bbe6a3534l
   postProcessData: {fileID: 11400000, guid: 41439944d30ece34e96484bdb6645b55, type: 2}
   m_AssetVersion: 3
   m_PrepassLayerMask:
@@ -76,3 +76,17 @@ MonoBehaviour:
   m_AccurateGbufferNormals: 0
   m_IntermediateTextureMode: 0
   m_TileOnlyMode: 0
+--- !u!114 &3762030430350972876
+MonoBehaviour:
+  m_ObjectHideFlags: 1
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: af1a5fc68e2fbed408928746d30e050a, type: 3}
+  m_Name: Shockwave
+  m_EditorClassIdentifier: PoKingHill::PoKingHill.ShockwaveFeature
+  m_Active: 1
+  material: {fileID: 2100000, guid: 324add1a6b5474940b7668f1ed7f82d1, type: 2}

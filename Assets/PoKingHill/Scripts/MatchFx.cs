@@ -15,6 +15,14 @@ namespace PoKingHill
     ///   winner     confetti over the winner
     ///   stamina    steam off fighters that are worn out, a spark burst on adrenaline (Stamina)
     ///   weather    with a live weather city (WeatherFeed): night, overcast or clear sky, and a stormier sea when it rains
+    ///   shockwave  a hard hit (strength 0.7+) sends a screen-space ring out from it (ShockwaveFeature) and a dust ring
+    ///              along the ground
+    ///   lightning  once the storm is past half way (or the live weather has a thunderstorm), a strike every 5-12 s
+    ///              over the sea: a jagged bolt, a double flash of the lightning light, thunder from ImpactSynth
+    ///              delayed by the distance
+    ///   danger     a pulsing red light on the fighter whose capture point is closest past the rim (Biometrics)
+    ///   drips      a fighter that has been in the sea drips for a few seconds once out of it
+    /// Budgets (particles, decals, shockwaves) follow QualityTier.
     /// The particle systems, decal pool, volume and lights are scene objects built by the editor builder, so they
     /// can be tuned by hand; this component only drives them.
     /// </summary>
@@ -29,6 +37,14 @@ namespace PoKingHill
         public Light sun, kingSpot;
         public Material water;
         public float scuffSeconds = 10f;
+        public ParticleSystem shockRing, drips;
+        public Light lightning, danger;
+        public LineRenderer bolt;
+        public ImpactSynth synth;                 // optional: thunder
+        public Biometrics bio;                    // optional: the danger light
+        public QualityTier quality;               // optional: budgets
+        float _nextBolt = -1f, _boltAt = -10f; float[] _wetUntil = System.Array.Empty<float>(); float _nextDrip;
+        readonly Vector3[] _boltPts = new Vector3[12];
 
         static readonly int SeaLevel = Shader.PropertyToID("_SeaLevel"), Storm = Shader.PropertyToID("_Storm");
         float[] _scuffBorn; int _nextScuff; float _punch; Color _fogCalm, _sunCalm; float _sunCalmIntensity;
@@ -74,6 +90,7 @@ namespace PoKingHill
 
         void Burst(ParticleSystem ps, Vector3 p, int count, float speed)
         {
+            if (quality != null) count = Mathf.RoundToInt(count * quality.ParticleScale);
             if (ps == null || count <= 0) return;
             var e = new ParticleSystem.EmitParams { position = p, applyShapeToPosition = true };
             for (int i = 0; i < count; i++)
@@ -87,8 +104,13 @@ namespace PoKingHill
         {
             if (!On) return;
             if (s > 0.5f) Burst(dust, p + Vector3.down * 0.6f, 1 + (int)(8 * s), 0.6f + 1.2f * s);
-            if (s > 0.6f) Burst(sparks, p, (int)(18 * s), 3f);
+            if (s > 0.6f && r != null && r.body == "g1") Burst(sparks, p, (int)(18 * s), 3f);       // metal sparks; humans only raise dust
             _punch = Mathf.Max(_punch, Mathf.Clamp01(s * 1.2f));
+            if (s >= 0.7f)
+            {
+                if (quality == null || quality.Shockwaves) Shockwave.Trigger(p, s);
+                if (shockRing != null) shockRing.Emit(new ParticleSystem.EmitParams { position = p + Vector3.down * 0.62f, startSize = 0.3f, applyShapeToPosition = false }, 1);
+            }
         }
 
         void OnFootfall(Vector3 p, float s, float slip)
@@ -100,12 +122,14 @@ namespace PoKingHill
 
         void PlaceScuff(Vector3 p, float slip)
         {
+            int pool = quality != null ? Mathf.Min(scuffs.Length, quality.Decals) : scuffs.Length;
+            if (_nextScuff >= pool) _nextScuff = 0;
             var d = scuffs[_nextScuff]; if (d == null) return;
             // project straight down onto the hill; size grows with the slide
             d.transform.SetPositionAndRotation(p + Vector3.up * 0.25f, Quaternion.Euler(90f, (float)_rng.NextDouble() * 360f, 0f));
             float len = Mathf.Lerp(0.22f, 0.55f, Mathf.Clamp01(slip / 1.5f));
             d.size = new Vector3(len, 0.18f, 0.6f); d.fadeFactor = 0.85f;
-            _scuffBorn[_nextScuff] = Time.time; _nextScuff = (_nextScuff + 1) % scuffs.Length;
+            _scuffBorn[_nextScuff] = Time.time; _nextScuff = (_nextScuff + 1) % pool;
         }
 
         void OnSplash(Vector3 p, float s)
@@ -173,6 +197,88 @@ namespace PoKingHill
                     }
                 kingSpot.enabled = king != null && GameSettings.Effects;
                 if (king != null) { kingSpot.transform.position = king.position + new Vector3(0f, 4.5f, -0.8f); kingSpot.transform.LookAt(king.position); }
+            }
+
+            bool fight = director.State == MatchState.Fight && On;
+            Lightning(fight, storm);
+            Danger(fight);
+            Drips(fight);
+        }
+
+        // A strike over the sea every 5-12 s once the storm is past half way (or with a live thunderstorm).
+        void Lightning(bool fight, float storm)
+        {
+            bool thunderstorm = weather != null && weather.Ready && weather.Code >= 95;
+            float since = Time.unscaledTime - _boltAt;
+            if (lightning != null) lightning.intensity = since < 0.4f ? 4f * (Flick(since, 0f) + 0.7f * Flick(since, 0.16f)) : 0f;
+            if (lightning != null) lightning.enabled = since < 0.4f;
+            if (bolt != null) bolt.enabled = since < 0.22f;
+            if (!fight || (storm < 0.5f && !thunderstorm)) { _nextBolt = -1f; return; }
+            if (_nextBolt < 0f) { _nextBolt = Time.unscaledTime + 2f + (float)_rng.NextDouble() * 4f; return; }
+            if (Time.unscaledTime < _nextBolt) return;
+            _nextBolt = Time.unscaledTime + 5f + (float)_rng.NextDouble() * 7f; _boltAt = Time.unscaledTime;
+            // where it strikes the sea: most of the time a point the camera sees (a ray through the upper part of the
+            // frame, 40-260 m out), otherwise anywhere around, heard more than seen
+            var cam = Camera.main; float seaY = director.sea != null ? director.sea.Level : 0f;
+            Vector3 ground; float dist;
+            var ray = cam != null ? cam.ViewportPointToRay(new Vector3(0.15f + 0.7f * (float)_rng.NextDouble(), 0.55f + 0.4f * (float)_rng.NextDouble(), 0f)) : default;
+            float hit = cam != null && ray.direction.y < -1e-3f ? (seaY - ray.origin.y) / ray.direction.y : -1f;
+            if (hit > 0f && _rng.NextDouble() < 0.75)
+            {
+                ground = ray.origin + ray.direction * hit; Vector3 flat = new(ground.x, 0f, ground.z);
+                dist = Mathf.Clamp(flat.magnitude, 40f, 260f); ground = flat.normalized * dist + Vector3.up * seaY;
+            }
+            else
+            {
+                float ang = (float)_rng.NextDouble() * 360f; dist = 60f + 200f * (float)_rng.NextDouble();
+                ground = Quaternion.Euler(0f, ang, 0f) * Vector3.forward * dist + Vector3.up * seaY;
+            }
+            Vector3 dir = new Vector3(ground.x, 0f, ground.z).normalized;
+            if (bolt != null)
+            {
+                Vector3 top = ground + Vector3.up * (0.35f * dist + 20f * (float)_rng.NextDouble()) + dir * 8f;     // tall enough to leave the frame
+                for (int i = 0; i < _boltPts.Length; i++)
+                {
+                    float t = i / (float)(_boltPts.Length - 1);
+                    Vector3 jitter = i == 0 || i == _boltPts.Length - 1 ? Vector3.zero : new Vector3((float)_rng.NextDouble() - 0.5f, 0f, (float)_rng.NextDouble() - 0.5f) * (0.15f * (top.y - ground.y));
+                    _boltPts[i] = Vector3.Lerp(top, ground, t) + jitter;
+                }
+                bolt.positionCount = _boltPts.Length; bolt.SetPositions(_boltPts); bolt.widthMultiplier = 0.004f * dist;     // ~2 px wide whatever the distance
+            }
+            if (lightning != null) lightning.transform.rotation = Quaternion.LookRotation((Vector3.zero - (ground + Vector3.up * 60f)).normalized);
+            if (synth != null) synth.Thunder(ground, Mathf.Lerp(0.9f, 0.5f, dist / 260f));
+        }
+
+        static float Flick(float t, float at) { float x = t - at; return x < 0f ? 0f : Mathf.Exp(-x / 0.05f); }
+
+        // A red light pulsing over whoever is furthest past the rim (and still in).
+        void Danger(bool fight)
+        {
+            if (danger == null) return;
+            Transform worst = null; float best = 0.12f;
+            if (fight && bio != null)
+                for (int i = 0; i < director.Playing; i++)
+                {
+                    if (director.IsOut(i)) continue; var v = bio.Of(director.fighters[i]); if (v == null) continue;
+                    float d = 0.12f - v.rim; if (d > best) { best = d; worst = director.fighters[i].PelvisTransform; }
+                }
+            danger.enabled = worst != null;
+            if (worst == null) return;
+            danger.transform.position = worst.position + Vector3.up * 1.4f;
+            danger.intensity = (2f + 3f * Mathf.Clamp01(best / 0.4f)) * (0.6f + 0.4f * Mathf.Sin(Time.unscaledTime * 14f));
+        }
+
+        // Fighters that were in the sea drip for a while once out of it.
+        void Drips(bool fight)
+        {
+            if (drips == null || director.sea == null) return;
+            int n = director.fighters.Length; if (_wetUntil.Length != n) _wetUntil = new float[n];
+            bool emit = Time.unscaledTime >= _nextDrip; if (emit) _nextDrip = Time.unscaledTime + 0.08f;
+            for (int i = 0; i < n && i < director.Playing; i++)
+            {
+                var t = director.fighters[i].PelvisTransform; if (t == null) continue;
+                if (t.position.y < director.sea.Level) { _wetUntil[i] = Time.unscaledTime + 6f; continue; }
+                if (emit && On && Time.unscaledTime < _wetUntil[i]) Burst(drips, t.position + new Vector3(0f, 0.2f, 0f), 2, 0.05f);
             }
         }
     }

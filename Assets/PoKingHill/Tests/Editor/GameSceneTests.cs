@@ -52,6 +52,20 @@ namespace PoKingHill.Tests
                 var fx = One<MatchFx>(scene); Assert.NotNull(fx, "MatchFx");
                 foreach (var ps in new[] { fx.dust, fx.sparks, fx.splash, fx.ripple, fx.confetti }) Assert.NotNull(ps, "particle system");
                 Assert.NotNull(fx.hitVolume); Assert.NotNull(fx.sun); Assert.NotNull(fx.kingSpot); Assert.NotNull(fx.steam); Assert.NotNull(fx.stamina); Assert.NotNull(fx.weather);
+                Assert.NotNull(fx.shockRing); Assert.NotNull(fx.drips); Assert.NotNull(fx.lightning); Assert.NotNull(fx.bolt); Assert.NotNull(fx.danger);
+                Assert.NotNull(fx.synth); Assert.NotNull(fx.bio); Assert.NotNull(fx.quality);
+
+                // sound: 3D one-shots and what the ambience follows
+                Assert.NotNull(d.synth.pool, "ImpactSynth.pool (SoundPool)"); Assert.NotNull(d.synth.director); Assert.NotNull(d.synth.hazards);
+                Assert.NotNull(d.synth.weather); Assert.NotNull(d.synth.bio);
+                // fighter surface: the material must be an asset on the project shader, so a player build keeps it
+                var look = One<BodyLook>(scene); Assert.NotNull(look.fighterMaterial, "BodyLook.fighterMaterial (FX/Fighter.mat)"); Assert.NotNull(look.bio);
+                Assert.AreEqual("PoKingHill/Fighter", look.fighterMaterial.shader.name);
+                Assert.IsTrue(AssetDatabase.Contains(look.fighterMaterial), "the fighter material is an asset");
+                var warp = One<TimeWarp>(scene); Assert.NotNull(warp, "TimeWarp"); Assert.NotNull(warp.director); Assert.NotNull(warp.bio);
+                var quality = One<QualityTier>(scene); Assert.NotNull(quality, "QualityTier"); Assert.NotNull(quality.cam); Assert.NotNull(quality.sun); Assert.NotNull(quality.director);
+                Assert.NotNull(hud.quality); Assert.NotNull(hud.synth); Assert.NotNull(hud.warp);
+                Assert.NotNull(One<MatchLog>(scene).perf, "MatchLog.perf");
 
                 foreach (var c in new System.Type[] { typeof(MatchLog), typeof(ReplaySystem), typeof(PuppetControl), typeof(WinOdds), typeof(Commentator), typeof(Hazards), typeof(ChatVotes), typeof(BodyLook),
                                                       typeof(ContactLedger), typeof(Biometrics), typeof(Stamina), typeof(Tactician), typeof(WeatherFeed), typeof(VoiceCaster) })

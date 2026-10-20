@@ -25,6 +25,9 @@ namespace PoKingHill
         public float windShare = 0.12f, iceScale = 0.7f, shrinkTo = 1.3f;
 
         public string Active => _windUntil > Now || _iceUntil > Now || _quakeUntil > Now ? _activeName : "";
+        /// <summary>A gust is blowing / the ground is shaking right now (the ambience bed and MatchFx follow them).</summary>
+        public bool Gusting => _windUntil > Now;
+        public bool Quaking => _quakeUntil > Now;
         double _windUntil, _iceUntil, _quakeUntil, _shrinkFrom = -1; Vector2 _wind; string _activeName = "";
         float _nextRandom; int[] _feet = Array.Empty<int>(); double[] _footFriction = Array.Empty<double>(); bool _iced;
         readonly System.Random _rng = new();

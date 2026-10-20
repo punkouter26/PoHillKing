@@ -28,6 +28,11 @@ namespace PoKingHill
         public static string Provider => Azure ? "Azure" : Eleven ? "ElevenLabs" : "none";
 
         AudioSource _src; string _waiting; bool _busy; AudioClip _clip;
+        /// <summary>The voice is talking: ImpactSynth ducks the ambience under it.</summary>
+        public static bool Speaking { get; private set; }
+
+        [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.SubsystemRegistration)]
+        static void ResetStatics() => Speaking = false;
 
         void OnEnable() { _src = GetComponent<AudioSource>(); _src.playOnAwake = false; _src.spatialBlend = 0f; MatchEvents.Commentary += OnLine; }
         void OnDisable() { MatchEvents.Commentary -= OnLine; }
@@ -40,6 +45,8 @@ namespace PoKingHill
 
         void Update()
         {
+            Speaking = _src != null && _src.isPlaying;
+            if (_src != null && _src.isPlaying) _src.volume = GameSettings.Volume * GameSettings.VoiceVolume;
             if (_busy || _waiting == null || _src.isPlaying) return;
             string line = _waiting; _waiting = null;
             StartCoroutine(Speak(line));
@@ -47,6 +54,8 @@ namespace PoKingHill
 
         IEnumerator Speak(string text)
         {
+            // a line queued in an earlier play session (fast enter-play keeps the instance) can arrive with no key set now
+            if (!Available || !GameSettings.Voice) yield break;
             _busy = true;
             using var req = Azure ? AzureRequest(text) : ElevenRequest(text);
             req.timeout = 15;
@@ -56,7 +65,7 @@ namespace PoKingHill
             var clip = ToClip(req.downloadHandler.data, "commentary");
             if (clip == null) yield break;
             if (_clip != null) Destroy(_clip);
-            _clip = clip; _src.clip = clip; _src.volume = GameSettings.Volume; _src.Play();
+            _clip = clip; _src.clip = clip; _src.volume = GameSettings.Volume * GameSettings.VoiceVolume; _src.Play();
         }
 
         static UnityWebRequest AzureRequest(string text)

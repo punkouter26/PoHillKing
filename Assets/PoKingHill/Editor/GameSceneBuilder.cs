@@ -38,17 +38,27 @@ namespace PoKingHill.EditorTools
             rig.AddComponent<Commentator>().director = director;
             var hazards = rig.AddComponent<Hazards>(); hazards.director = director; hazards.pool = pool; hazards.weather = weather;
             var chat = rig.AddComponent<ChatVotes>(); chat.hazards = hazards; chat.stamina = stamina; chat.director = director;
-            var look = rig.AddComponent<BodyLook>(); look.director = director;
+            var look = rig.AddComponent<BodyLook>(); look.director = director; look.bio = bio;
             look.lineMaterial = AssetDatabase.LoadAssetAtPath<Material>(FxDir + "/IntentLine.mat");
             if (look.lineMaterial == null) { look.lineMaterial = new Material(Shader.Find("Universal Render Pipeline/Unlit")); AssetDatabase.CreateAsset(look.lineMaterial, FxDir + "/IntentLine.mat"); }
+            look.fighterMaterial = ShaderMat("Fighter", "PoKingHill/Fighter");    // an asset, so a player build keeps the shader
+            var warp = rig.AddComponent<TimeWarp>(); warp.director = director; warp.bio = bio;
+            var quality = rig.AddComponent<QualityTier>(); quality.director = director; quality.cam = cam; log.perf = quality;
+            // 3D one-shots for ImpactSynth, and what its ambience follows
+            var voices = new GameObject("Sound pool (3D one-shots)"); voices.transform.SetParent(rig.transform, false);
+            synth.pool = voices.AddComponent<SoundPool>(); synth.director = director; synth.hazards = hazards; synth.weather = weather; synth.bio = bio;
             // the voice gets its own AudioSource: the rig's belongs to ImpactSynth's procedural audio
             var voice = new GameObject("Voice (commentary)"); voice.transform.SetParent(rig.transform, false); voice.AddComponent<VoiceCaster>().director = director;
 
             var hud = BuildHud(director, odds, replay, log, hazards, chat);
             hud.bio = bio; hud.ledger = ledger; hud.stamina = stamina; hud.tactician = tactician; hud.weather = weather;
+            hud.quality = quality; hud.synth = synth; hud.warp = warp;
             BuildCameraRig(rig, director, cam, classic);
-            var fx = BuildFx(rig, director, sea); fx.stamina = stamina; fx.weather = weather;
-            EnsureDecalFeature();
+            var fx = BuildFx(rig, director, sea); fx.stamina = stamina; fx.weather = weather; fx.synth = synth; fx.bio = bio; fx.quality = quality;
+            quality.sun = fx.sun;
+            EnsureFeature<DecalRendererFeature>("Decal", null);
+            var shock = ShaderMat("Shockwave", "PoKingHill/Shockwave");
+            EnsureFeature<ShockwaveFeature>("Shockwave", f => f.material = shock);
         }
 
         // ------------------------------------------------------------------ HUD
@@ -164,6 +174,14 @@ namespace PoKingHill.EditorTools
             // steam off worn-out fighters (Stamina): slow, rising, growing puffs
             fx.steam = Particles(root, "Steam", alpha, 1.4f, new Vector2(0.12f, 0.25f), new Color(0.92f, 0.94f, 0.97f, 0.45f), -0.08f, 200);
             var ss = fx.steam.sizeOverLifetime; ss.enabled = true; ss.size = new ParticleSystem.MinMaxCurve(1f, AnimationCurve.Linear(0, 0.6f, 1, 2.2f));
+            // shock ring: a flat dust ring racing out along the ground from a hard hit
+            fx.shockRing = Particles(root, "Shock ring", ringMat, 0.5f, new Vector2(0.3f, 0.3f), new Color(0.72f, 0.66f, 0.58f, 0.75f), 0f, 20);
+            var sr = fx.shockRing.GetComponent<ParticleSystemRenderer>(); sr.alignment = ParticleSystemRenderSpace.World;
+            var smain = fx.shockRing.main; smain.startRotation3D = true; smain.startRotationX = Mathf.PI / 2; smain.startSpeed = 0; smain.startLifetime = 0.5f;
+            var ssize = fx.shockRing.sizeOverLifetime; ssize.enabled = true; ssize.size = new ParticleSystem.MinMaxCurve(9f, AnimationCurve.EaseInOut(0, 0.15f, 1, 1));
+            // drips off a fighter that has been in the sea
+            fx.drips = Particles(root, "Drips", alpha, 0.6f, new Vector2(0.015f, 0.03f), new Color(0.80f, 0.90f, 1f, 0.8f), 1f, 200);
+            var dsh = fx.drips.shape; dsh.radius = 0.25f;
 
             // scuff decals: a pool of URP decal projectors, faded by MatchFx
             var decalShader = Shader.Find("Shader Graphs/Decal");
@@ -199,6 +217,18 @@ namespace PoKingHill.EditorTools
             var spot = new GameObject("King spotlight").AddComponent<Light>(); spot.type = LightType.Spot; spot.spotAngle = 30f; spot.range = 10f; spot.intensity = 8f;
             spot.color = new Color(1f, 0.88f, 0.62f); spot.shadows = LightShadows.None; spot.enabled = false;
             fx.kingSpot = spot;
+            // lightning: a directional flash (MatchFx aims it per strike) and the bolt itself
+            var flash = new GameObject("Lightning flash").AddComponent<Light>(); flash.type = LightType.Directional; flash.color = new Color(0.80f, 0.86f, 1f);
+            flash.intensity = 0f; flash.shadows = LightShadows.None; flash.enabled = false; fx.lightning = flash;
+            var bolt = new GameObject("Lightning bolt").AddComponent<LineRenderer>(); bolt.transform.SetParent(root);
+            // a solid HDR white-blue line (the soft particle texture fades out along a line's length), bloom adds the glow
+            var boltMat = ShaderMat("Bolt", "Universal Render Pipeline/Unlit"); boltMat.SetColor("_BaseColor", new Color(2.4f, 2.6f, 3.2f)); EditorUtility.SetDirty(boltMat);
+            bolt.sharedMaterial = boltMat; bolt.widthMultiplier = 0.5f; bolt.widthCurve = AnimationCurve.Linear(0f, 1f, 1f, 0.35f);   // MatchFx scales the width by distance bolt.useWorldSpace = true; bolt.positionCount = 2; bolt.enabled = false;
+            bolt.colorGradient = new Gradient { colorKeys = new[] { new GradientColorKey(new Color(0.85f, 0.9f, 1f), 0f), new GradientColorKey(Color.white, 1f) }, alphaKeys = new[] { new GradientAlphaKey(1f, 0f), new GradientAlphaKey(1f, 1f) } };
+            bolt.shadowCastingMode = ShadowCastingMode.Off; bolt.receiveShadows = false; fx.bolt = bolt;
+            // danger: a red point light over the fighter furthest past the rim
+            var danger = new GameObject("Danger light").AddComponent<Light>(); danger.type = LightType.Point; danger.range = 3.5f; danger.color = new Color(1f, 0.16f, 0.1f);
+            danger.shadows = LightShadows.None; danger.enabled = false; fx.danger = danger;
 
             // water surface shader on the sea disc
             var waterShader = Shader.Find("PoKingHill/Water");
@@ -266,22 +296,38 @@ namespace PoKingHill.EditorTools
             return p;
         }
 
-        /// <summary>Adds URP's Decal renderer feature to the PC and Mobile renderers once (the way the renderer inspector does).</summary>
-        static void EnsureDecalFeature()
+        /// <summary>A material asset on one of the project's shaders, created once under FX/ (an asset, so builds keep the shader).</summary>
+        static Material ShaderMat(string name, string shader)
+        {
+            string path = $"{FxDir}/{name}.mat";
+            var sh = Shader.Find(shader); if (sh == null) throw new Exception($"shader {shader} missing");
+            var m = AssetDatabase.LoadAssetAtPath<Material>(path);
+            if (m == null) { m = new Material(sh); AssetDatabase.CreateAsset(m, path); }
+            else if (m.shader != sh) { m.shader = sh; EditorUtility.SetDirty(m); }
+            return m;
+        }
+
+        /// <summary>Adds a renderer feature to the PC and Mobile renderers once (the way the renderer inspector does);
+        /// configure runs on it at every build (e.g. to point it at its material).</summary>
+        static void EnsureFeature<T>(string name, Action<T> configure) where T : ScriptableRendererFeature
         {
             foreach (var path in new[] { "Assets/Settings/PC_Renderer.asset", "Assets/Settings/Mobile_Renderer.asset" })
             {
-                var data = AssetDatabase.LoadAssetAtPath<UniversalRendererData>(path);
-                if (data == null || data.rendererFeatures.Any(f => f is DecalRendererFeature)) continue;
-                var feat = ScriptableObject.CreateInstance<DecalRendererFeature>(); feat.name = "Decal";
-                AssetDatabase.AddObjectToAsset(feat, data);
-                AssetDatabase.TryGetGUIDAndLocalFileIdentifier(feat, out _, out long localId);
-                var so = new SerializedObject(data);
-                var feats = so.FindProperty("m_RendererFeatures"); var map = so.FindProperty("m_RendererFeatureMap");
-                feats.arraySize++; feats.GetArrayElementAtIndex(feats.arraySize - 1).objectReferenceValue = feat;
-                map.arraySize++; map.GetArrayElementAtIndex(map.arraySize - 1).longValue = localId;
-                so.ApplyModifiedProperties(); EditorUtility.SetDirty(data);
-                Debug.Log("[GameSceneBuilder] added the Decal renderer feature to " + path);
+                var data = AssetDatabase.LoadAssetAtPath<UniversalRendererData>(path); if (data == null) continue;
+                var feat = data.rendererFeatures.OfType<T>().FirstOrDefault();
+                if (feat == null)
+                {
+                    feat = ScriptableObject.CreateInstance<T>(); feat.name = name;
+                    AssetDatabase.AddObjectToAsset(feat, data);
+                    AssetDatabase.TryGetGUIDAndLocalFileIdentifier(feat, out _, out long localId);
+                    var so = new SerializedObject(data);
+                    var feats = so.FindProperty("m_RendererFeatures"); var map = so.FindProperty("m_RendererFeatureMap");
+                    feats.arraySize++; feats.GetArrayElementAtIndex(feats.arraySize - 1).objectReferenceValue = feat;
+                    map.arraySize++; map.GetArrayElementAtIndex(map.arraySize - 1).longValue = localId;
+                    so.ApplyModifiedProperties(); EditorUtility.SetDirty(data);
+                    Debug.Log($"[GameSceneBuilder] added the {name} renderer feature to {path}");
+                }
+                if (configure != null) { configure(feat); EditorUtility.SetDirty(feat); }
             }
             AssetDatabase.SaveAssets();
         }

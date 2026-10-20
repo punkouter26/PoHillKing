@@ -9,6 +9,9 @@ namespace PoKingHill
     /// Vulture (hang back while two others fight, then go for the weakest).</summary>
     public enum Targeting { Nearest, Opportunist, Dogpile, Grudge, Vulture }
     public enum Overlay { Off, Strain, Fatigue, Colliders }
+    /// <summary>Render budget (QualityTier): Auto starts High on desktop, Medium on phones, and steps down in a player
+    /// build when the frame rate stays low.</summary>
+    public enum Quality { Auto, Low, Medium, High }
 
     /// <summary>
     /// Every optional setting, saved in PlayerPrefs. Defaults are the plain game: one round per launch, the sea at its
@@ -40,6 +43,14 @@ namespace PoKingHill
         public static bool Replays { get => B("replays", true); set => Set("replays", value); }
         public static bool Effects { get => B("effects", true); set => Set("effects", value); }
         public static float Volume { get => F("volume", 0.6f); set => Set("volume", Mathf.Clamp01(value)); }
+        /// <summary>Mix channels, each a multiplier on Volume: hits and footsteps, the ambience bed (wind, surf, crowd,
+        /// thunder) and the commentary voice.</summary>
+        public static float SfxVolume { get => F("sfxVolume", 1f); set => Set("sfxVolume", Mathf.Clamp01(value)); }
+        public static float AmbienceVolume { get => F("ambVolume", 0.7f); set => Set("ambVolume", Mathf.Clamp01(value)); }
+        public static float VoiceVolume { get => F("voiceVolume", 1f); set => Set("voiceVolume", Mathf.Clamp01(value)); }
+        /// <summary>Slow motion when a fighter's balance point crosses the rim, a short freeze on the biggest hits (TimeWarp).</summary>
+        public static bool SlowMotion { get => B("slowmo", true); set => Set("slowmo", value); }
+        public static Quality Quality { get => (Quality)I("quality", (int)Quality.Auto); set => Set("quality", (int)value); }
         public static bool WinOdds { get => B("winOdds", true); set => Set("winOdds", value); }
         public static bool Commentary { get => B("commentary", true); set => Set("commentary", value); }
 
@@ -59,7 +70,7 @@ namespace PoKingHill
         public static string WeatherCity { get => S("weather", ""); set => Set("weather", (value ?? "").Trim()); }
 
         static readonly string[] Keys = { "rounds", "seaPace", "targeting", "hazards", "intro", "stamina", "getup", "tactician", "camera", "cutaways", "replays",
-                                          "effects", "volume", "winOdds", "commentary", "telemetryHud", "overlay", "intent", "twitch", "claude", "azure", "voice", "weather" };
+                                          "effects", "volume", "sfxVolume", "ambVolume", "voiceVolume", "slowmo", "quality", "winOdds", "commentary", "telemetryHud", "overlay", "intent", "twitch", "claude", "azure", "voice", "weather" };
         /// <summary>Back to the defaults: deletes only this game's keys, never other PlayerPrefs.</summary>
         public static void ResetAll() { foreach (var k in Keys) PlayerPrefs.DeleteKey("koth." + k); PlayerPrefs.Save(); Changed?.Invoke(); }
 

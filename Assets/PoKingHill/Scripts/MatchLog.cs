@@ -83,13 +83,14 @@ namespace PoKingHill
     /// Round telemetry and the ladder. Samples every seated fighter at 10 Hz in the physics callback into preallocated
     /// buffers (pelvis position, uprightness, mean |action|), and when a round ends writes one JSON line to
     /// persistentDataPath/telemetry/&lt;YYMMDD&gt;.jsonl: agents, outcome, knock-out times, path length, top speed,
-    /// action effort, final radius and the sampled kinematics. With GameSettings.UploadTelemetry and the environment
+    /// action effort, final radius and the sampled kinematics, plus the frame rate the round was shown at (QualityTier). With GameSettings.UploadTelemetry and the environment
     /// variable KOTH_AZURE_TABLE_SAS (a table SAS URL) a summary row is also inserted into Azure Table Storage.
     /// </summary>
     public unsafe class MatchLog : MonoBehaviour
     {
         public DemoDirector director;
         public ContactLedger ledger;                    // optional: knock-out credits in the telemetry and the ladder
+        public QualityTier perf;                        // optional: frame rate, frame time and quality tier per round
         const int Hz = 10, MaxSeconds = 90, MaxBodies = 8;
         readonly float[,] _kin = new float[MaxBodies, MaxSeconds * Hz * 4];     // x, y, z, up per sample
         readonly double[] _path = new double[MaxBodies], _topSpeed = new double[MaxBodies], _effort = new double[MaxBodies], _koAt = new double[MaxBodies];
@@ -176,7 +177,11 @@ namespace PoKingHill
                 for (int k = 0; k < 4 * _samples; k++) { if (k > 0) sb.Append(','); sb.Append(F(_kin[i, k])); }
                 sb.Append("]}");
             }
-            sb.Append("]}");
+            sb.Append(']');
+            if (perf != null)
+                sb.Append(",\"perf\":{\"fps\":").Append(F(perf.Fps)).Append(",\"frame_ms\":").Append(F(perf.FrameMs)).Append(",\"p95_ms\":").Append(F(perf.FrameP95Ms))
+                  .Append(",\"gc_kb_frame\":").Append(F(perf.GcKbPerFrame)).Append(",\"quality\":\"").Append(perf.Current).Append("\"}");
+            sb.Append('}');
             Directory.CreateDirectory(Folder);
             File.AppendAllText(Path.Combine(Folder, DateTime.Now.ToString("yyMMdd") + ".jsonl"), sb.Append('\n').ToString());
 

@@ -13,7 +13,7 @@ namespace PoKingHill
     ///             tactic, edge warning; tap = adrenaline), round clock and sea bar, win-odds bar, hazard chip,
     ///             knock-out feed, caption line, puppet stick
     ///   intro     tale of the tape: one card per fighter (mass, strongest joint, Elo, record, knock-outs, brain, weather)
-    ///   sheets    Menu (tabs Play | Agents | Settings | Connect) and Results (winner, per-fighter telemetry, replay, next)
+    ///   sheets    Menu (tabs Play | Agents | Match | Show | Connect) and Results (winner, per-fighter telemetry, replay, next)
     ///   debug     two-finger tap or the BL button: timings, overlays, intent arrows, hazard triggers, replay
     /// Safe-area padding follows Screen.safeArea. State comes from DemoDirector and MatchEvents; nothing here touches
     /// the simulation except through the director's public methods.
@@ -32,6 +32,9 @@ namespace PoKingHill
         public Stamina stamina;
         public Tactician tactician;
         public WeatherFeed weather;
+        public QualityTier quality;               // optional: the Show tab's quality row and the telemetry line
+        public ImpactSynth synth;                 // optional: audio levels in the debug panel
+        public TimeWarp warp;                     // optional: slow-motion counts in the debug panel
         public StyleSheet style;
 
         UIDocument _doc;
@@ -193,9 +196,9 @@ namespace PoKingHill
         void BuildMenu()
         {
             var tabs = El("tabs", _sheetBody);
-            string[] names = { "Play", "Agents", "Settings", "Connect" };
+            string[] names = { "Play", "Agents", "Match", "Show", "Connect" };
             for (int i = 0; i < names.Length; i++) { int t = i; var b = Btn(names[i], "tab", () => { _tab = t; RebuildSheet(); }, tabs); if (i == _tab) b.AddToClassList("selected"); }
-            if (_tab == 0) BuildPlay(); else if (_tab == 1) BuildAgents(); else if (_tab == 2) BuildSettings(); else BuildConnect();
+            if (_tab == 0) BuildPlay(); else if (_tab == 1) BuildAgents(); else if (_tab == 2) BuildMatch(); else if (_tab == 3) BuildShow(); else BuildConnect();
         }
 
         void BuildPlay()
@@ -251,33 +254,48 @@ namespace PoKingHill
 
         static string Initials(string s) { var parts = s.Split(new[] { ' ', '-' }, StringSplitOptions.RemoveEmptyEntries); return parts.Length == 0 ? "?" : parts.Length == 1 ? parts[0].Substring(0, Math.Min(2, parts[0].Length)).ToUpperInvariant() : (parts[0][0].ToString() + parts[1][0]).ToUpperInvariant(); }
 
-        void BuildSettings()
+        // The rules of a match.
+        void BuildMatch()
         {
             Text("Match", "h2", _sheetBody);
             int rounds = GameSettings.RoundsPerMatch; int[] roundOpts = { 1, 3, 5, 0 };
             Labeled("Rounds", new[] { "1", "3", "5", "Endless" }, Array.IndexOf(roundOpts, rounds), i => GameSettings.RoundsPerMatch = roundOpts[i]);
             float[] paces = { 1.5f, 1f, 0.7f };
             Labeled("Sea", new[] { "Slow", "Normal", "Fast" }, Nearest(paces, GameSettings.SeaPace), i => GameSettings.SeaPace = paces[i]);
-            var tl = Text("Free-for-all targets", "body", _sheetBody); tl.style.marginTop = 4;
+            Text("Free-for-all targets", "h2", _sheetBody);
             Seg(new[] { "Nearest", "Opportunist", "Dogpile", "Grudge", "Vulture" }, (int)GameSettings.Targeting, i => GameSettings.Targeting = (Targeting)i).AddToClassList("seg-tight");
+            Text("Rules", "h2", _sheetBody);
             var game = El("grid", _sheetBody);
             Chip(game, "Tale of the tape", GameSettings.Intro, v => GameSettings.Intro = v);
             Chip(game, "Stamina + hype", GameSettings.Stamina, v => GameSettings.Stamina = v);
             bool getupBrain = director.getupBrains != null && Array.Exists(director.getupBrains, b => b != null && b.policy != null);
             Chip(game, getupBrain ? "Get back up" : "Get back up (no brain yet)", GameSettings.GetUp, v => GameSettings.GetUp = v, getupBrain);
             bool planner = Array.Exists(director.roster, f => f.mlp != null);
-            Chip(game, planner ? "Tactician (experimental)" : "Tactician (no weights)", GameSettings.Tactician, v => GameSettings.Tactician = v, planner);
-            Text("Show", "h2", _sheetBody);
+            Chip(game, planner ? "Tactician (beta)" : "Tactician (no weights)", GameSettings.Tactician, v => GameSettings.Tactician = v, planner);
+            Chip(game, "Hazards", GameSettings.Hazards, v => GameSettings.Hazards = v);
+        }
+
+        // How the match is shown and heard.
+        void BuildShow()
+        {
+            Text("Picture", "h2", _sheetBody);
             Labeled("Camera", new[] { "Broadcast", "Classic" }, (int)GameSettings.Camera, i => GameSettings.Camera = (CameraStyle)i);
-            float[] vols = { 0f, 0.3f, 0.6f, 1f };
-            Labeled("Sound", new[] { "Off", "Low", "Mid", "High" }, Nearest(vols, GameSettings.Volume), i => GameSettings.Volume = vols[i]);
+            // the tier Auto resolved to is on the telemetry line and in the debug panel (a longer label overflows the segment)
+            Labeled("Quality", new[] { "Auto", "Low", "Medium", "High" }, (int)GameSettings.Quality, i => GameSettings.Quality = (Quality)i);
             var grid = El("grid", _sheetBody);
-            Chip(grid, "Hazards", GameSettings.Hazards, v => GameSettings.Hazards = v);
-            Chip(grid, "Camera cut-aways", GameSettings.CutAways, v => GameSettings.CutAways = v);
-            Chip(grid, "Instant replays", GameSettings.Replays, v => GameSettings.Replays = v);
             Chip(grid, "Effects", GameSettings.Effects, v => GameSettings.Effects = v);
+            Chip(grid, "Slow motion", GameSettings.SlowMotion, v => GameSettings.SlowMotion = v);
+            Chip(grid, "Cut-aways", GameSettings.CutAways, v => GameSettings.CutAways = v);
+            Chip(grid, "Instant replays", GameSettings.Replays, v => GameSettings.Replays = v);
             Chip(grid, "Win odds", GameSettings.WinOdds, v => GameSettings.WinOdds = v);
             Chip(grid, "Commentary", GameSettings.Commentary, v => GameSettings.Commentary = v);
+            Text("Sound", "h2", _sheetBody);
+            float[] vols = { 0f, 0.3f, 0.6f, 1f }, mix = { 0f, 0.4f, 0.7f, 1f };
+            string[] levels = { "Off", "Low", "Mid", "High" };
+            Labeled("Master", levels, Nearest(vols, GameSettings.Volume), i => GameSettings.Volume = vols[i]);
+            Labeled("Hits", levels, Nearest(mix, GameSettings.SfxVolume), i => GameSettings.SfxVolume = mix[i]);
+            Labeled("Ambience", levels, Nearest(mix, GameSettings.AmbienceVolume), i => GameSettings.AmbienceVolume = mix[i]);
+            Labeled("Voice", levels, Nearest(mix, GameSettings.VoiceVolume), i => GameSettings.VoiceVolume = mix[i]);
         }
 
         // Network features: each one names what it needs when it is not configured, so nothing here fails silently.
@@ -417,7 +435,10 @@ namespace PoKingHill
             {
                 _nextSlow = Time.unscaledTime + 0.25f;
                 FitColumn();
-                _fps.text = GameSettings.Telemetry ? $"{_fpsAvg:0} FPS · phys {director.StepMs:0.00} · brain {(director.fighters.Length > 0 ? director.fighters[0].LastInferenceMs : 0):0.00} ms" : $"{_fpsAvg:0} FPS";
+                _fps.text = !GameSettings.Telemetry ? $"{_fpsAvg:0} FPS" : quality != null
+                    // a second, smaller line: one long line spread over the title (physics and brain times are in the debug panel)
+                    ? $"{quality.Fps:0} FPS\n<size=20>p95 {quality.FrameP95Ms:0} ms · {quality.Current}</size>"
+                    : $"{_fpsAvg:0} FPS · phys {director.StepMs:0.00} · brain {(director.fighters.Length > 0 ? director.fighters[0].LastInferenceMs : 0):0.00} ms";
                 if (_debug.style.display == DisplayStyle.Flex) _debugText.text = DebugText();
                 UpdateCountdown();
             }
@@ -555,6 +576,9 @@ namespace PoKingHill
             sb.Append($"physics tick {director.StepMs:0.000} ms · ");
             for (int i = 0; i < director.Playing && i < director.fighters.Length; i++) sb.Append($"{director.fighters[i].robotPrefix} {director.fighters[i].LastInferenceMs:0.00} ms  ");
             sb.Append($"\nGC {GC.CollectionCount(0)} gen0 · telemetry {MatchLog.Folder}");
+            if (quality != null) sb.Append($"\nframe {quality.FrameMs:0.0} ms (p95 {quality.FrameP95Ms:0.0}) · {quality.GcKbPerFrame:0.00} KB/frame · quality {quality.Label}, {quality.Downgrades} auto steps");
+            if (synth != null) sb.Append($"\naudio: wind {synth.WindRms:0.000} surf {synth.SurfRms:0.000} crowd {synth.CrowdRms:0.000} · slide {synth.Slide:0.00} grind {synth.Grind:0.00} · {synth.Clanks} clanks {synth.Smacks} smacks {synth.Grunts} grunts");
+            if (warp != null) sb.Append($" · {warp.SlowMos} slow-mos {warp.HitStops} hit stops");
             if (chat != null) sb.Append($"\nchat: {chat.Status}");
             if (tactician != null && GameSettings.Tactician) sb.Append($"\ntactician: {tactician.Decisions} decisions, last batch {tactician.LastBatchMs:0} ms");
             if (weather != null && weather.Status.Length > 0) sb.Append($"\nweather: {weather.Status}");
