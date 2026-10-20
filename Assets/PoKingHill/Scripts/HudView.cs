@@ -8,15 +8,20 @@ namespace PoKingHill
 {
     /// <summary>
     /// The whole UI in UI Toolkit, one 9:16 column that never scrolls (styles in UI/Hud.uss).
-    ///   corners   TL title · TC FPS (plus physics/brain ms with the telemetry HUD) · TR menu · BL debug · BR version
-    ///   live      score badges (each with a vitals strip: balance bar, 3 s strain sparkline, stamina; down count,
-    ///             tactic, edge warning; tap = adrenaline), round clock and sea bar, win-odds bar, hazard chip,
-    ///             knock-out feed, caption line, puppet stick
+    ///   corners   TL title · TC FPS (plus frame p95 and quality with the telemetry HUD; hold it for the debug panel)
+    ///             · TR menu · BL debug · BR version. The FPS pill steps aside from a punch-hole camera (Screen.cutouts).
+    ///   live      one row of fighter badges (seat-coloured initials, wins pip, status tag, vitals strip; tap =
+    ///             adrenaline), round clock, sea bar and ties, win-odds bar, hazard chip, knock-out feed, caption line,
+    ///             replay bar with a draggable playhead, puppet stick that appears under the thumb
     ///   intro     tale of the tape: one card per fighter (mass, strongest joint, Elo, record, knock-outs, brain, weather)
-    ///   sheets    Menu (tabs Play | Agents | Match | Show | Connect) and Results (winner, per-fighter telemetry, replay, next)
-    ///   debug     two-finger tap or the BL button: timings, overlays, intent arrows, hazard triggers, replay
+    ///   sheets    Menu (tabs Play | Agents | Match | Show | Connect) and Results (winner, replay strip, per-fighter
+    ///             telemetry, next). A sheet swipes down (or its grabber is tapped) to a peek pill; a swipe up from the
+    ///             bottom edge brings it back, or opens the menu during a round. A sheet taller than the room between
+    ///             the corners turns dense.
+    ///   debug     two-finger tap, holding the FPS pill or the BL button: tabs Perf | View | Hazards
     /// Safe-area padding follows Screen.safeArea. State comes from DemoDirector and MatchEvents; nothing here touches
-    /// the simulation except through the director's public methods.
+    /// the simulation except through the director's and the replay's public methods. Tests and captures can lay the HUD
+    /// out for another screen (SimulateScreen) and list what does not fit (LayoutProblems).
     /// </summary>
     [RequireComponent(typeof(UIDocument))]
     public class HudView : MonoBehaviour
@@ -37,16 +42,23 @@ namespace PoKingHill
         public TimeWarp warp;                     // optional: slow-motion counts in the debug panel
         public StyleSheet style;
 
+        const float EdgeBand = 220f, SwipeDistance = 180f, DismissDistance = 140f, HoldSeconds = 0.5f;
+
         UIDocument _doc;
-        VisualElement _root, _column, _safe, _scoreboard, _roundInfo, _seaFill, _odds, _puppet, _debug, _debugRows, _sheet, _sheetBody, _knob, _stick, _feed, _intro;
-        Label _fps, _clock, _hazard, _caption, _status, _oddsLabel, _debugText, _countdown;
-        Button _next, _skip;
+        VisualElement _root, _column, _safe, _topBar, _bottomBar, _menuBtn, _scoreboard, _roundInfo, _seaFill, _odds, _puppet, _debug, _debugTabs, _debugBody,
+                      _sheet, _sheetBody, _knob, _stick, _stickZone, _feed, _intro, _replayBar, _replayFill, _replayHead, _peekRow, _resFill, _resHead;
+        Label _title, _fps, _clock, _ties, _hazard, _caption, _status, _oddsLabel, _debugText;
+        Button _next, _peek;
         readonly List<VisualElement> _badges = new(); readonly List<VisualElement> _oddsSegs = new();
-        readonly List<VitalsBar> _vitals = new(); readonly List<Label> _tags = new();
+        readonly List<VitalsBar> _vitals = new(); readonly List<Label> _tags = new(); readonly List<Label> _pips = new();
         readonly List<(VisualElement row, float until)> _feedRows = new(); int _introShown = -2;
         enum SheetKind { None, Menu, Result }
-        SheetKind _sheetKind; int _tab; float _fpsAvg = 60, _nextSlow, _captionUntil; string _lastStatus = ""; float _statusUntil;
-        Rect _safeArea; Vector2 _screen;
+        SheetKind _sheetKind; int _tab, _debugTab; bool _collapsed;
+        float _fpsAvg = 60, _nextSlow, _captionUntil, _pressAt = -1; string _lastStatus = ""; float _statusUntil;
+        Vector2 _stickCenter;
+        Rect _safeArea; Vector2 _screen; float _bottomInset;
+        // SimulateScreen: a virtual screen in pixels (safe area and cutouts with the origin bottom-left, like Screen's)
+        bool _sim; Vector2 _simSize; Rect _simSafe; Rect[] _simCutouts = Array.Empty<Rect>();
 
         void OnEnable()
         {
@@ -62,8 +74,36 @@ namespace PoKingHill
             MatchEvents.StateChanged -= OnState; MatchEvents.RoundStarted -= OnRoundStarted; MatchEvents.RoundEnded -= OnRoundEnded; MatchEvents.Caption -= OnCaption;
             MatchEvents.KnockoutCredited -= OnCredited;
             GameSettings.Changed -= OnSettings;
+            PuppetControl.Stick = Vector2.zero; PuppetControl.Side = 0;
         }
         void OnRoundStarted() { RebuildScoreboard(); foreach (var (row, _) in _feedRows) row.RemoveFromHierarchy(); _feedRows.Clear(); }
+
+        // ------------------------------------------------------------------ public hooks (tests, captures, CLI)
+        /// <summary>The menu tab on show: 0 Play, 1 Agents, 2 Match, 3 Show, 4 Connect.</summary>
+        public int Tab { get => _tab; set { _tab = Mathf.Clamp(value, 0, 4); if (_sheetKind == SheetKind.Menu) RebuildSheet(); } }
+        public bool SheetShown => _sheet != null && _sheet.style.display == DisplayStyle.Flex;
+        public bool SheetCollapsed => _collapsed;
+        public bool DebugShown => _debug != null && _debug.style.display == DisplayStyle.Flex;
+        public bool PuppetShown => _puppet != null && _puppet.style.display == DisplayStyle.Flex;
+        public bool ReplayBarShown => _replayBar != null && _replayBar.style.display == DisplayStyle.Flex;
+        public int BadgeCount => _badges.Count;
+        public void SetCollapsed(bool collapsed) { _collapsed = collapsed && _sheetKind != SheetKind.None; ApplyVisibility(); }
+        public void SetDebugTab(int tab) { _debugTab = Mathf.Clamp(tab, 0, 2); if (DebugShown) BuildDebugRows(); }
+
+        /// <summary>Lays the HUD out as on a screen of this many pixels, with this safe area and these cutouts (origin
+        /// bottom-left, as Screen reports them; an empty safe area = the whole screen). Clear with ClearSimulation.</summary>
+        public void SimulateScreen(int width, int height, Rect safeArea = default, Rect[] cutouts = null)
+        {
+            _sim = true; _simSize = new Vector2(width, height);
+            _simSafe = safeArea.width > 0 ? safeArea : new Rect(0, 0, width, height);
+            _simCutouts = cutouts ?? Array.Empty<Rect>();
+            _safeArea = default; FitColumn();
+        }
+        public void ClearSimulation() { _sim = false; _safeArea = default; _fps.style.translate = StyleKeyword.Null; FitColumn(); }
+
+        Vector2 ScreenSize => _sim ? _simSize : new Vector2(Screen.width, Screen.height);
+        Rect SafeArea => _sim ? _simSafe : Screen.safeArea;
+        Rect[] Cutouts => _sim ? _simCutouts : Screen.cutouts;
 
         // ------------------------------------------------------------------ construction
         static VisualElement El(string cls, VisualElement parent = null) { var e = new VisualElement(); foreach (var c in cls.Split(' ', StringSplitOptions.RemoveEmptyEntries)) e.AddToClassList(c); parent?.Add(e); return e; }
@@ -74,50 +114,63 @@ namespace PoKingHill
         {
             var top = _doc.rootVisualElement; top.Clear();
             if (style != null) top.styleSheets.Add(style);
-            _root = El("root", top); _root.style.flexGrow = 1;
+            _root = El("root", top);
             _column = El("column", _root);
             _root.RegisterCallback<GeometryChangedEvent>(_ => FitColumn());
             _safe = El("safe", _column);
 
             // top bar: TL title · TC FPS · TR menu
-            var bar = El("top-bar", _safe);
-            var mid = El("top-center", bar); mid.pickingMode = PickingMode.Ignore;      // FPS centred on the screen, under title and menu
-            _fps = Text("60 FPS", "pill fps", mid);
-            Text("PoKingHill", "title shadow", bar);
-            var right = El("top-right", bar);
-            var menu = Btn("", "icon-btn", ToggleMenu, right); menu.Add(new Icon(Icon.Kind.Menu)); menu.tooltip = "Menu";
+            _topBar = El("top-bar", _safe);
+            var mid = El("top-center", _topBar); mid.pickingMode = PickingMode.Ignore;      // FPS centred on the screen, under title and menu
+            _fps = Text("60 FPS", "pill fps", mid); _fps.tooltip = "Hold for the debug panel";
+            _fps.RegisterCallback<PointerDownEvent>(_ => _pressAt = Time.unscaledTime);
+            _fps.RegisterCallback<PointerUpEvent>(_ => _pressAt = -1);
+            _fps.RegisterCallback<PointerLeaveEvent>(_ => _pressAt = -1);
+            _title = Text("PoKingHill", "title shadow", _topBar);
+            var right = El("top-right", _topBar);
+            _menuBtn = Btn("", "icon-btn", ToggleMenu, right); _menuBtn.Add(new Icon(Icon.Kind.Menu)); _menuBtn.tooltip = "Menu";
 
             _scoreboard = El("scoreboard", _safe);
             _roundInfo = El("round-info", _safe);
             _clock = Text("", "clock shadow", _roundInfo);
-            var seaBar = El("sea-bar", _roundInfo); _seaFill = El("sea-fill", seaBar);
-            _skip = Btn("Skip", "seg-btn", () => replay?.Stop(), _roundInfo); _skip.style.flexGrow = 0; _skip.style.width = 120; _skip.style.marginLeft = 16;
-            _odds = El("odds", _safe);
+            var seaBar = El("sea-bar clip", _roundInfo); _seaFill = El("sea-fill", seaBar);
+            _ties = Text("", "ties", _roundInfo);
+            _odds = El("odds clip", _safe);
             _oddsLabel = Text("", "odds-label dim shadow", _safe);
             _hazard = Text("", "hazard-chip", _safe);
             _feed = El("feed", _safe); _feed.pickingMode = PickingMode.Ignore;
             El("spacer", _safe);
             _intro = El("intro", _safe); _intro.style.display = DisplayStyle.None;
             _caption = Text("", "caption", _safe); _caption.style.opacity = 0;
-
+            _replayBar = El("replay-bar", _safe); BuildReplayBar();
             _puppet = El("puppet", _safe); BuildPuppet();
 
-            var bottom = El("bottom-bar", _safe);
-            var dbg = Btn("", "icon-btn", ToggleDebug, bottom); dbg.Add(new Icon(Icon.Kind.Sliders)); dbg.tooltip = "Debug (or tap with two fingers)";
-            _status = Text("", "status shadow", bottom);
-            Text(BuildInfo.Version, "version shadow", bottom);
+            _bottomBar = El("bottom-bar", _safe);
+            var dbg = Btn("", "icon-btn", ToggleDebug, _bottomBar); dbg.Add(new Icon(Icon.Kind.Sliders)); dbg.tooltip = "Debug (or tap with two fingers, or hold the FPS pill)";
+            _status = Text("", "status shadow clip", _bottomBar);
+            Text(BuildInfo.Version, "version shadow", _bottomBar);
 
-            _debug = El("debug-panel", _column); _debugText = Text("", "", _debug); _debugRows = El("", _debug); _debug.style.display = DisplayStyle.None;
+            _debug = El("debug-panel", _column); _debug.style.display = DisplayStyle.None;
+            _debugTabs = El("tabs", _debug); _debugBody = El("", _debug); _debugText = new Label();
 
             _sheet = El("sheet", _column); _sheet.style.display = DisplayStyle.None;
-            El("grabber", _sheet);
+            var grab = El("grab-zone", _sheet); El("grabber", grab); grab.tooltip = "Swipe down (or tap) to hide";
+            SheetDrag(grab);
             _sheetBody = El("", _sheet);
+            _sheet.RegisterCallback<GeometryChangedEvent>(_ => FitSheet());
+
+            _peekRow = El("peek-row", _column); _peekRow.pickingMode = PickingMode.Ignore;
+            _peek = Btn("", "peek", () => SetCollapsed(false), _peekRow);
+            _peekRow.style.display = DisplayStyle.None;
+            EdgeSwipe();
         }
 
         void FitColumn()
         {
             float w = _root.layout.width, h = _root.layout.height; if (float.IsNaN(w) || h <= 0) return;
-            float col = Mathf.Min(w, h * 9f / 16f);
+            var scr = ScreenSize;
+            float panelW = _sim ? h * scr.x / Mathf.Max(1, scr.y) : w;          // the panel is always 1920 units tall
+            float col = Mathf.Min(panelW, h * 9f / 16f);
             bool changed = Mathf.Abs(_column.resolvedStyle.width - col) > 0.5f;
             if (changed) _column.style.width = col;
             ApplySafeArea(changed);
@@ -125,22 +178,141 @@ namespace PoKingHill
 
         void ApplySafeArea(bool force)
         {
-            var sa = Screen.safeArea; var screen = new Vector2(Screen.width, Screen.height);
+            var sa = SafeArea; var screen = ScreenSize;
             if (!force && sa == _safeArea && screen == _screen) return;
             _safeArea = sa; _screen = screen;
-            float k = _root.layout.height / Mathf.Max(1, Screen.height); if (float.IsNaN(k) || k <= 0) return;
-            bool fullWidth = Mathf.Abs(_column.layout.width - _root.layout.width) < 2;
-            _safe.style.paddingTop = 24 + (Screen.height - sa.yMax) * k; _safe.style.paddingBottom = 24 + sa.yMin * k;
-            _safe.style.paddingLeft = 28 + (fullWidth ? sa.xMin * k : 0); _safe.style.paddingRight = 28 + (fullWidth ? (Screen.width - sa.xMax) * k : 0);
-            _sheet.style.bottom = 120 + sa.yMin * k;       // the sheet ends above the bottom corners (debug, version)
+            float k = _root.layout.height / Mathf.Max(1, screen.y); if (float.IsNaN(k) || k <= 0) return;
+            float colW = _column.style.width.value.value > 0 ? _column.style.width.value.value : _column.layout.width;
+            float panelW = screen.x * k; bool fullWidth = Mathf.Abs(colW - panelW) < 2;
+            float top = (screen.y - sa.yMax) * k, bottom = sa.yMin * k;
+            // a cutout the safe area does not cover, away from the middle (a corner notch), pushes the top bar down;
+            // one in the middle is a punch hole the FPS pill steps around (DodgeCutouts)
+            foreach (var c in Cutouts)
+            {
+                float cx = c.center.x / screen.x;
+                if (c.yMin * k < screen.y * k * 0.2f) continue;                 // a cutout at the bottom
+                if (cx > 0.3f && cx < 0.7f) continue;
+                top = Mathf.Max(top, (screen.y - c.yMin) * k);
+            }
+            // the insets pad the column; .safe keeps its own padding from the stylesheet inside them
+            _column.style.paddingTop = top; _column.style.paddingBottom = bottom;
+            _column.style.paddingLeft = fullWidth ? sa.xMin * k : 0; _column.style.paddingRight = fullWidth ? (screen.x - sa.xMax) * k : 0;
+            _sheet.style.bottom = 120 + bottom;       // the sheet ends above the bottom corners (debug, version)
+            _peekRow.style.bottom = 128 + bottom;
+            _bottomInset = bottom;
+            _sheet.RemoveFromClassList("dense");       // re-measured at the new size (FitSheet)
+            _fps.schedule.Execute(DodgeCutouts);
+        }
+
+        /// <summary>Cutout in panel units (origin top-left), from a screen rectangle (origin bottom-left).</summary>
+        Rect PanelRect(Rect screenRect)
+        {
+            var scr = ScreenSize; float k = _root.layout.height / Mathf.Max(1, scr.y);
+            float offsetX = _root.worldBound.xMin + (_root.layout.width - scr.x * k) * 0.5f;
+            return new Rect(offsetX + screenRect.xMin * k, _root.worldBound.yMin + (scr.y - screenRect.yMax) * k, screenRect.width * k, screenRect.height * k);
+        }
+
+        void DodgeCutouts()
+        {
+            var pill = _fps.worldBound; if (float.IsNaN(pill.width) || pill.width <= 0) return;
+            var shift = _fps.resolvedStyle.translate; pill.position -= new Vector2(shift.x, shift.y);    // where it sits untranslated
+            var dodge = Vector2.zero;
+            foreach (var c in Cutouts)
+            {
+                var r = PanelRect(c); r.xMin -= 10; r.xMax += 10; r.yMax += 10;
+                if (!r.Overlaps(pill)) continue;
+                float right = r.xMax - pill.xMin, left = r.xMin - pill.xMax;      // shift needed to clear it on either side
+                float roomRight = _menuBtn.worldBound.xMin - 12 - pill.xMax, roomLeft = pill.xMin - (_title.worldBound.xMax + 12);
+                dodge = right <= roomRight ? new Vector2(right, 0) : -left <= roomLeft ? new Vector2(left, 0) : new Vector2(0, r.yMax - pill.yMin);
+                break;
+            }
+            if (dodge == Vector2.zero) _fps.style.translate = StyleKeyword.Null; else _fps.style.translate = new Translate(dodge.x, dodge.y);
+        }
+
+        /// <summary>A sheet taller than the room between the top bar and the bottom corners tightens its rows.</summary>
+        void FitSheet()
+        {
+            if (_sheet.style.display == DisplayStyle.None || _sheet.ClassListContains("dense")) return;
+            if (_sheet.worldBound.yMin < _topBar.worldBound.yMax + 8) _sheet.AddToClassList("dense");
+        }
+
+        // ------------------------------------------------------------------ gestures
+        void SheetDrag(VisualElement grab)
+        {
+            float startY = 0, dy = 0; bool moved = false;
+            grab.RegisterCallback<PointerDownEvent>(e => { grab.CapturePointer(e.pointerId); startY = e.position.y; dy = 0; moved = false; _sheet.AddToClassList("dragging"); });
+            grab.RegisterCallback<PointerMoveEvent>(e =>
+            {
+                if (!grab.HasPointerCapture(e.pointerId)) return;
+                dy = Mathf.Max(0, e.position.y - startY); moved |= dy > 12; _sheet.style.translate = new Translate(0, dy);
+            });
+            grab.RegisterCallback<PointerUpEvent>(e =>
+            {
+                if (!grab.HasPointerCapture(e.pointerId)) return;
+                grab.ReleasePointer(e.pointerId); _sheet.RemoveFromClassList("dragging"); _sheet.style.translate = StyleKeyword.Null;
+                if (!moved || dy > DismissDistance) SetCollapsed(true);
+            });
+        }
+
+        /// <summary>A swipe up that starts on the bottom edge (not on a control, the stick or a sheet): brings a hidden
+        /// sheet back, or opens the menu during the intro or a round (as the menu button does).</summary>
+        void EdgeSwipe()
+        {
+            int id = -1; float startY = 0;
+            _root.RegisterCallback<PointerDownEvent>(e =>
+            {
+                id = -1;
+                if (e.target is Button || Inside(e.target as VisualElement, _puppet) || Inside(e.target as VisualElement, _sheet) || Inside(e.target as VisualElement, _debug)) return;
+                if (e.position.y < _column.worldBound.yMax - EdgeBand) return;
+                id = e.pointerId; startY = e.position.y;
+            });
+            _root.RegisterCallback<PointerUpEvent>(e => { if (e.pointerId != id) return; id = -1; if (startY - e.position.y > SwipeDistance) SwipeUp(); });
+        }
+
+        static bool Inside(VisualElement e, VisualElement ancestor) { for (; e != null; e = e.parent) if (e == ancestor) return true; return false; }
+
+        void SwipeUp()
+        {
+            if (director == null) return;
+            if (_sheetKind != SheetKind.None) { if (_collapsed) SetCollapsed(false); return; }
+            if (director.State == MatchState.Fight || director.State == MatchState.Intro) ToggleMenu();
+        }
+
+        void BuildReplayBar()
+        {
+            Text("REPLAY", "replay-label", _replayBar);
+            Scrub(_replayBar, out _replayFill, out _replayHead, t => replay?.Seek(t));
+            Btn("Skip", "replay-skip", () => replay?.Stop(), _replayBar);
+            _replayBar.style.display = DisplayStyle.None;
+        }
+
+        /// <summary>A track with a fill and a head; dragging holds the replay and seeks, releasing lets it run on.</summary>
+        VisualElement Scrub(VisualElement parent, out VisualElement fill, out VisualElement head, Action<float> seek, Action<float> begin = null)
+        {
+            var scrub = El("scrub", parent); var track = El("scrub-track", scrub); var f = El("scrub-fill", track); var h = El("scrub-head", track);
+            float At(Vector2 world) => Mathf.Clamp01((world.x - track.worldBound.xMin) / Mathf.Max(1, track.worldBound.width));
+            scrub.RegisterCallback<PointerDownEvent>(e =>
+            {
+                e.StopPropagation(); float t = At(e.position);
+                if (!ReplaySystem.Active) { begin?.Invoke(t); return; }          // the results strip: play from there
+                scrub.CapturePointer(e.pointerId);
+                if (replay != null) { replay.Hold = true; seek(t); }
+            });
+            scrub.RegisterCallback<PointerMoveEvent>(e => { if (scrub.HasPointerCapture(e.pointerId) && ReplaySystem.Active) seek(At(e.position)); });
+            scrub.RegisterCallback<PointerUpEvent>(e => { if (scrub.HasPointerCapture(e.pointerId)) scrub.ReleasePointer(e.pointerId); });
+            scrub.RegisterCallback<PointerCaptureOutEvent>(_ => { if (replay != null) replay.Hold = false; });     // released, or hidden mid-drag
+            fill = f; head = h; return scrub;
         }
 
         void BuildPuppet()
         {
-            _stick = El("stick", _puppet); _knob = El("stick-knob", _stick);
-            _stick.RegisterCallback<PointerDownEvent>(e => { _stick.CapturePointer(e.pointerId); MoveStick(e.localPosition); });
-            _stick.RegisterCallback<PointerMoveEvent>(e => { if (_stick.HasPointerCapture(e.pointerId)) MoveStick(e.localPosition); });
-            _stick.RegisterCallback<PointerUpEvent>(e => { _stick.ReleasePointer(e.pointerId); PuppetControl.Stick = Vector2.zero; _knob.style.left = 90; _knob.style.top = 90; });
+            // the stick rests bottom-left and jumps to wherever a thumb lands in the zone
+            _stickZone = El("stick-zone", _puppet);
+            _stick = El("stick", _stickZone); _knob = El("stick-knob", _stick); _stick.pickingMode = PickingMode.Ignore; _knob.pickingMode = PickingMode.Ignore;
+            _stickZone.RegisterCallback<PointerDownEvent>(e => { _stickZone.CapturePointer(e.pointerId); PlaceStick(e.localPosition); MoveStick(e.localPosition); });
+            _stickZone.RegisterCallback<PointerMoveEvent>(e => { if (_stickZone.HasPointerCapture(e.pointerId)) MoveStick(e.localPosition); });
+            _stickZone.RegisterCallback<PointerUpEvent>(e => { _stickZone.ReleasePointer(e.pointerId); RestStick(); });
+            _stickZone.RegisterCallback<PointerCaptureOutEvent>(_ => RestStick());
             var side = El("side-btns", _puppet);
             foreach (var (label, dir) in new[] { ("Step L", 1f), ("Step R", -1f) })
             {
@@ -152,11 +324,28 @@ namespace PoKingHill
             _puppet.style.display = DisplayStyle.None;
         }
 
+        void PlaceStick(Vector2 local)
+        {
+            var z = _stickZone.contentRect;
+            float x = Mathf.Clamp(local.x, 150, Mathf.Max(150, z.width - 150)), y = Mathf.Clamp(local.y, 150, Mathf.Max(150, z.height - 150));
+            _stickCenter = new Vector2(x, y);
+            _stick.style.left = x - 150; _stick.style.top = y - 150; _stick.style.bottom = StyleKeyword.Auto;
+            _stick.AddToClassList("held");
+        }
+
         void MoveStick(Vector2 local)
         {
-            Vector2 c = new(150, 150), v = Vector2.ClampMagnitude(local - c, 110f);
-            _knob.style.left = 90 + v.x; _knob.style.top = 90 + v.y;
+            Vector2 v = Vector2.ClampMagnitude(local - _stickCenter, 110f);
+            _knob.style.left = 87 + v.x; _knob.style.top = 87 + v.y;
             PuppetControl.Stick = new Vector2(v.x / 110f, -v.y / 110f);
+        }
+
+        void RestStick()
+        {
+            PuppetControl.Stick = Vector2.zero;
+            _stick.style.left = StyleKeyword.Null; _stick.style.top = StyleKeyword.Null; _stick.style.bottom = StyleKeyword.Null;
+            _knob.style.left = StyleKeyword.Null; _knob.style.top = StyleKeyword.Null;
+            _stick.RemoveFromClassList("held");
         }
 
         // ------------------------------------------------------------------ events
@@ -164,8 +353,12 @@ namespace PoKingHill
         {
             if (s == MatchState.Menu) ShowSheet(SheetKind.Menu);
             else if (s == MatchState.Result) ShowSheet(SheetKind.Result);
-            else ShowSheet(SheetKind.None);
+            else if (s != MatchState.Replay) ShowSheet(SheetKind.None);          // a replay keeps the result sheet behind it
             RebuildScoreboard();
+            // a finger on the stick when the round ends must not steer the next one
+            if (_stickZone != null) RestStick();
+            PuppetControl.Side = 0;
+            ApplyVisibility();
         }
         void OnRoundEnded(RoundResult r) { }      // the Result state change rebuilds the sheet
         void OnCaption(string text) { _caption.text = text; _caption.style.opacity = 1; _captionUntil = Time.unscaledTime + 3.5f; }
@@ -174,22 +367,34 @@ namespace PoKingHill
         void ToggleMenu()
         {
             if (director == null) return;
-            if (director.State == MatchState.Menu) return;
-            if (ReplaySystem.Active) replay.Stop();
-            director.EnterMenu();
+            if (director.State == MatchState.Menu) { SetCollapsed(!_collapsed); return; }
+            director.EnterMenu();                 // ends a running replay first (ReplaySystem.StopActive)
         }
-        void ToggleDebug() { bool on = _debug.style.display == DisplayStyle.None; _debug.style.display = on ? DisplayStyle.Flex : DisplayStyle.None; if (on) BuildDebugRows(); }
+        public void ToggleDebug() { bool on = _debug.style.display == DisplayStyle.None; _debug.style.display = on ? DisplayStyle.Flex : DisplayStyle.None; if (on) BuildDebugRows(); }
 
         void ShowSheet(SheetKind k)
         {
-            _sheetKind = k; _sheet.style.display = k == SheetKind.None ? DisplayStyle.None : DisplayStyle.Flex;
+            if (k != _sheetKind) _collapsed = false;
+            _sheetKind = k;
             if (k != SheetKind.None) RebuildSheet();
+            ApplyVisibility();
         }
 
         void RebuildSheet()
         {
-            _sheetBody.Clear(); _next = null; _countdown = null;
+            _sheetBody.Clear(); _next = null; _resFill = _resHead = null;
+            _sheet.RemoveFromClassList("dense");
             if (_sheetKind == SheetKind.Menu) BuildMenu(); else if (_sheetKind == SheetKind.Result) BuildResult();
+        }
+
+        void ApplyVisibility()
+        {
+            bool replaying = ReplaySystem.Active;
+            bool sheet = _sheetKind != SheetKind.None && !replaying;
+            _sheet.style.display = sheet && !_collapsed ? DisplayStyle.Flex : DisplayStyle.None;
+            _peekRow.style.display = sheet && _collapsed ? DisplayStyle.Flex : DisplayStyle.None;
+            _debug.style.visibility = _sheet.style.display == DisplayStyle.Flex ? Visibility.Hidden : Visibility.Visible;     // a sheet always wins
+            _caption.style.visibility = _sheet.style.display == DisplayStyle.Flex ? Visibility.Hidden : Visibility.Visible;   // never under a sheet
         }
 
         // ------------------------------------------------------------------ menu
@@ -216,8 +421,7 @@ namespace PoKingHill
             if (canSteer)
             {
                 var grid = El("grid", _sheetBody);
-                Chip(grid, "You play: steer a walker (stick or WASD)", director.PuppetRequested, v => { director.PuppetRequested = v; RebuildSheet(); });
-                grid[0].style.width = Length.Percent(100);
+                Chip(grid, "You play: steer a walker (stick or WASD)", director.PuppetRequested, v => { director.PuppetRequested = v; RebuildSheet(); }).AddToClassList("wide");
             }
             if (director.Status.Length > 0) Text(director.Status, "body", _sheetBody);
         }
@@ -226,10 +430,10 @@ namespace PoKingHill
         {
             Text("Agents", "h1", _sheetBody);
             Text(TickHint(), "body", _sheetBody);
-            var grid = El("grid", _sheetBody); grid.style.marginTop = 16;
+            var grid = El("grid spaced", _sheetBody);
             for (int i = 0; i < director.roster.Length; i++)
             {
-                var f = director.roster[i]; int idx = i;
+                var f = director.roster[i];
                 var card = El("agent", grid); if (f.available && f.inGame) card.AddToClassList("on"); if (!f.available) card.AddToClassList("locked");
                 var topRow = El("agent-top", card);
                 // the seat palette while it is long enough; with more agents than colours (seven since Trump) evenly spaced hues, so none repeat
@@ -255,6 +459,13 @@ namespace PoKingHill
         static string Initials(string s) { var parts = s.Split(new[] { ' ', '-' }, StringSplitOptions.RemoveEmptyEntries); return parts.Length == 0 ? "?" : parts.Length == 1 ? parts[0].Substring(0, Math.Min(2, parts[0].Length)).ToUpperInvariant() : (parts[0][0].ToString() + parts[1][0]).ToUpperInvariant(); }
 
         // The rules of a match.
+        static readonly string[] TargetingLabels = { "Nearest", "Weakest", "Dogpile", "Grudge", "Vulture" };
+        static readonly string[] TargetingHints =
+        {
+            "each brain pushes the nearest fighter", "each brain goes for the fighter easiest to push off", "everyone goes for the king of the hill",
+            "brains go back for whoever pushed them last", "brains wait out a scrap, then pick off the weakest",
+        };
+
         void BuildMatch()
         {
             Text("Match", "h2", _sheetBody);
@@ -262,8 +473,9 @@ namespace PoKingHill
             Labeled("Rounds", new[] { "1", "3", "5", "Endless" }, Array.IndexOf(roundOpts, rounds), i => GameSettings.RoundsPerMatch = roundOpts[i]);
             float[] paces = { 1.5f, 1f, 0.7f };
             Labeled("Sea", new[] { "Slow", "Normal", "Fast" }, Nearest(paces, GameSettings.SeaPace), i => GameSettings.SeaPace = paces[i]);
-            Text("Free-for-all targets", "h2", _sheetBody);
-            Seg(new[] { "Nearest", "Opportunist", "Dogpile", "Grudge", "Vulture" }, (int)GameSettings.Targeting, i => GameSettings.Targeting = (Targeting)i).AddToClassList("seg-tight");
+            int target = (int)GameSettings.Targeting;
+            Text("Free-for-all targets: " + TargetingHints[Mathf.Clamp(target, 0, TargetingHints.Length - 1)], "hint", _sheetBody);
+            Seg(TargetingLabels, target, i => GameSettings.Targeting = (Targeting)i).AddToClassList("seg-tight");
             Text("Rules", "h2", _sheetBody);
             var game = El("grid", _sheetBody);
             Chip(game, "Tale of the tape", GameSettings.Intro, v => GameSettings.Intro = v);
@@ -302,8 +514,8 @@ namespace PoKingHill
         void BuildConnect()
         {
             Text("Viewers", "h2", _sheetBody);
-            Field(GameSettings.TwitchChannel, "Twitch channel (hazard votes, !hype <fighter>)", v => GameSettings.TwitchChannel = v);
-            Field(GameSettings.WeatherCity, "City for live weather on the summit (Open-Meteo)", v => GameSettings.WeatherCity = v);
+            Field(GameSettings.TwitchChannel, "Twitch channel (votes, !hype)", v => GameSettings.TwitchChannel = v);
+            Field(GameSettings.WeatherCity, "City for live summit weather", v => GameSettings.WeatherCity = v);
             if (weather != null && weather.Status.Length > 0) Text(weather.Status, "body", _sheetBody);
             Text("Commentary and telemetry", "h2", _sheetBody);
             var grid = El("grid", _sheetBody);
@@ -312,23 +524,22 @@ namespace PoKingHill
             bool sas = !string.IsNullOrEmpty(Environment.GetEnvironmentVariable("KOTH_AZURE_TABLE_SAS"));
             Chip(grid, sas ? "Upload telemetry (Azure)" : "Upload telemetry (set KOTH_AZURE_TABLE_SAS)", GameSettings.UploadTelemetry, v => GameSettings.UploadTelemetry = v, sas);
             foreach (var c in grid.Children()) c.AddToClassList("wide");
-            var reset = Btn("Reset all settings", "secondary", () => { GameSettings.ResetAll(); RebuildSheet(); }, _sheetBody);
-            reset.style.flexGrow = 0; reset.style.flexShrink = 0; reset.style.flexBasis = StyleKeyword.Auto; reset.style.height = 76; reset.style.minHeight = 76; reset.style.marginTop = 18;
+            Btn("Reset all settings", "secondary compact", () => { GameSettings.ResetAll(); RebuildSheet(); }, _sheetBody);
         }
 
         void Field(string value, string placeholder, Action<string> set)
         {
             var tf = new TextField { value = value, textEdition = { placeholder = placeholder } };
-            tf.AddToClassList("field"); tf.RegisterCallback<FocusOutEvent>(_ => set(tf.value)); _sheetBody.Add(tf);
+            tf.AddToClassList("field"); tf.AddToClassList("clip"); tf.RegisterCallback<FocusOutEvent>(_ => set(tf.value)); _sheetBody.Add(tf);
         }
 
         static int Nearest(float[] opts, float v) { int best = 0; for (int i = 1; i < opts.Length; i++) if (Mathf.Abs(opts[i] - v) < Mathf.Abs(opts[best] - v)) best = i; return best; }
 
         void Labeled(string label, string[] opts, int selected, Action<int> pick)
         {
-            var row = El("row", _sheetBody); row.style.alignItems = Align.Center; row.style.marginLeft = 0; row.style.marginRight = 0;
-            var l = Text(label, "body", row); l.style.width = 170;
-            var seg = Seg(opts, selected, pick, row); seg.style.flexGrow = 1;
+            var row = El("row labeled", _sheetBody);
+            Text(label, "body", row);
+            Seg(opts, selected, pick, row);
         }
 
         VisualElement Seg(string[] opts, int selected, Action<int> pick, VisualElement parent = null)
@@ -338,18 +549,19 @@ namespace PoKingHill
             return seg;
         }
 
-        void Chip(VisualElement parent, string label, bool on, Action<bool> set, bool enabled = true)
+        VisualElement Chip(VisualElement parent, string label, bool on, Action<bool> set, bool enabled = true)
         {
             var chip = El("chip", parent); if (on) chip.AddToClassList("on"); if (!enabled) chip.AddToClassList("locked");
-            var l = Text(label, "", chip); l.style.flexShrink = 1;
+            Text(label, "", chip);
             Text(on ? "ON" : "OFF", "state", chip);
             if (enabled) chip.RegisterCallback<ClickEvent>(_ => { set(!on); if (_sheetKind == SheetKind.Menu) RebuildSheet(); else BuildDebugRows(); });
+            return chip;
         }
 
         // ------------------------------------------------------------------ results
         void BuildResult()
         {
-            var r = director.LastResult;
+            var r = director.LastResult; if (r.Agents == null) return;
             if (director.TournamentChampion.Length > 0 && !director.InTournament)
                 Text("Tournament champion: " + director.TournamentChampion, "h1", _sheetBody);
             Text(r.Winner >= 0 ? "Winner: " + r.WinnerName : "No winner", "h1", _sheetBody);
@@ -357,30 +569,43 @@ namespace PoKingHill
             stripe.style.backgroundColor = r.Winner >= 0 ? DemoDirector.SeatColors[r.Winner % DemoDirector.SeatColors.Length] : new Color(1, 1, 1, 0.2f);
             Text(char.ToUpper(r.How[0]) + r.How.Substring(1), "body", _sheetBody);
 
-            var head = El("res-row res-head", _sheetBody); head.style.marginTop = 14;
-            // with the contact ledger, knock-outs (+ assists) take the place of the distance walked: the row has room for five numbers
-            Text("Fighter", "res-name", head); foreach (var h in new[] { "Result", "Out at", ledger != null ? "KO" : "Walked", "Top" }) Text(h, "res-cell", head);
-            Text("Elo", "res-cell elo", head);
+            // the knock-out replay, merged into the sheet: tap anywhere on the strip to play from there, drag to scrub
+            if (replay != null && replay.Available)
+            {
+                var strip = El("res-scrub", _sheetBody);
+                strip.Add(new Icon(Icon.Kind.Play) { name = "play" }); strip[0].AddToClassList("inline");
+                Text("Replay", "", strip);
+                Scrub(strip, out _resFill, out _resHead, t => replay.Seek(t), t => { if (!ReplaySystem.Active) { replay.Play(); replay.Seek(t); } });
+                strip.RegisterCallback<ClickEvent>(_ => { if (!ReplaySystem.Active) replay.Play(); });
+            }
+
+            // units live in the header, so the name column gets the room
+            var head = El("res-row res-head", _sheetBody);
+            var nameHead = El("res-name grow", head); Text("Fighter", "", nameHead);
+            Text("", "res-cell narrow", head);
+            Text("Out s", "res-cell", head); Text(ledger != null ? "KO" : "Walk m", "res-cell narrow", head); Text("Top m/s", "res-cell", head);
+            var eloHead = El("res-cell elo", head); Text("Elo", "", eloHead);
             for (int i = 0; i < r.Agents.Length; i++)
             {
                 var row = El("res-row", _sheetBody);
-                var nameBox = El("res-name", row); nameBox.style.flexDirection = FlexDirection.Row; nameBox.style.alignItems = Align.Center;
+                var nameBox = El("res-name grow clip", row);
                 var dot = El("dot", nameBox); dot.style.backgroundColor = DemoDirector.SeatColors[i % DemoDirector.SeatColors.Length];
-                Text(director.BadgeOf(r.Agents[i]) + (director.PuppetBody == i ? " (you)" : ""), "", nameBox);
-                string res = r.Winner < 0 ? "Tie" : r.Winner == i ? "Win" : "Loss";
-                Text(res, "res-cell " + (res == "Win" ? "win" : res == "Loss" ? "loss" : ""), row);
+                Text(director.BadgeOf(r.Agents[i]) + (director.PuppetBody == i ? " (you)" : ""), "ellipsis", nameBox);
+                string res = r.Winner < 0 ? "T" : r.Winner == i ? "W" : "L";
+                Text(res, "res-cell narrow " + (res == "W" ? "win" : res == "L" ? "loss" : ""), row).tooltip = res == "W" ? "win" : res == "L" ? "loss" : "tie";
                 float ko = log != null ? log.KnockedOutAt(i) : -1;
-                Text(ko >= 0 ? $"{ko:0.0} s" : "-", "res-cell", row);
+                Text(ko >= 0 ? $"{ko:0.0}" : "-", "res-cell", row);
                 if (ledger != null)
                 {
                     int kos = ledger.Knockouts(director.fighters[i]), ast = ledger.Assists(director.fighters[i]);
-                    Text(kos + ast == 0 ? "-" : ast == 0 ? kos.ToString() : $"{kos}+{ast}", "res-cell", row).tooltip = "knock-outs + assists";
+                    Text(kos + ast == 0 ? "-" : ast == 0 ? kos.ToString() : $"{kos}+{ast}", "res-cell narrow", row).tooltip = "knock-outs + assists";
                 }
-                else Text(log != null ? $"{log.PathMetres(i):0.0} m" : "", "res-cell", row);
-                Text(log != null ? $"{log.TopSpeed(i):0.0} m/s" : "", "res-cell", row);
+                else Text(log != null ? $"{log.PathMetres(i):0.0}" : "", "res-cell narrow", row);
+                Text(log != null ? $"{log.TopSpeed(i):0.0}" : "", "res-cell", row);
                 float dElo = log != null ? log.RatingDelta(i) : 0;
                 float elo = Ladder.Rating(director.NameOf(r.Agents[i], "Robot"));
-                Text(Mathf.Abs(dElo) < 0.5f ? $"{elo:0}" : $"{elo:0} ({(dElo >= 0 ? "+" : "")}{dElo:0})", "res-cell elo", row);
+                var eloBox = El("res-cell elo", row); Text($"{elo:0}", "", eloBox);
+                if (Mathf.Abs(dElo) >= 0.5f) Text($"{(dElo >= 0 ? "+" : "")}{dElo:0}", "delta " + (dElo >= 0 ? "up" : "down"), eloBox);
             }
             if (director.InTournament)
             {
@@ -388,42 +613,45 @@ namespace PoKingHill
                 foreach (var m in director.Bracket)
                     Text($"{m.label}: {(m.a >= 0 ? director.BadgeOf(m.a) : "?")} vs {(m.b >= 0 ? director.BadgeOf(m.b) : "?")}" + (m.winner >= 0 ? $": {director.BadgeOf(m.winner)} wins" : ""), "body", b);
             }
-            var row2 = El("row", _sheetBody); row2.style.marginTop = 18;
-            if (replay != null && replay.Available) Btn("Replay knock-out", "secondary", () => replay.Play(), row2);
+            var row2 = El("row spaced", _sheetBody);
             _next = Btn("", "primary next", () => director.Continue(), row2);
             UpdateCountdown();
         }
 
         void UpdateCountdown()
         {
-            if (_next == null) return;
             string what = director.InTournament ? "Next match" : director.LastRoundOfMatch ? "Main menu" : "Next round";
-            _next.text = $"{what} ({Mathf.CeilToInt(director.ResultSecondsLeft)})";
+            int left = Mathf.CeilToInt(director.ResultSecondsLeft);
+            if (_next != null) _next.text = $"{what} ({left})";
+            string peek = _sheetKind == SheetKind.Result ? $"Results · {left}" : "Menu";
+            if (_peek.text != peek) _peek.text = peek;
         }
 
         // ------------------------------------------------------------------ live strip
         void RebuildScoreboard()
         {
             if (director == null) return;
-            _scoreboard.Clear(); _badges.Clear(); _odds.Clear(); _oddsSegs.Clear(); _vitals.Clear(); _tags.Clear();
+            _scoreboard.Clear(); _badges.Clear(); _odds.Clear(); _oddsSegs.Clear(); _vitals.Clear(); _tags.Clear(); _pips.Clear();
+            _ties.style.display = DisplayStyle.None;
             if (director.InMenu) return;
             for (int i = 0; i < director.Playing; i++)
             {
-                var b = El("badge badge-col", _scoreboard); if (director.PuppetBody == i) b.AddToClassList("you");
-                var top = El("badge-top", b);
-                var dot = El("dot", top); dot.style.backgroundColor = DemoDirector.SeatColors[i % DemoDirector.SeatColors.Length];
-                Text(director.BadgeOf(director.AgentOf(i)) + (director.PuppetBody == i ? " (you)" : ""), "", top);
-                int agent = director.AgentOf(i);
-                Text((director.AgentSeatedTwice(agent) ? director.BodyWins(i) : director.Wins(agent)).ToString(), "wins", top);
-                var tag = Text("", "badge-tag", top); tag.style.display = DisplayStyle.None; _tags.Add(tag);
+                int agent = director.AgentOf(i), seat = i;
+                var b = El("badge", _scoreboard); if (director.PuppetBody == i) b.AddToClassList("you");
+                var wrap = El("avatar-wrap", b);
+                var av = El("avatar", wrap); av.style.backgroundColor = DemoDirector.SeatColors[i % DemoDirector.SeatColors.Length];
+                Text(Initials(director.BadgeOf(agent)), "", av);
+                _pips.Add(Text((director.AgentSeatedTwice(agent) ? director.BodyWins(i) : director.Wins(agent)).ToString(), "wins-pip", wrap));
+                var tag = Text("", "badge-tag", wrap); tag.style.display = DisplayStyle.None; _tags.Add(tag);
+                Text(director.BadgeOf(agent) + (director.PuppetBody == i ? " (you)" : ""), "badge-name ellipsis", b);
                 var vit = new VitalsBar(); vit.style.display = bio != null ? DisplayStyle.Flex : DisplayStyle.None; b.Add(vit); _vitals.Add(vit);
-                int seat = i;
+                b.tooltip = director.NameOf(agent, "Robot");
                 b.RegisterCallback<ClickEvent>(_ => Hype(seat));         // a tap on a badge cheers that fighter on (Stamina + hype)
                 _badges.Add(b);
                 var seg = El("odds-seg", _odds); seg.style.backgroundColor = DemoDirector.SeatColors[i % DemoDirector.SeatColors.Length]; seg.style.width = Length.Percent(100f / director.Playing);
                 _oddsSegs.Add(seg);
             }
-            if (director.Draws > 0) { var t = El("badge", _scoreboard); Text("Ties " + director.Draws, "", t); }
+            if (director.Draws > 0) { _ties.text = "Ties " + director.Draws; _ties.style.display = DisplayStyle.Flex; }
         }
 
         void Update()
@@ -439,18 +667,22 @@ namespace PoKingHill
                     // a second, smaller line: one long line spread over the title (physics and brain times are in the debug panel)
                     ? $"{quality.Fps:0} FPS\n<size=20>p95 {quality.FrameP95Ms:0} ms · {quality.Current}</size>"
                     : $"{_fpsAvg:0} FPS · phys {director.StepMs:0.00} · brain {(director.fighters.Length > 0 ? director.fighters[0].LastInferenceMs : 0):0.00} ms";
-                if (_debug.style.display == DisplayStyle.Flex) _debugText.text = DebugText();
+                if (DebugShown && _debugTab == 0) _debugText.text = DebugText();
                 UpdateCountdown();
             }
+            if (_pressAt > 0 && Time.unscaledTime - _pressAt >= HoldSeconds) { _pressAt = -1; ToggleDebug(); }
             _roundInfo.style.display = live ? DisplayStyle.Flex : DisplayStyle.None;
             if (live)
             {
                 _clock.text = ReplaySystem.Active ? "REPLAY" : $"{director.RoundTime:0.0} s";
-                _skip.style.display = ReplaySystem.Active ? DisplayStyle.Flex : DisplayStyle.None;
                 var sea = director.sea;
                 _seaFill.style.width = Length.Percent(sea != null ? Mathf.Clamp01((sea.Level + sea.startDepth) / sea.startDepth) * 100f : 0f);
                 for (int i = 0; i < _badges.Count; i++) _badges[i].EnableInClassList("out", director.IsOut(i));
             }
+            bool replaying = ReplaySystem.Active;
+            _replayBar.style.display = replaying ? DisplayStyle.Flex : DisplayStyle.None;
+            if (replaying) SetScrub(_replayFill, _replayHead, replay != null ? replay.Progress : 0f);
+            if (_resFill != null) SetScrub(_resFill, _resHead, replaying && replay != null ? replay.Progress : 0f);
             if (fight || director.State == MatchState.Intro) UpdateBadges();
             for (int k = _feedRows.Count - 1; k >= 0; k--) if (Time.unscaledTime > _feedRows[k].until) { _feedRows[k].row.RemoveFromHierarchy(); _feedRows.RemoveAt(k); }
             UpdateIntro();
@@ -465,13 +697,22 @@ namespace PoKingHill
             if (chat != null && chat.WindowLeft > 0) hz = $"Chat vote {chat.WindowLeft:0}s";
             _hazard.text = hz; _hazard.style.display = hz.Length > 0 ? DisplayStyle.Flex : DisplayStyle.None;
             if (_captionUntil > 0 && Time.unscaledTime > _captionUntil) { _captionUntil = 0; _caption.style.opacity = 0; }
-            _caption.style.visibility = _sheet.style.display == DisplayStyle.Flex ? Visibility.Hidden : Visibility.Visible;   // never under a sheet
             if (director.Status != _lastStatus) { _lastStatus = director.Status; _statusUntil = Time.unscaledTime + 4f; }
             _status.text = Time.unscaledTime < _statusUntil ? _lastStatus : "";
-            _puppet.style.display = fight && director.PuppetBody >= 0 ? DisplayStyle.Flex : DisplayStyle.None;
-            _sheet.style.display = _sheetKind != SheetKind.None && !ReplaySystem.Active ? DisplayStyle.Flex : DisplayStyle.None;
-            _debug.style.visibility = _sheet.style.display == DisplayStyle.Flex ? Visibility.Hidden : Visibility.Visible;     // a sheet always wins
+            bool puppet = fight && director.PuppetBody >= 0;
+            if (puppet != PuppetShown) { _puppet.style.display = puppet ? DisplayStyle.Flex : DisplayStyle.None; if (!puppet) RestStick(); }
+            // with the stick on screen the panel hangs under the live strip (badges, clock, odds, hazard) instead of standing on the bottom corners
+            if (puppet) { _debug.style.top = _feed.worldBound.yMin - _column.worldBound.yMin + 8; _debug.style.bottom = StyleKeyword.Auto; }
+            else { _debug.style.top = StyleKeyword.Null; _debug.style.bottom = 128 + _bottomInset; }
+            ApplyVisibility();
             TwoFingerTap();
+        }
+
+        static void SetScrub(VisualElement fill, VisualElement head, float t)
+        {
+            var pct = Length.Percent(Mathf.Clamp01(t) * 100f);
+            if (fill.style.width != pct) fill.style.width = pct;
+            if (head.style.left != pct) head.style.left = pct;
         }
 
         // ------------------------------------------------------------------ vitals, tags, feed, intro
@@ -483,7 +724,7 @@ namespace PoKingHill
                 if (v != null && i < _vitals.Count) _vitals[i].Set(v, stamina != null && GameSettings.Stamina ? stamina.Level(r) : -1f, outNow);
                 bool down = director.IsDown(i), hyped = stamina != null && stamina.IsHyped(r) && !outNow, edge = v != null && v.doomed && !outNow;
                 _badges[i].EnableInClassList("down", down); _badges[i].EnableInClassList("edge", edge && !down); _badges[i].EnableInClassList("hyped", hyped && !down);
-                string tag = down ? $"DOWN {director.DownLeft(i):0.0}" : edge ? "EDGE" : hyped ? "HYPE" : !outNow && r.tactic != Tactic.Press && director.State == MatchState.Fight ? TacticLabel(r.tactic) : "";
+                string tag = down ? $"DOWN {director.DownLeft(i):0}" : edge ? "EDGE" : hyped ? "HYPE" : !outNow && r.tactic != Tactic.Press && director.State == MatchState.Fight ? TacticLabel(r.tactic) : "";
                 var t = _tags[i]; if (t.text != tag) t.text = tag; t.style.display = tag.Length > 0 ? DisplayStyle.Flex : DisplayStyle.None;
             }
         }
@@ -541,7 +782,7 @@ namespace PoKingHill
                 Tile("mass", $"{kg:0} kg"); Tile("strongest joint", $"{strongest:0} N m"); Tile("Elo", $"{Ladder.Rating(name):0}");
                 Tile("record", $"{Ladder.Wins(name)}-{Ladder.Losses(name)}"); Tile("knock-outs", Ladder.Knockouts(name).ToString()); Tile("brain", TaleOfTheTape.Brain(entry));
             }
-            var row = El("row", _intro); row.style.marginTop = 12;
+            var row = El("row spaced", _intro);
             Btn("Skip intro", "secondary", () => director.SkipIntro(), row);
         }
 
@@ -553,20 +794,27 @@ namespace PoKingHill
             if (down == 2 && began > 0) ToggleDebug();
         }
 
-        // ------------------------------------------------------------------ debug panel
+        // ------------------------------------------------------------------ debug panel: Perf | View | Hazards
         void BuildDebugRows()
         {
-            _debugRows.Clear();
-            var seg = El("seg", _debugRows); string[] modes = { "No overlay", "Strain", "Fatigue", "Colliders" };
-            for (int i = 0; i < modes.Length; i++) { int k = i; var b = Btn(modes[i], "seg-btn", () => { GameSettings.Overlay = (Overlay)k; BuildDebugRows(); }, seg); if ((int)GameSettings.Overlay == i) b.AddToClassList("selected"); }
-            var grid = El("grid", _debugRows);
-            Chip(grid, "Intent arrows", GameSettings.IntentArrows, v => GameSettings.IntentArrows = v);
-            Chip(grid, "Telemetry HUD", GameSettings.Telemetry, v => GameSettings.Telemetry = v);
-            var hz = El("debug-row", _debugRows);
-            foreach (Hazard h in Enum.GetValues(typeof(Hazard))) { var hh = h; Btn(h.ToString(), "seg-btn", () => hazards?.Trigger(hh), hz).style.flexGrow = 1; }
-            var r = El("debug-row", _debugRows);
-            Btn("Replay", "seg-btn", () => replay?.Play(), r).style.flexGrow = 1;
-            Btn("Restart round", "seg-btn", () => { if (director.State == MatchState.Fight) director.NewRound(); }, r).style.flexGrow = 1;
+            _debugTabs.Clear(); _debugBody.Clear();
+            string[] names = { "Perf", "View", "Hazards" };
+            for (int i = 0; i < names.Length; i++) { int t = i; var b = Btn(names[i], "tab", () => { _debugTab = t; BuildDebugRows(); }, _debugTabs); if (i == _debugTab) b.AddToClassList("selected"); }
+            if (_debugTab == 0) { _debugBody.Add(_debugText); _debugText.text = DebugText(); return; }
+            if (_debugTab == 1)
+            {
+                var seg = El("seg", _debugBody); string[] modes = { "None", "Strain", "Fatigue", "Colliders" };
+                for (int i = 0; i < modes.Length; i++) { int k = i; var b = Btn(modes[i], "seg-btn", () => { GameSettings.Overlay = (Overlay)k; BuildDebugRows(); }, seg); if ((int)GameSettings.Overlay == i) b.AddToClassList("selected"); }
+                var grid = El("grid", _debugBody);
+                Chip(grid, "Intent arrows", GameSettings.IntentArrows, v => GameSettings.IntentArrows = v);
+                Chip(grid, "Telemetry HUD", GameSettings.Telemetry, v => GameSettings.Telemetry = v);
+                return;
+            }
+            var hz = El("seg wrap", _debugBody);
+            foreach (Hazard h in Enum.GetValues(typeof(Hazard))) { var hh = h; Btn(h.ToString(), "seg-btn", () => hazards?.Trigger(hh), hz); }
+            var r = El("seg", _debugBody);
+            Btn("Replay", "seg-btn", () => replay?.Play(), r);
+            Btn("Restart round", "seg-btn", () => { if (director.State == MatchState.Fight) director.NewRound(); }, r);
         }
 
         string DebugText()
@@ -583,6 +831,72 @@ namespace PoKingHill
             if (tactician != null && GameSettings.Tactician) sb.Append($"\ntactician: {tactician.Decisions} decisions, last batch {tactician.LastBatchMs:0} ms");
             if (weather != null && weather.Status.Length > 0) sb.Append($"\nweather: {weather.Status}");
             return sb.ToString();
+        }
+
+        // ------------------------------------------------------------------ layout audit (tests, captures)
+        /// <summary>
+        /// What does not fit on this screen: an element outside the column, a label or button whose text is wider than
+        /// its box (outside "clip" and "ellipsis" containers, which cut on purpose), a sheet that reaches the top bar
+        /// or the bottom corners, badges on more than one row, an intro card under the strip, the FPS pill on a cutout.
+        /// Empty = the HUD fits.
+        /// </summary>
+        public List<string> LayoutProblems()
+        {
+            var list = new List<string>(); var col = _column.worldBound;
+            void Walk(VisualElement e, bool clipped)
+            {
+                if (e.resolvedStyle.display == DisplayStyle.None || e.resolvedStyle.visibility == Visibility.Hidden) return;
+                var b = e.worldBound;
+                if (!clipped && b.width > 0.5f && b.height > 0.5f && (b.xMin < col.xMin - 1 || b.xMax > col.xMax + 1 || b.yMin < col.yMin - 1 || b.yMax > col.yMax + 1))
+                    list.Add($"{Describe(e)} outside the column ({b.xMin:0},{b.yMin:0} {b.width:0}x{b.height:0})");
+                if (!clipped && e is TextElement t && !(e is TextField) && !string.IsNullOrEmpty(t.text) && !e.ClassListContains("ellipsis") && t.resolvedStyle.whiteSpace == WhiteSpace.NoWrap)
+                {
+                    var need = t.MeasureTextSize(t.text, 0, VisualElement.MeasureMode.Undefined, 0, VisualElement.MeasureMode.Undefined);
+                    if (need.x > t.contentRect.width + 2) list.Add($"{Describe(e)} needs {need.x:0} units, has {t.contentRect.width:0}");
+                }
+                else if (!clipped && e is TextElement w && !(e is TextField) && !string.IsNullOrEmpty(w.text) && w.contentRect.width > 0)
+                {
+                    // wrapped text: taller than its box spills out of the background
+                    var need = w.MeasureTextSize(w.text, w.contentRect.width + 2, VisualElement.MeasureMode.Exactly, 0, VisualElement.MeasureMode.Undefined);      // slack: a label sized to its text can wrap on rounding alone
+                    if (need.y > w.contentRect.height + 2) list.Add($"{Describe(e)} needs {need.y:0} units of height, has {w.contentRect.height:0}");
+                }
+                bool clip = clipped || e is TextField || e.ClassListContains("clip") || e.ClassListContains("ellipsis");
+                foreach (var c in e.Children()) Walk(c, clip);
+            }
+            Walk(_safe, false); Walk(_sheet, false); Walk(_debug, false); Walk(_peekRow, false);
+            if (SheetShown)
+            {
+                var s = _sheet.worldBound;
+                if (s.yMin < _topBar.worldBound.yMax - 1) list.Add($"sheet reaches the top bar ({s.yMin:0} < {_topBar.worldBound.yMax:0})");
+                if (s.yMax > _bottomBar.worldBound.yMin + 1) list.Add($"sheet covers the bottom corners ({s.yMax:0} > {_bottomBar.worldBound.yMin:0})");
+            }
+            if (DebugShown && _debug.resolvedStyle.visibility == Visibility.Visible)
+            {
+                var g = _debug.worldBound;
+                if (g.yMax > _bottomBar.worldBound.yMin + 1) list.Add("debug panel covers the bottom corners");
+                if (g.yMin < _topBar.worldBound.yMax - 1) list.Add("debug panel reaches the top bar");
+                if (PuppetShown && g.Overlaps(_stickZone.worldBound)) list.Add("debug panel covers the stick");
+                if (PuppetShown && _roundInfo.resolvedStyle.display == DisplayStyle.Flex && g.Overlaps(_roundInfo.worldBound)) list.Add("debug panel covers the round clock");
+            }
+            if (_peekRow.resolvedStyle.display == DisplayStyle.Flex && _peek.worldBound.yMax > _bottomBar.worldBound.yMin + 1) list.Add("peek pill covers the bottom corners");
+            if (_badges.Count > 1)
+                foreach (var b in _badges) if (Mathf.Abs(b.worldBound.yMin - _badges[0].worldBound.yMin) > 1) { list.Add("badges wrap onto a second row"); break; }
+            if (_intro.resolvedStyle.display == DisplayStyle.Flex && _intro.worldBound.yMin < _scoreboard.worldBound.yMax - 1) list.Add("intro card overlaps the badges");
+            foreach (var c in Cutouts)
+            {
+                var r = PanelRect(c);
+                if (r.Overlaps(_fps.worldBound)) list.Add("FPS pill on a cutout");
+                if (r.Overlaps(_title.worldBound)) list.Add("title on a cutout");
+                if (r.Overlaps(_menuBtn.worldBound)) list.Add("menu button on a cutout");
+            }
+            return list;
+        }
+
+        static string Describe(VisualElement e)
+        {
+            if (e is TextElement t && !string.IsNullOrEmpty(t.text)) return $"\"{t.text.Split('\n')[0]}\"";
+            string classes = string.Join(".", e.GetClasses());
+            return classes.Length > 0 ? "." + classes : e.GetType().Name;
         }
     }
 
@@ -634,7 +948,7 @@ namespace PoKingHill
     /// <summary>Small vector icons drawn with Painter2D, so no font glyph or texture is needed.</summary>
     public class Icon : VisualElement
     {
-        public enum Kind { Menu, Sliders }
+        public enum Kind { Menu, Sliders, Play }
         readonly Kind _kind;
         public Icon(Kind kind) { _kind = kind; AddToClassList("icon"); pickingMode = PickingMode.Ignore; generateVisualContent += Draw; }
 
@@ -644,6 +958,11 @@ namespace PoKingHill
             p.strokeColor = new Color(0.96f, 0.97f, 0.98f); p.lineWidth = Mathf.Max(2f, s * 0.07f); p.lineCap = LineCap.Round;
             if (_kind == Kind.Menu)
                 for (int i = -1; i <= 1; i++) { p.BeginPath(); p.MoveTo(new Vector2(c.x - u * 1.4f, c.y + i * u)); p.LineTo(new Vector2(c.x + u * 1.4f, c.y + i * u)); p.Stroke(); }
+            else if (_kind == Kind.Play)
+            {
+                p.fillColor = new Color(1f, 0.77f, 0.25f); p.BeginPath();
+                p.MoveTo(new Vector2(c.x - s * 0.3f, c.y - s * 0.36f)); p.LineTo(new Vector2(c.x + s * 0.38f, c.y)); p.LineTo(new Vector2(c.x - s * 0.3f, c.y + s * 0.36f)); p.ClosePath(); p.Fill();
+            }
             else
                 for (int i = -1; i <= 1; i += 2)
                 {

@@ -1,0 +1,138 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Mobile HUD Compaction</title>
+<style>
+  :root { --bg: #f6f6f4; --ink: #1d1d1f; --dim: #5d5d63; --card: #ffffff; --line: #ddd; --bad: #c0392b; --good: #1e8449; --pin: #e8a300; --pin-ink: #1a1406; }
+  @media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) { --bg: #151517; --ink: #ececef; --dim: #a0a0a8; --card: #1f1f23; --line: #333; --bad: #ff6b5b; --good: #4cd18a; } }
+  :root[data-theme="dark"] { --bg: #151517; --ink: #ececef; --dim: #a0a0a8; --card: #1f1f23; --line: #333; --bad: #ff6b5b; --good: #4cd18a; }
+  body { margin: 0; padding: 24px 16px 48px; background: var(--bg); color: var(--ink); font: 16px/1.5 system-ui, sans-serif; }
+  main { max-width: 1000px; margin: 0 auto; }
+  h1 { font-size: 26px; margin: 0 0 4px; } h2 { font-size: 20px; margin: 40px 0 8px; }
+  p.sub { color: var(--dim); margin: 0 0 24px; }
+  .pair { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 16px; }
+  figure { margin: 0; background: var(--card); border: 1px solid var(--line); border-radius: 12px; padding: 12px; }
+  .shot { position: relative; }
+  .shot img { width: 100%; height: auto; border-radius: 8px; display: block; }
+  .pin { position: absolute; transform: translate(-50%, -50%); width: 26px; height: 26px; border-radius: 13px; background: var(--pin); color: var(--pin-ink);
+         font: 700 14px/26px system-ui, sans-serif; text-align: center; box-shadow: 0 0 0 3px rgba(0,0,0,.45); }
+  .hole { position: absolute; border-radius: 50%; background: #000; box-shadow: 0 0 0 2px #ff3b30; }
+  figcaption { font-size: 14px; color: var(--dim); margin-top: 8px; }
+  figcaption ol { margin: 6px 0 0; padding-left: 20px; }
+  .tag { font-weight: 600; } .bad { color: var(--bad); } .good { color: var(--good); }
+  code { font-size: 14px; }
+  .scroll { overflow-x: auto; }
+  table { border-collapse: collapse; font-size: 14px; margin-top: 8px; } td, th { border-bottom: 1px solid var(--line); padding: 4px 10px 4px 0; text-align: left; vertical-align: top; }
+</style>
+</head>
+<body>
+<main>
+  <h1>Mobile portrait HUD: compaction and integrity</h1>
+  <p class="sub">261019. Ten options from the UI pass, all done. Captures from the Unity Game view at 1080 x 1920 (16:9) and 1080 x 2520 (21:9), plus 1080 x 2400 for the cutout case. The panel is always 1920 units tall, so a taller phone gets a narrower column: 21:9 is the tight case. Numbered pins mark what changed.</p>
+
+  <h2>1. Every sheet fits every phone, and a test checks it</h2>
+  <p>The column hides overflow (<code>.column { overflow: hidden }</code>), so a sheet taller than the room between the corners used to be cut off without any sign. Now a sheet that reaches the top bar switches to <code>.dense</code> (tighter rows), and <code>HudView.LayoutProblems()</code> lists anything that does not fit: elements outside the column, text wider or taller than its box, a sheet that reaches the top bar or covers the bottom corners, badges on two rows, the top bar on a cutout. <code>HudLayoutTests</code> lays the HUD out for 1080 x 1920, 2340 and 2520 (<code>SimulateScreen</code>) and asserts the list is empty for every menu tab, the intro card, a six-way fight with a wrapping caption, the results sheet, and the puppet with each debug tab. To check the checker, I injected an over-long button and an oversized sheet: it reported both.</p>
+  <div class="pair">
+    <figure><div class="shot"><img src="before/2520_menu2.jpg" alt="Old Match tab: five targeting buttons of uneven width, Opportunist squeezes the rest"><span class="pin" style="left:35%;top:73%">1</span></div>
+      <figcaption><span class="tag bad">Before</span><ol><li>"Opportunist" squeezes the other four targeting buttons, and the label does not say what the mode does.</li></ol></figcaption></figure>
+    <figure><div class="shot"><img src="after/2520_menu2.jpg" alt="New Match tab: equal targeting buttons and a one-line hint for the selected mode"><span class="pin" style="left:45%;top:69%">1</span></div>
+      <figcaption><span class="tag good">After</span><ol><li>Short, equal labels (Opportunist shown as "Weakest") and a one-line hint describing the selected mode.</li></ol></figcaption></figure>
+  </div>
+  <div class="pair" style="margin-top:16px">
+    <figure><div class="shot"><img src="after/1920_menu3.jpg" alt="Show tab at 16:9"></div><figcaption>16:9, Show tab (the tallest): fits without going dense.</figcaption></figure>
+    <figure><div class="shot"><img src="after/2520_menu3.jpg" alt="Show tab at 21:9"></div><figcaption>21:9, Show tab: fits, with about 600 units to spare below the top bar.</figcaption></figure>
+  </div>
+
+  <h2>2. Six fighters on one row of badges</h2>
+  <p>Each badge is now a seat-coloured avatar with initials, a wins pip on its corner, a status tag (DOWN, EDGE, HYPE, tactic) on its lower edge, the name cut with an ellipsis, and the vitals strip. Ties moved into the round line. The strip is about 130 units tall instead of about 200.</p>
+  <div class="pair">
+    <figure><div class="shot"><img src="before/2520_fight6.jpg" alt="Old six-way fight: badges on two rows and a Ties badge"><span class="pin" style="left:50%;top:11%">1</span><span class="pin" style="left:50%;top:18%">2</span></div>
+      <figcaption><span class="tag bad">Before</span><ol><li>Two rows of badges.</li><li>Ties took a third row of its own.</li></ol></figcaption></figure>
+    <figure><div class="shot"><img src="after/2520_fight6.jpg" alt="New six-way fight: one row of avatar badges"><span class="pin" style="left:50%;top:9%">1</span><span class="pin" style="left:76%;top:15%">2</span></div>
+      <figcaption><span class="tag good">After</span><ol><li>One row: initials, wins pip, ellipsised name, vitals.</li><li>Clock, sea bar and ties share one line.</li></ol></figcaption></figure>
+  </div>
+
+  <h2>3. Results: names no longer cut off</h2>
+  <p>Units moved to the column headers, the result became a coloured W, L or T, the number columns narrowed (112 to 92 and 64 units), and the Elo change got a coloured badge. The name column grows from about 75 to about 230 units at 21:9.</p>
+  <div class="pair">
+    <figure><div class="shot"><img src="before/2520_result6.jpg" alt="Old results: Free-fo, All-rour truncated"><span class="pin" style="left:13%;top:70%">1</span><span class="pin" style="left:28%;top:89%">2</span></div>
+      <figcaption><span class="tag bad">Before</span><ol><li>"Free-fo", "All-rour": names cut off by the number columns.</li><li>Replay was a button beside the next-round button.</li></ol></figcaption></figure>
+    <figure><div class="shot"><img src="after/2520_result6.jpg" alt="New results: full names, W/L column, Elo delta badges, replay strip"><span class="pin" style="left:20%;top:80%">1</span><span class="pin" style="left:50%;top:59%">2</span></div>
+      <figcaption><span class="tag good">After</span><ol><li>Full names, units in the header, coloured Elo change.</li><li>The replay strip under the winner (option 4).</li></ol></figcaption></figure>
+  </div>
+
+  <h2>4. Replay merged into the results, with a playhead you can drag</h2>
+  <p>On the results sheet, tapping the replay strip plays the knock-out from the point tapped. During the replay a bar at the bottom shows the playhead: dragging it holds the replay and seeks (<code>ReplaySystem.Seek</code>, <code>Hold</code>), and Skip ends it. It replaces the round line's unstyled Skip button.</p>
+  <div class="pair">
+    <figure><div class="shot"><img src="before/1920_debug_puppet.jpg" alt="Old replay: Skip text with no background over the sea bar"><span class="pin" style="left:72%;top:13.5%">1</span><span class="pin" style="left:13%;top:77.5%">2</span></div>
+      <figcaption><span class="tag bad">Before</span><ol><li>"Skip" had no background and sat on the sea bar.</li><li>Debug panel 640 units wide: "No overlay" ran out of its button; hazard and replay buttons had no background either.</li></ol></figcaption></figure>
+    <figure><div class="shot"><img src="after/2520_replay.jpg" alt="New replay bar with draggable playhead and a Skip button"><span class="pin" style="left:52%;top:91.5%">1</span></div>
+      <figcaption><span class="tag good">After</span><ol><li>Replay bar: label, playhead at 55 % (dragged there), Skip.</li></ol></figcaption></figure>
+  </div>
+
+  <h2>5. State flow under random taps, and one race fixed</h2>
+  <p><b>Race found and fixed:</b> entering the menu (or starting a round) while the knock-out replay played left the replay running. One frame later <code>ReplaySystem.Update</code> saw the state change and restored the end of the round over the menu's fresh placement, so the fallen fighter went back into the sea. The HUD's menu button stopped the replay first, but the director's own paths did not. Now <code>DemoDirector.EnterMenu</code>, <code>StartMatch</code> and <code>NewRound</code> call <code>ReplaySystem.StopActive()</code> before placing anyone. Also fixed: a finger on the stick when a round ended kept steering the next round (the stick is now recentred on every state change), and a knock-out timestamp from before a MuJoCo reset (time back to 0 after a NaN) offered a replay that silently refused to play (<code>Available</code> is now false).</p>
+  <p><code>StateFlowSoakTests.RandomTapsNeverStrandTheGame</code>: 300 random actions at random moments (quick match, launch, skip intro, menu, continue, replay play and stop, debug, hide and peek, restart, tab, puppet). After each action and on every frame it checks that the replay flag matches the director, physics runs whenever no replay does, a sheet only shows in Menu or Result, every seated fighter has a badge, and the stick is centred outside a round. The game must never sit in one state for 2 minutes, and the menu must come back clean at the end. <code>MenuDuringReplayKeepsTheMenuPlacement</code> is the regression test for the race.</p>
+
+  <h2>6. Console health</h2>
+  <p><code>ConsoleGuard</code> (PlayMode tests) collects every exception, error and assert, plus the UI Toolkit warnings that signal a broken layout or stylesheet (a layout pass that never settles, unknown USS properties or variables, panel settings). The layout, cutout, soak and replay tests all end with <code>guard.AssertClean()</code>. EditMode <code>HudStyleTests</code> checks that every class HudView uses has a rule in Hud.uss.</p>
+
+  <h2>7. The sheet swipes away and comes back</h2>
+  <p>The grabber was decorative. Now a swipe down (or a tap) on it hides the sheet and leaves a peek pill: "Menu", or "Results · 32" with the countdown. The pill, the menu button (which used to do nothing in the menu) or a swipe up from the bottom edge brings the sheet back. During the intro or a round, a swipe up from the bottom edge opens the menu, as the top-right button does, so the menu no longer needs the hardest corner to reach with a thumb.</p>
+  <div class="pair">
+    <figure><div class="shot"><img src="after/2520_peek.jpg" alt="Results sheet hidden: a Results 32 pill above the bottom corners"><span class="pin" style="left:50%;top:88%">1</span></div>
+      <figcaption><span class="tag good">After</span><ol><li>Hidden results sheet: the fall stays in view, the pill counts down and brings the sheet back.</li></ol></figcaption></figure>
+    <figure><div class="shot"><img src="after/2400_punchhole.jpg" alt="Hidden menu: a Menu pill"><span class="pin" style="left:50%;top:88%">1</span></div>
+      <figcaption><span class="tag good">After</span><ol><li>Hidden menu: the attract view with only the corners and a "Menu" pill.</li></ol></figcaption></figure>
+  </div>
+
+  <h2>8. A stick that comes to the thumb, and a debug panel in tabs</h2>
+  <p>The stick rests bottom-left at half opacity and jumps to wherever a thumb lands in the lower zone. Side steps are stacked on the right edge. The debug panel spans the column, has tabs (Perf, View, Hazards; its buttons sit on proper segment backgrounds) and opens three ways: the bottom-left button, a two-finger tap, or holding the FPS pill for half a second. With the stick on screen it hangs under the live strip instead of covering the stick.</p>
+  <div class="pair">
+    <figure><div class="shot"><img src="before/1920_debug_puppet.jpg" alt="Old debug panel: dense text, unstyled buttons"><span class="pin" style="left:30%;top:66%">1</span></div>
+      <figcaption><span class="tag bad">Before</span><ol><li>Everything in one block: timings, overlays, hazards, replay.</li></ol></figcaption></figure>
+    <figure><div class="shot"><img src="after/2520_puppet_debug0.jpg" alt="New debug panel with tabs above the stick"><span class="pin" style="left:20%;top:23%">1</span><span class="pin" style="left:22%;top:86%">2</span><span class="pin" style="left:89%;top:86%">3</span></div>
+      <figcaption><span class="tag good">After</span><ol><li>Tabs: Perf, View, Hazards.</li><li>Stick at rest; it moves under the thumb.</li><li>Side steps on the right edge.</li></ol></figcaption></figure>
+  </div>
+
+  <h2>9. The top bar keeps clear of camera cutouts</h2>
+  <p>Some phones report a full-screen safe area and still have a punch-hole camera in the middle of the top edge, which is exactly where the FPS pill sits. <code>HudView</code> now reads <code>Screen.cutouts</code>: the pill steps aside from a centred hole, and a corner notch pushes the whole top bar down. The safe-area insets now pad the column, so the stylesheet keeps its own padding inside them. <code>TopBarClearsCutouts</code> covers a punch hole, a corner notch, and a phone that reports its notch and home bar (sheet, peek pill and debug panel inside the safe area). The black dot below is drawn where the simulated hole is.</p>
+  <div class="pair">
+    <figure><div class="shot"><img src="before/2400_punchhole.jpg" alt="FPS pill under a punch-hole camera"><span class="hole" style="left:46.8%;top:3.3%;width:6.5%;height:2.9%"></span><span class="pin" style="left:62%;top:8%">1</span></div>
+      <figcaption><span class="tag bad">Before</span><ol><li>The FPS pill sits under the hole.</li></ol></figcaption></figure>
+    <figure><div class="shot"><img src="after/2400_punchhole.jpg" alt="FPS pill stepped to the right of the hole"><span class="hole" style="left:46.8%;top:3.3%;width:6.5%;height:2.9%"></span><span class="pin" style="left:77%;top:8%">1</span></div>
+      <figcaption><span class="tag good">After</span><ol><li>The pill steps to the right of the hole, clear of the menu button.</li></ol></figcaption></figure>
+  </div>
+
+  <h2>10. One stylesheet, one type scale</h2>
+  <p>Hud.uss defines a six-step type scale (<code>--fs-xs</code> 22 to <code>--fs-xxl</code> 48) and control heights (<code>--h-s</code> to <code>--h-xl</code>) on <code>:root</code>. Every rule uses them, and EditMode <code>HudStyleTests</code> enforces it. The static sizes that HudView set from C# became classes (<code>.row.labeled</code>, <code>.secondary.compact</code>, <code>.grid.spaced</code>, <code>.res-cell.narrow</code>...). Two text-flow fixes came out of the audit: a caption that wraps now keeps its background (it had spilled below it), and the Connect placeholders are short enough to fit on one line.</p>
+  <div class="scroll"><table>
+    <tr><th></th><th>Before</th><th>After</th></tr>
+    <tr><td>Distinct font sizes in Hud.uss</td><td>16 (22-54 px)</td><td>6 tokens</td></tr>
+    <tr><td>Static style assignments in HudView.cs</td><td>30</td><td>0 (6 live: column width, safe-area insets, scrub fill)</td></tr>
+    <tr><td>Badge strip height, six fighters</td><td>about 200 units, two rows</td><td>about 130 units, one row</td></tr>
+    <tr><td>Results name column at 21:9</td><td>about 75 units</td><td>about 230 units</td></tr>
+  </table></div>
+  <div class="pair" style="margin-top:16px">
+    <figure><div class="shot"><img src="before/1920_caption_spill.jpg" alt="A two-line caption whose second line falls below its background"><span class="pin" style="left:50%;top:94%">1</span></div>
+      <figcaption><span class="tag bad">Before</span><ol><li>Shrink-to-fit caption: the box is measured one line tall, and "up." falls below it. The height check in <code>LayoutProblems</code> now catches this.</li></ol></figcaption></figure>
+    <figure><div class="shot"><img src="after/2520_caption.jpg" alt="The same caption on two lines inside its background"><span class="pin" style="left:50%;top:92%">1</span></div>
+      <figcaption><span class="tag good">After</span><ol><li>The caption stretches across the column, so both lines sit inside the background.</li></ol></figcaption></figure>
+  </div>
+
+  <h2>Measured</h2>
+  <div class="scroll"><table id="tests">
+    <tr><th>Suite</th><th>Result</th></tr>
+    <tr><td>EditMode (46, including the new <code>HudStyleTests</code>: tokens, no static sizes from C#, every class styled)</td><td class="good">46 / 46 passed</td></tr>
+    <tr><td>PlayMode <code>HudLayoutTests</code>: every screen at 16:9, 19.5:9, 21:9; punch hole, corner notch, reported safe area</td><td class="good">2 / 2 passed (13 s, 2 s)</td></tr>
+    <tr><td>PlayMode <code>StateFlowSoakTests.RandomTapsNeverStrandTheGame</code></td><td class="good">passed: 230 random actions, 26 returns to the menu, no invariant broken, console clean (210 s)</td></tr>
+    <tr><td>PlayMode <code>StateFlowSoakTests.MenuDuringReplayKeepsTheMenuPlacement</code></td><td class="good">passed; with the fix disabled it fails ("entering the menu ends the replay")</td></tr>
+    <tr><td>PlayMode <code>MatchFlowTests</code> (3, unchanged)</td><td class="good">3 / 3 passed</td></tr>
+    <tr><td><code>LayoutProblems</code> on the captures shown here</td><td class="good">empty for every capture</td></tr>
+  </table></div>
+  <p><b>Seen during captures, not fixed (physics):</b> during a results pause held for minutes on purpose, the six-way scene went unstable (<code>BADQACC</code>, NaN in qacc at DOF 47, t = 192 s, bodies piled in the sea), and MuJoCo reset <code>mjData</code>. The normal 5 s pause does not reach it, but a long Endless match could. The replay no longer offers a dead strip afterwards; the instability itself belongs to the physics side.</p>
+</main>
+</body>
+</html>
