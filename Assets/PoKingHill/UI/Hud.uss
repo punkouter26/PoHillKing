@@ -172,8 +172,6 @@ Button { font-size: var(--fs-m); }
 .agent-top { flex-direction: row; align-items: center; }
 .agent .avatar { width: 54px; height: 54px; border-radius: 27px; margin-right: 14px; flex-shrink: 0; }
 
-.field { font-size: var(--fs-m); height: 70px; margin: 4px 0 8px 0; }
-.field > .unity-text-field__input { background-color: var(--fill); border-radius: 18px; border-color: var(--line); color: var(--ink); font-size: var(--fs-m); padding: 0 16px; }
 
 /* results: one table, the replay strip under the winner, one button */
 .winner-stripe { height: 12px; border-radius: 6px; margin: 12px 0 18px 0; }
@@ -211,7 +209,6 @@ Button { font-size: var(--fs-m); }
 .intro-stripe { height: 10px; border-radius: 5px; margin-bottom: 14px; }
 .intro-kicker { font-size: var(--fs-s); color: var(--accent); -unity-font-style: bold; letter-spacing: 2px; }
 .intro-name { font-size: var(--fs-xxl); -unity-font-style: bold; white-space: normal; margin: 2px 0 6px 0; }
-.intro-weather { font-size: var(--fs-m); color: var(--ink-dim); white-space: normal; margin-top: 6px; }
 .intro-grid { flex-direction: row; flex-wrap: wrap; justify-content: space-between; margin-top: 14px; }
 .intro-tile { width: 32%; background-color: rgba(255, 255, 255, 0.07); border-radius: 20px; padding: 12px 14px; margin-bottom: 10px; }
 .intro-value { font-size: var(--fs-xl); -unity-font-style: bold; white-space: normal; }
@@ -231,4 +228,3 @@ Button { font-size: var(--fs-m); }
 .sheet.dense .secondary { height: var(--h-l); }
 .sheet.dense .res-row { height: var(--h-s); }
 .sheet.dense .agent { height: 128px; margin-bottom: 10px; }
-.sheet.dense .field { height: var(--h-m); }

@@ -1,0 +1,138 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Cleanup 261020</title>
+<style>
+  :root { --bg: #f6f5f2; --card: #ffffff; --ink: #1d1f22; --dim: #5d636b; --line: #dcd9d2; --accent: #c98a00; --good: #2f8a4c; --bad: #b8433a; }
+  @media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) { --bg: #16181b; --card: #1f2226; --ink: #eceae6; --dim: #9aa0a8; --line: #33373d; --accent: #f2b632; --good: #6cc98a; --bad: #e97b72; } }
+  :root[data-theme="dark"] { --bg: #16181b; --card: #1f2226; --ink: #eceae6; --dim: #9aa0a8; --line: #33373d; --accent: #f2b632; --good: #6cc98a; --bad: #e97b72; }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--ink); font: 16px/1.5 system-ui, -apple-system, "Segoe UI", sans-serif; }
+  main { max-width: 1100px; margin: 0 auto; padding: 32px 16px 64px; }
+  h1 { font-size: 30px; margin: 0 0 4px; } h2 { font-size: 21px; margin: 40px 0 10px; } h3 { font-size: 16px; margin: 0 0 6px; }
+  .sub { color: var(--dim); margin: 0 0 24px; }
+  .stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 12px; }
+  .stat { background: var(--card); border: 1px solid var(--line); border-radius: 12px; padding: 14px 16px; }
+  .stat b { display: block; font-size: 26px; font-variant-numeric: tabular-nums; } .stat span { color: var(--dim); font-size: 14px; }
+  .pair { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; background: var(--card); border: 1px solid var(--line); border-radius: 12px; padding: 16px; margin: 14px 0; }
+  .pair.three { grid-template-columns: repeat(4, 1fr); }
+  figure { margin: 0; } figcaption { font-size: 13px; color: var(--dim); margin-top: 6px; }
+  .shot { position: relative; } .shot img { width: 100%; display: block; border-radius: 8px; border: 1px solid var(--line); }
+  .pin { position: absolute; transform: translate(-50%, -50%); width: 26px; height: 26px; border-radius: 50%; background: var(--accent); color: #111; font: 700 13px/26px system-ui; text-align: center; box-shadow: 0 0 0 3px rgba(0,0,0,.35); }
+  .pin.bad { background: var(--bad); color: #fff; } .pin.good { background: var(--good); color: #fff; }
+  ol.notes { margin: 8px 0 0; padding-left: 20px; font-size: 14px; } ol.notes li { margin: 2px 0; }
+  table { width: 100%; border-collapse: collapse; background: var(--card); border: 1px solid var(--line); border-radius: 12px; overflow: hidden; font-size: 14px; }
+  th, td { text-align: left; padding: 8px 12px; border-bottom: 1px solid var(--line); vertical-align: top; } th { color: var(--dim); font-weight: 600; }
+  td.n { font-variant-numeric: tabular-nums; white-space: nowrap; }
+  code { font: 13px ui-monospace, Consolas, monospace; background: rgba(127,127,127,.14); padding: 1px 5px; border-radius: 4px; }
+  .tag { display: inline-block; font-size: 12px; padding: 1px 8px; border-radius: 99px; border: 1px solid var(--line); color: var(--dim); }
+  .tag.done { color: var(--good); border-color: var(--good); } .tag.pending { color: var(--accent); border-color: var(--accent); }
+  @media (max-width: 720px) { .pair, .pair.three { grid-template-columns: 1fr 1fr; } }
+</style>
+</head>
+<body>
+<main>
+  <h1>Cleanup and simpler UI</h1>
+  <p class="sub">2026-10-20 · build 261020 · ten cleanup options, all done or prepared. Captures are at 1080×2520 (21:9) in the editor's Game view.</p>
+
+  <div class="stats">
+    <div class="stat"><b>5 → 3</b><span>menu tabs (Play, Agents, Settings)</span></div>
+    <div class="stat"><b>28 → 23</b><span>settings (all on one Settings page)</span></div>
+    <div class="stat"><b>−350</b><span>lines of C# (1,619 added, 1,969 removed)</span></div>
+    <div class="stat"><b>16</b><span>packages and modules removed</span></div>
+    <div class="stat"><b>56 / 56</b><span>tests pass (49 EditMode, 7 PlayMode)</span></div>
+    <div class="stat"><b>~1.0 GB</b><span>ready to delete: 219 files after one approval</span></div>
+  </div>
+
+  <h2>Menu: five tabs became Play, Agents, Settings</h2>
+  <div class="pair">
+    <figure><div class="shot"><img src="before/menu0.jpg" alt="Before: Play tab">
+      <div class="pin bad" style="left:78%;top:58%">1</div><div class="pin bad" style="left:50%;top:3.6%">2</div><div class="pin bad" style="left:8.5%;top:96.5%">3</div></div>
+      <figcaption>Before: Play tab, with Agents, Match, Show and Connect beside it</figcaption></figure>
+    <figure><div class="shot"><img src="after/menu_play.jpg" alt="After: Play tab">
+      <div class="pin good" style="left:50%;top:78.5%">4</div></div>
+      <figcaption>After: Play tab</figcaption></figure>
+  </div>
+  <ol class="notes">
+    <li>The five tabs (Play, Agents, Match, Show, Connect) are now three. The map picker moved from Play to Settings → Match.</li>
+    <li>The FPS pill at top centre is a developer tool now, hidden by default.</li>
+    <li>So is the debug button at bottom left. The version stays bottom right.</li>
+    <li>Play is just quick match, custom, tournament and "you play".</li>
+  </ol>
+
+  <h2>Settings: one page, four sections</h2>
+  <div class="pair three">
+    <figure><div class="shot"><img src="after/settings_0.jpg" alt="Settings: Match"></div><figcaption>Match: rounds, sea, map, intro, instant replays</figcaption></figure>
+    <figure><div class="shot"><img src="after/settings_1.jpg" alt="Settings: Picture"></div><figcaption>Picture: camera, quality, effects, slow motion, cut-aways, win odds, captions</figcaption></figure>
+    <figure><div class="shot"><img src="after/settings_2.jpg" alt="Settings: Sound"></div><figcaption>Sound: master, hits, ambience</figcaption></figure>
+    <figure><div class="shot"><img src="after/settings_3.jpg" alt="Settings: Advanced">
+      <div class="pin" style="left:27%;top:84%">5</div></div><figcaption>Advanced: targeting, extra rules, experiments, developer tools, reset</figcaption></figure>
+  </div>
+  <ol class="notes" start="5">
+    <li>The Developer tools switch brings back the FPS pill (with its cutout dodge), the debug button and the two-finger tap.</li>
+  </ol>
+  <div class="pair">
+    <figure><div class="shot"><img src="before/menu2.jpg" alt="Before: Match tab"></div><figcaption>Before: the Match tab mixed match rules with experiments</figcaption></figure>
+    <figure><div class="shot"><img src="before/menu4.jpg" alt="Before: Connect tab"></div><figcaption>Before: Connect (Twitch, weather city, Claude, cloud voice, Azure). Cut.</figcaption></figure>
+  </div>
+
+  <h2>Default settings: the plainest game</h2>
+  <table>
+    <tr><th>Setting</th><th>Was</th><th>Now</th><th>Why</th></tr>
+    <tr><td>Tale of the tape (intro)</td><td>on</td><td>off</td><td>Quick match starts the fight at once</td></tr>
+    <tr><td>Instant replays (automatic)</td><td>on</td><td>off</td><td>The results sheet still has the replay strip</td></tr>
+    <tr><td>Win-odds bar</td><td>on</td><td>off</td><td>One less bar under the badges</td></tr>
+    <tr><td>Captions (commentary)</td><td>on</td><td>off</td><td>No caption line over the fight</td></tr>
+    <tr><td>Developer tools (FPS pill, debug button)</td><td>always shown</td><td>off</td><td>New switch under Advanced</td></tr>
+    <tr><td>Effects, slow motion, cut-aways, Broadcast camera</td><td>on</td><td>on</td><td>These are the show, not clutter</td></tr>
+  </table>
+  <p class="sub" style="margin-top:8px">Saved choices are kept: the PlayerPrefs keys didn't change. Only players who never touched a setting see the new defaults.</p>
+
+  <div class="pair">
+    <figure><div class="shot"><img src="before/fight6.jpg" alt="Before: fight">
+      <div class="pin bad" style="left:50%;top:3.6%">2</div><div class="pin bad" style="left:8.5%;top:96.5%">3</div></div><figcaption>Before: six-way fight</figcaption></figure>
+    <figure><div class="shot"><img src="after/fight.jpg" alt="After: fight"></div><figcaption>After, with the defaults: badges with vitals, clock and sea bar, nothing else</figcaption></figure>
+  </div>
+  <div class="pair">
+    <figure><div class="shot"><img src="before/result6.jpg" alt="Before: results"></div><figcaption>Before: results</figcaption></figure>
+    <figure><div class="shot"><img src="after/result.jpg" alt="After: results"></div><figcaption>After: results (unchanged layout, no debug button)</figcaption></figure>
+  </div>
+
+  <h2>The ten options</h2>
+  <table>
+    <tr><th>#</th><th>Option</th><th>Result</th><th></th></tr>
+    <tr><td class="n">1</td><td>Prune training runs</td><td><code>prune_runs.py</code> rewritten (dry run by default). It protects league, overnight, audits, the champion, live runs and every path the docs or queue scripts name. <b>191 files, 1,000 MB</b> of intermediate checkpoints and stale logs are ready.</td><td><span class="tag pending">needs approval</span></td></tr>
+    <tr><td class="n">2</td><td>Remove unshipped brains</td><td>Gate brains (<code>r0</code>–<code>r3</code>, Kim's <code>kimr1b/kimr1c/kimr3b/kimfight</code>) are kept as parity references. The superseded Kim gates sit behind <code>--old-gates</code>.</td><td><span class="tag pending">your call</span></td></tr>
+    <tr><td class="n">3</td><td>Stale imports</td><td>A GUID scan showed <b>all 13</b> MuJoCo import folders are still used. The old hand-kept KEEP list would have broken the Trump testbeds and the game scene. The script now computes usage from GUIDs.</td><td><span class="tag done">fixed</span></td></tr>
+    <tr><td class="n">4</td><td>One-off queue scripts</td><td>11 moved to <code>training/scripts/archive/</code>. The three live queue scripts weren't touched.</td><td><span class="tag done">done</span></td></tr>
+    <tr><td class="n">5</td><td>Duplicate scenes and materials</td><td>9 identical <code>ArenaMaterial_*.mat</code> became <code>FX/Arena.mat</code>; 12 scenes repointed; the importer reuses it. <code>SeaMaterial.mat</code> moved to <code>FX/</code>. <code>Scenes/</code> now holds only scenes.</td><td><span class="tag done">done</span></td></tr>
+    <tr><td class="n">6</td><td>Settings page, clean defaults</td><td>See above.</td><td><span class="tag done">done</span></td></tr>
+    <tr><td class="n">7</td><td>Cut low-value features</td><td>Removed: Twitch chat votes, live weather, cloud voice (Azure Speech / ElevenLabs), Claude commentary, Azure telemetry upload. The game has no network calls left. The Tactician and hazards stay under Advanced, because the gates use them.</td><td><span class="tag done">done</span></td></tr>
+    <tr><td class="n">8</td><td>Naming and dedupe</td><td>Scripts are grouped into <code>Brain/ Match/ Presentation/ Hud/ Diagnostics/</code>. <code>HudView</code> (975 lines) is split into partial files. Settings renamed: <code>Camera→CameraStyle</code>, <code>Volume→MasterVolume</code>, <code>Telemetry→TelemetryHud</code>. Python: shared ONNX/session helpers in <code>koth/cpu_sim.py</code>, outputs byte-identical.</td><td><span class="tag done">done</span></td></tr>
+    <tr><td class="n">9</td><td>Unused packages</td><td>Removed: Timeline, uGUI, the Rider IDE package, and the physics2d, physicscore2d, terrainphysics, umbra, vectorgraphics, adaptiveperformance, assetbundle, director, tetgen, accessibility and three web-request modules. <code>packages-lock</code> lost 145 lines. Compiles clean.</td><td><span class="tag done">done</span></td></tr>
+    <tr><td class="n">10</td><td>Presentation you can tune by hand</td><td>The HUD, cameras, effects, lights and sound pool are in <code>Prefabs/Presentation.prefab</code>. <code>BuildDuelDemo</code> instantiates it and wires only the scene references, so hand tuning in the prefab survives rebuilds. The MuJoCo bodies are still imported from MJCF, as the parity rules require.</td><td><span class="tag done">done</span></td></tr>
+  </table>
+
+  <h2>Runtime check</h2>
+  <table>
+    <tr><th>Run</th><th>Result</th></tr>
+    <tr><td>EditMode tests</td><td class="n">49 / 49 passed</td></tr>
+    <tr><td>PlayMode tests (match flow, every screen on three phones, cutout dodge, 300-tap soak)</td><td class="n">7 / 7 passed</td></tr>
+    <tr><td>Demo_duel, six-way, every option on (hazards, stamina, get-up, Tactician, captions, odds, replays), 6× speed</td><td>6 rounds, all knock-outs; 6 telemetry rows in <code>telemetry/261020.jsonl</code>; <b>0 errors, 0 exceptions</b></td></tr>
+    <tr><td>Every scene: null materials, missing scripts</td><td>0 null materials. The 5 git-ignored <code>Gate_*</code> scenes still hold the cut components, but every gate rebuilds its scene before it runs.</td></tr>
+    <tr><td>Bug found on the way</td><td>The lightning bolt's <code>useWorldSpace / positionCount / enabled=false</code> sat after a <code>//</code> on the same line in <code>GameSceneBuilder</code>, so they never ran. Fixed.</td></tr>
+  </table>
+
+  <h2>Waiting on your go-ahead</h2>
+  <p>Bulk deletion is blocked without your explicit approval, so everything below is staged in <code>tools/cleanup_unused.sh</code> (dry run by default):</p>
+  <table>
+    <tr><th>Set</th><th>Files</th><th>MB</th></tr>
+    <tr><td><code>archive/cut-261020</code> (cut scripts, duplicate materials), <code>Assets/_Recovery</code>, 3 dead Python one-offs</td><td class="n">28</td><td class="n">4</td></tr>
+    <tr><td>Training runs (<code>prune_runs.py</code>)</td><td class="n">191</td><td class="n">1,000</td></tr>
+    <tr><td>Optional <code>--old-gates --builds</code> (superseded Kim gate brains, the player build in <code>Builds/</code>)</td><td class="n">+226</td><td class="n">+328</td></tr>
+  </table>
+</main>
+</body>
+</html>

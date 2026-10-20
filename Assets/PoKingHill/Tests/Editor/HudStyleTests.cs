@@ -12,7 +12,9 @@ namespace PoKingHill.Tests
     /// </summary>
     public class HudStyleTests
     {
-        const string Uss = "Assets/PoKingHill/UI/Hud.uss", View = "Assets/PoKingHill/Scripts/HudView.cs";
+        const string Uss = "Assets/PoKingHill/UI/Hud.uss", ViewDir = "Assets/PoKingHill/Scripts/Hud";
+        /// <summary>HudView and its partial files.</summary>
+        static string ViewCode() => string.Join("\n", Directory.GetFiles(ViewDir, "*.cs").Select(File.ReadAllText));
 
         static string Rules(out string root)
         {
@@ -36,11 +38,11 @@ namespace PoKingHill.Tests
         [Test]
         public void NoStaticSizesFromCode()
         {
-            string code = File.ReadAllText(View);
+            string code = ViewCode();
             // sizes, margins and paddings belong in Hud.uss; code sets only live values (positions, percentages, insets)
             var bad = Regex.Matches(code, @"\.style\.(fontSize|height|minHeight|maxHeight|width|minWidth|maxWidth|margin\w*|padding\w*|flexGrow|flexShrink|flexBasis)\s*=\s*-?\d[^;]*;")
                            .Select(x => x.Value).ToList();
-            Assert.IsEmpty(bad, "static style from HudView.cs:\n" + string.Join("\n", bad));
+            Assert.IsEmpty(bad, "static style from the HUD code:\n" + string.Join("\n", bad));
         }
 
         [Test]
@@ -48,7 +50,7 @@ namespace PoKingHill.Tests
         {
             string rules = Rules(out _);
             var defined = Regex.Matches(rules, @"\.([a-z][a-z0-9-]*)").Select(x => x.Groups[1].Value).ToHashSet();
-            string code = File.ReadAllText(View);
+            string code = ViewCode();
             // class strings passed to El/Text/Btn/AddToClassList (two-word strings are split)
             var used = Regex.Matches(code, @"El\(""([a-z][a-z0-9 -]*)""|(?:Text|Btn)\((?:[^,""()]|""[^""]*""|\([^()]*\))*,\s*""([a-z][a-z0-9 -]*)""|AddToClassList\(""([a-z][a-z0-9-]*)""\)")
                             .SelectMany(x => (x.Groups[1].Success ? x.Groups[1].Value : x.Groups[2].Success ? x.Groups[2].Value : x.Groups[3].Value).Split(' '))

@@ -7,7 +7,7 @@ using UnityEngine;
 namespace PoKingHill.Tests
 {
     /// <summary>The pure parts behind the broadcast features: the Tactician's C# networks against Sentis, the ladder's
-    /// record and credits, the balance geometry and the voice's PCM decoding.</summary>
+    /// record and credits, the balance geometry.</summary>
     public class FeatureTests
     {
         // MlpNet (worker-thread rollouts) must compute what the ONNX brain computes in PolicyRunner.
@@ -65,28 +65,6 @@ namespace PoKingHill.Tests
             Assert.AreEqual(0.3, Biometrics.SegmentDistance(0, 0.3, -0.1, 0, 0.1, 0), 1e-12);      // in front of the stance
             Assert.AreEqual(0.2, Biometrics.SegmentDistance(0.3, 0, -0.1, 0, 0.1, 0), 1e-12);      // past the right foot
             Assert.AreEqual(0.5, Biometrics.SegmentDistance(0.3, 0.4, 0, 0, 0, 0), 1e-12);         // one foot (degenerate segment)
-        }
-
-        [Test]
-        public void VoicePcmDecodes()
-        {
-            var pcm = new byte[] { 0x00, 0x00, 0xFF, 0x7F, 0x00, 0x80, 0x00, 0x40 };      // 0, 32767, -32768, 16384
-            var clip = VoiceCaster.ToClip(pcm, "t");
-            try
-            {
-                Assert.AreEqual(4, clip.samples); Assert.AreEqual(VoiceCaster.SampleRate, clip.frequency);
-                var s = new float[4]; clip.GetData(s, 0);
-                Assert.AreEqual(0f, s[0], 1e-4f); Assert.AreEqual(32767f / 32768f, s[1], 1e-4f); Assert.AreEqual(-1f, s[2], 1e-4f); Assert.AreEqual(0.5f, s[3], 1e-4f);
-            }
-            finally { Object.DestroyImmediate(clip); }
-            Assert.IsNull(VoiceCaster.ToClip(new byte[2], "empty"));
-        }
-
-        [Test]
-        public void WeatherCodesReadAsWords()
-        {
-            Assert.AreEqual("clear sky", WeatherFeed.Describe(0)); Assert.AreEqual("rain", WeatherFeed.Describe(63));
-            Assert.AreEqual("thunderstorm", WeatherFeed.Describe(95)); Assert.AreEqual("fog", WeatherFeed.Describe(45));
         }
     }
 }

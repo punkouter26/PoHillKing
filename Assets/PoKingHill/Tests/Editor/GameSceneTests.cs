@@ -36,8 +36,8 @@ namespace PoKingHill.Tests
 
                 var hud = One<HudView>(scene); Assert.NotNull(hud, "HudView");
                 Assert.NotNull(hud.style, "HUD stylesheet"); Assert.NotNull(hud.director); Assert.NotNull(hud.odds); Assert.NotNull(hud.replay);
-                Assert.NotNull(hud.log); Assert.NotNull(hud.hazards); Assert.NotNull(hud.chat);
-                Assert.NotNull(hud.bio); Assert.NotNull(hud.ledger); Assert.NotNull(hud.stamina); Assert.NotNull(hud.tactician); Assert.NotNull(hud.weather);
+                Assert.NotNull(hud.log); Assert.NotNull(hud.hazards);
+                Assert.NotNull(hud.bio); Assert.NotNull(hud.ledger); Assert.NotNull(hud.stamina); Assert.NotNull(hud.tactician);
                 Assert.NotNull(d.ledger, "director.ledger (Grudge/Vulture)"); Assert.NotNull(d.bio, "director.bio (Vulture)");
                 foreach (var f in d.roster.Where(f => f.available && f.goal == GoalMode.Opponent && f.policy != null))
                     Assert.NotNull(f.mlp, f.name + " has no _mlp.bytes for the Tactician (training/scripts/export_mlp.py)");
@@ -51,7 +51,7 @@ namespace PoKingHill.Tests
 
                 var fx = One<MatchFx>(scene); Assert.NotNull(fx, "MatchFx");
                 foreach (var ps in new[] { fx.dust, fx.sparks, fx.splash, fx.ripple, fx.confetti }) Assert.NotNull(ps, "particle system");
-                Assert.NotNull(fx.hitVolume); Assert.NotNull(fx.sun); Assert.NotNull(fx.kingSpot); Assert.NotNull(fx.steam); Assert.NotNull(fx.stamina); Assert.NotNull(fx.weather);
+                Assert.NotNull(fx.hitVolume); Assert.NotNull(fx.sun); Assert.NotNull(fx.kingSpot); Assert.NotNull(fx.steam); Assert.NotNull(fx.stamina);
                 Assert.NotNull(fx.shockRing); Assert.NotNull(fx.drips); Assert.NotNull(fx.lightning); Assert.NotNull(fx.bolt); Assert.NotNull(fx.danger);
                 Assert.NotNull(fx.synth); Assert.NotNull(fx.bio); Assert.NotNull(fx.quality); Assert.NotNull(fx.hazards, "MatchFx.hazards (banner wind)");
 
@@ -65,7 +65,7 @@ namespace PoKingHill.Tests
 
                 // sound: 3D one-shots and what the ambience follows
                 Assert.NotNull(d.synth.pool, "ImpactSynth.pool (SoundPool)"); Assert.NotNull(d.synth.director); Assert.NotNull(d.synth.hazards);
-                Assert.NotNull(d.synth.weather); Assert.NotNull(d.synth.bio);
+                Assert.NotNull(d.synth.bio);
                 // fighter surface: the material must be an asset on the project shader, so a player build keeps it
                 var look = One<BodyLook>(scene); Assert.NotNull(look.fighterMaterial, "BodyLook.fighterMaterial (FX/Fighter.mat)"); Assert.NotNull(look.bio);
                 Assert.AreEqual("PoKingHill/Fighter", look.fighterMaterial.shader.name);
@@ -75,8 +75,8 @@ namespace PoKingHill.Tests
                 Assert.NotNull(hud.quality); Assert.NotNull(hud.synth); Assert.NotNull(hud.warp);
                 Assert.NotNull(One<MatchLog>(scene).perf, "MatchLog.perf");
 
-                foreach (var c in new System.Type[] { typeof(MatchLog), typeof(ReplaySystem), typeof(PuppetControl), typeof(WinOdds), typeof(Commentator), typeof(Hazards), typeof(ChatVotes), typeof(BodyLook),
-                                                      typeof(ContactLedger), typeof(Biometrics), typeof(Stamina), typeof(Tactician), typeof(WeatherFeed), typeof(VoiceCaster) })
+                foreach (var c in new System.Type[] { typeof(MatchLog), typeof(ReplaySystem), typeof(PuppetControl), typeof(WinOdds), typeof(Commentator), typeof(Hazards), typeof(BodyLook),
+                                                      typeof(ContactLedger), typeof(Biometrics), typeof(Stamina), typeof(Tactician) })
                     Assert.IsTrue(scene.GetRootGameObjects().Any(r => r.GetComponentInChildren(c, true) != null), c.Name + " missing");
             }
             finally { EditorSceneManager.CloseScene(scene, true); }

@@ -41,15 +41,17 @@ namespace PoKingHill.Tests
         public IEnumerator EveryScreenFitsEveryPhone()
         {
             using var guard = new ConsoleGuard();
-            bool intro = GameSettings.Intro, replays = GameSettings.Replays, telemetry = GameSettings.Telemetry;
+            bool intro = GameSettings.Intro, replays = GameSettings.Replays, telemetry = GameSettings.TelemetryHud, dev = GameSettings.DevTools;
             SceneManager.LoadScene("Demo_duel");
             yield return Until(() => DemoDirector.Instance != null && DemoDirector.Instance.State == MatchState.Menu, 60, "the menu");
             var d = DemoDirector.Instance; var hud = Object.FindAnyObjectByType<HudView>();
             var replay = Object.FindAnyObjectByType<ReplaySystem>(); if (replay != null) replay.autoDelay = 999f;
             try
             {
-                GameSettings.Telemetry = true;                  // the taller, two-line FPS pill
-                for (int t = 0; t < 5; t++) { hud.Tab = t; yield return FitsEveryPhone(hud, $"menu tab {t}"); }
+                GameSettings.DevTools = true; GameSettings.TelemetryHud = true;       // the FPS pill, two lines tall
+                for (int t = 0; t < HudView.TabCount - 1; t++) { hud.Tab = t; yield return FitsEveryPhone(hud, $"menu tab {t}"); }
+                hud.Tab = HudView.TabCount - 1;
+                for (int s = 0; s < HudView.SectionCount; s++) { hud.Section = s; yield return FitsEveryPhone(hud, $"settings section {s}"); }
 
                 // six-way: intro card, fight, results
                 foreach (var f in d.roster) f.inGame = f.available;
@@ -80,7 +82,7 @@ namespace PoKingHill.Tests
             finally
             {
                 hud.ClearSimulation(); Time.timeScale = 1f; d.PuppetRequested = false;
-                GameSettings.Intro = intro; GameSettings.Replays = replays; GameSettings.Telemetry = telemetry;
+                GameSettings.Intro = intro; GameSettings.Replays = replays; GameSettings.TelemetryHud = telemetry; GameSettings.DevTools = dev;
             }
             guard.AssertClean("the layout pass");
         }
@@ -94,6 +96,7 @@ namespace PoKingHill.Tests
             SceneManager.LoadScene("Demo_duel");
             yield return Until(() => DemoDirector.Instance != null && DemoDirector.Instance.State == MatchState.Menu, 60, "the menu");
             var hud = Object.FindAnyObjectByType<HudView>();
+            bool dev = GameSettings.DevTools; GameSettings.DevTools = true;      // the FPS pill is a developer tool
             try
             {
                 // 1080 x 2400 at 0.8 panel units per pixel: the pill sits about 70-140 px below the top edge
@@ -119,7 +122,7 @@ namespace PoKingHill.Tests
                 hud.ToggleDebug(); hud.SetCollapsed(false);
                 Assert.IsEmpty(problems, "peek pill and debug panel in the safe area:\n" + string.Join("\n", problems));
             }
-            finally { hud.ClearSimulation(); }
+            finally { hud.ClearSimulation(); GameSettings.DevTools = dev; }
             guard.AssertClean("the cutout pass");
         }
     }

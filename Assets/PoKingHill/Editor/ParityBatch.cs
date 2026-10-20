@@ -100,9 +100,15 @@ namespace PoKingHill.EditorTools
                 var visual = new GameObject("ArenaVisual (render only)");
                 visual.transform.SetPositionAndRotation(geom.transform.position, geom.transform.rotation);
                 visual.AddComponent<MeshFilter>().sharedMesh = geom.Mesh.Mesh;
-                var mat = new Material(MjcfImporter.GetLitShader()) { color = new Color(0.47f, 0.42f, 0.36f, 1f), doubleSidedGI = true };
-                mat.SetFloat("_Cull", 0f);
-                AssetDatabase.CreateAsset(mat, $"{SceneDir}/ArenaMaterial_{label}.mat");
+                // one shared material for every imported arena (FX/Arena.mat), created on the first import
+                const string arenaMat = "Assets/PoKingHill/FX/Arena.mat";
+                var mat = AssetDatabase.LoadAssetAtPath<Material>(arenaMat);
+                if (mat == null)
+                {
+                    mat = new Material(MjcfImporter.GetLitShader()) { color = new Color(0.47f, 0.42f, 0.36f, 1f), doubleSidedGI = true };
+                    mat.SetFloat("_Cull", 0f);
+                    AssetDatabase.CreateAsset(mat, arenaMat);
+                }
                 visual.AddComponent<MeshRenderer>().sharedMaterial = mat;
                 Debug.Log($"[ParityBatch] arena visual: {geom.Mesh.Mesh.vertexCount} verts, bounds {geom.Mesh.Mesh.bounds.center} / {geom.Mesh.Mesh.bounds.size}");
             }
@@ -220,8 +226,8 @@ namespace PoKingHill.EditorTools
             var water = GameObject.CreatePrimitive(PrimitiveType.Cylinder); water.name = "Sea (render only)";
             UnityEngine.Object.DestroyImmediate(water.GetComponent<Collider>());                 // PhysX stays out of the scene
             water.transform.localScale = new Vector3(900f, 0.01f, 900f);         // reaches past the distant peaks
-            var mat = AssetDatabase.LoadAssetAtPath<Material>($"{SceneDir}/SeaMaterial.mat");          // fallback look if the water shader is missing
-            if (mat == null) { mat = new Material(MjcfImporter.GetLitShader()) { color = new Color(0.10f, 0.35f, 0.55f, 1f) }; AssetDatabase.CreateAsset(mat, $"{SceneDir}/SeaMaterial.mat"); }
+            var mat = AssetDatabase.LoadAssetAtPath<Material>("Assets/PoKingHill/FX/SeaMaterial.mat");          // fallback look if the water shader is missing
+            if (mat == null) { mat = new Material(MjcfImporter.GetLitShader()) { color = new Color(0.10f, 0.35f, 0.55f, 1f) }; AssetDatabase.CreateAsset(mat, "Assets/PoKingHill/FX/SeaMaterial.mat"); }
             water.GetComponent<MeshRenderer>().sharedMaterial = mat;
             var sea = rig.AddComponent<Sea>(); sea.waterVisual = water.transform;     // robotPrefixes left empty: every fighter body floats
 

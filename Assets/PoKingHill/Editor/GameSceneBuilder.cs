@@ -12,57 +12,95 @@ using UnityEngine.UIElements;
 namespace PoKingHill.EditorTools
 {
     /// <summary>
-    /// Dresses the game scene that ParityBatch.BuildDuelDemo imports: presentation components, the UI Toolkit HUD,
-    /// the Cinemachine broadcast rig, particle systems, decal pool, lights and post-process volumes. Every object is a
-    /// plain scene object afterwards, so it can be tuned by hand in the editor. Shared assets (panel settings, theme,
-    /// FX textures and materials, volume profiles) are created once under Assets/PoKingHill/{UI,FX} and reused, so a
-    /// rebuild does not churn their GUIDs. Nothing here adds a PhysX component.
+    /// Dresses the game scene that ParityBatch.BuildDuelDemo imports. Two parts:
+    ///   logic         sensors, mechanics, telemetry and sound on the imported rig (built from code every time)
+    ///   presentation  Prefabs/Presentation.prefab: the UI Toolkit HUD, the Cinemachine broadcast rig, particle systems,
+    ///                 decal pool, lights, post-process volumes and the 3D sound pool. Built from code once and saved;
+    ///                 after that every rebuild instantiates the prefab, so whatever is tuned in it by hand (open it in
+    ///                 the editor) survives. Only the scene references (director, sea, camera, sun) are wired here, as
+    ///                 instance overrides. Pass -kothFreshPresentation (or call RebuildPresentation) to rebuild the
+    ///                 prefab from code after the builder changes.
+    /// Shared assets (panel settings, theme, FX textures and materials, volume profiles) are created once under
+    /// Assets/PoKingHill/{UI,FX} and reused, so a rebuild does not churn their GUIDs. Nothing here adds a PhysX component.
     /// </summary>
     public static class GameSceneBuilder
     {
-        const string UiDir = "Assets/PoKingHill/UI", FxDir = "Assets/PoKingHill/FX";
+        const string UiDir = "Assets/PoKingHill/UI", FxDir = "Assets/PoKingHill/FX", PrefabDir = "Assets/PoKingHill/Prefabs";
+        public const string PresentationPrefab = PrefabDir + "/Presentation.prefab";
 
         public static void Dress(GameObject rig, DemoDirector director, Sea sea, ImpactSynth synth, Camera cam, MatchCamera classic, ProjectilePool pool)
         {
-            Directory.CreateDirectory(UiDir); Directory.CreateDirectory(FxDir);
+            Directory.CreateDirectory(UiDir); Directory.CreateDirectory(FxDir); Directory.CreateDirectory(PrefabDir);
             // sensors and mechanics that read (or, Stamina, scale) the simulation; all inert in the statistics gates
             var ledger = rig.AddComponent<ContactLedger>(); ledger.director = director; director.ledger = ledger;
             var bio = rig.AddComponent<Biometrics>(); bio.director = director; director.bio = bio;
             var stamina = rig.AddComponent<Stamina>(); stamina.director = director;
             var tactician = rig.AddComponent<Tactician>(); tactician.director = director;
-            var weather = rig.AddComponent<WeatherFeed>();
             var log = rig.AddComponent<MatchLog>(); log.director = director; log.ledger = ledger;
             var replay = rig.AddComponent<ReplaySystem>(); replay.director = director;
             rig.AddComponent<PuppetControl>().director = director;
             var odds = rig.AddComponent<WinOdds>(); odds.director = director; odds.stamina = stamina;
             rig.AddComponent<Commentator>().director = director;
-            var hazards = rig.AddComponent<Hazards>(); hazards.director = director; hazards.pool = pool; hazards.weather = weather;
-            var chat = rig.AddComponent<ChatVotes>(); chat.hazards = hazards; chat.stamina = stamina; chat.director = director;
+            var hazards = rig.AddComponent<Hazards>(); hazards.director = director; hazards.pool = pool;
             var look = rig.AddComponent<BodyLook>(); look.director = director; look.bio = bio;
             look.lineMaterial = AssetDatabase.LoadAssetAtPath<Material>(FxDir + "/IntentLine.mat");
             if (look.lineMaterial == null) { look.lineMaterial = new Material(Shader.Find("Universal Render Pipeline/Unlit")); AssetDatabase.CreateAsset(look.lineMaterial, FxDir + "/IntentLine.mat"); }
             look.fighterMaterial = ShaderMat("Fighter", "PoKingHill/Fighter");    // an asset, so a player build keeps the shader
             var warp = rig.AddComponent<TimeWarp>(); warp.director = director; warp.bio = bio;
             var quality = rig.AddComponent<QualityTier>(); quality.director = director; quality.cam = cam; log.perf = quality;
-            // 3D one-shots for ImpactSynth, and what its ambience follows
-            var voices = new GameObject("Sound pool (3D one-shots)"); voices.transform.SetParent(rig.transform, false);
-            synth.pool = voices.AddComponent<SoundPool>(); synth.director = director; synth.hazards = hazards; synth.weather = weather; synth.bio = bio;
-            // the voice gets its own AudioSource: the rig's belongs to ImpactSynth's procedural audio
-            var voice = new GameObject("Voice (commentary)"); voice.transform.SetParent(rig.transform, false); voice.AddComponent<VoiceCaster>().director = director;
 
-            var hud = BuildHud(director, odds, replay, log, hazards, chat);
-            hud.bio = bio; hud.ledger = ledger; hud.stamina = stamina; hud.tactician = tactician; hud.weather = weather;
+            // presentation: the hand-tunable prefab, then its scene references
+            var pres = Presentation(Cli.Flag("-kothFreshPresentation"));
+            var hud = pres.GetComponentInChildren<HudView>(true);
+            hud.director = director; hud.odds = odds; hud.replay = replay; hud.log = log; hud.hazards = hazards;
+            hud.bio = bio; hud.ledger = ledger; hud.stamina = stamina; hud.tactician = tactician;
             hud.quality = quality; hud.synth = synth; hud.warp = warp;
-            BuildCameraRig(rig, director, cam, classic);
-            var fx = BuildFx(rig, director, sea); fx.stamina = stamina; fx.weather = weather; fx.synth = synth; fx.bio = bio; fx.quality = quality; fx.hazards = hazards;
+
+            var brain = cam.gameObject.AddComponent<CinemachineBrain>();
+            brain.IgnoreTimeScale = true; brain.UpdateMethod = CinemachineBrain.UpdateMethods.LateUpdate;
+            cam.GetUniversalAdditionalCameraData().renderPostProcessing = true;
+            var bc = pres.GetComponent<BroadcastCamera>(); bc.director = director; bc.brain = brain; bc.classic = classic;
+
+            var fx = pres.GetComponent<MatchFx>();
+            fx.director = director; fx.stamina = stamina; fx.synth = synth; fx.bio = bio; fx.quality = quality; fx.hazards = hazards;
+            // lights: the imported directional light is the sun
+            fx.sun = UnityEngine.Object.FindObjectsByType<Light>(FindObjectsInactive.Include).FirstOrDefault(l => l.type == LightType.Directional && !l.transform.IsChildOf(pres.transform));
+            if (fx.sun != null) fx.sun.shadows = LightShadows.Soft;
+            if (fx.water != null && sea != null && sea.waterVisual != null) sea.waterVisual.GetComponent<MeshRenderer>().sharedMaterial = fx.water;
             quality.sun = fx.sun;
+
+            // 3D one-shots for ImpactSynth, and what its ambience follows
+            synth.pool = pres.GetComponentInChildren<SoundPool>(true); synth.director = director; synth.hazards = hazards; synth.bio = bio;
+            // fields set from code on a prefab instance are kept only when recorded as overrides
+            foreach (Component c in new Component[] { hud, bc, fx }) PrefabUtility.RecordPrefabInstancePropertyModifications(c);
+
             EnsureFeature<DecalRendererFeature>("Decal", null);
             var shock = ShaderMat("Shockwave", "PoKingHill/Shockwave");
             EnsureFeature<ShockwaveFeature>("Shockwave", f => f.material = shock);
         }
 
+        /// <summary>Rebuilds Prefabs/Presentation.prefab from code (hand tuning in it is lost). Run it in a scene that has
+        /// no instance of it, or rebuild the game scene afterwards (ParityBatch.BuildDuelDemo).</summary>
+        public static void RebuildPresentation() { var go = Presentation(fresh: true); UnityEngine.Object.DestroyImmediate(go); }
+
+        /// <summary>An instance of the presentation prefab in the open scene, building and saving the prefab first when it
+        /// does not exist yet (or fresh is set).</summary>
+        static GameObject Presentation(bool fresh)
+        {
+            var prefab = fresh ? null : AssetDatabase.LoadAssetAtPath<GameObject>(PresentationPrefab);
+            if (prefab != null) return (GameObject)PrefabUtility.InstantiatePrefab(prefab);
+            var root = new GameObject("Presentation (HUD, cameras, effects)");
+            BuildHud(root);
+            BuildCameraRig(root);
+            BuildFx(root);
+            var voices = new GameObject("Sound pool (3D one-shots)"); voices.transform.SetParent(root.transform, false); voices.AddComponent<SoundPool>();
+            PrefabUtility.SaveAsPrefabAssetAndConnect(root, PresentationPrefab, InteractionMode.AutomatedAction);
+            Debug.Log("[GameSceneBuilder] saved " + PresentationPrefab);
+            return root;
+        }
+
         // ------------------------------------------------------------------ HUD
-        static HudView BuildHud(DemoDirector director, WinOdds odds, ReplaySystem replay, MatchLog log, Hazards hazards, ChatVotes chat)
+        static void BuildHud(GameObject root)
         {
             string themePath = UiDir + "/HudTheme.tss";
             if (!File.Exists(themePath)) { File.WriteAllText(themePath, "@import url(\"unity-theme://default\");\n"); AssetDatabase.ImportAsset(themePath); }
@@ -74,23 +112,17 @@ namespace PoKingHill.EditorTools
             ps.screenMatchMode = PanelScreenMatchMode.MatchWidthOrHeight; ps.match = 1f;    // portrait: scale by height
             EditorUtility.SetDirty(ps);
 
-            var go = new GameObject("HUD (UI Toolkit)");
+            var go = new GameObject("HUD (UI Toolkit)"); go.transform.SetParent(root.transform, false);
             var doc = go.AddComponent<UIDocument>(); doc.panelSettings = ps;
             var hud = go.AddComponent<HudView>();
-            hud.director = director; hud.odds = odds; hud.replay = replay; hud.log = log; hud.hazards = hazards; hud.chat = chat;
             hud.style = AssetDatabase.LoadAssetAtPath<StyleSheet>(UiDir + "/Hud.uss");
             if (hud.style == null) throw new Exception(UiDir + "/Hud.uss missing");
-            return hud;
         }
 
         // ------------------------------------------------------------------ cameras
-        static void BuildCameraRig(GameObject rig, DemoDirector director, Camera cam, MatchCamera classic)
+        static void BuildCameraRig(GameObject pres)
         {
-            var brain = cam.gameObject.AddComponent<CinemachineBrain>();
-            brain.IgnoreTimeScale = true; brain.UpdateMethod = CinemachineBrain.UpdateMethods.LateUpdate;
-            cam.GetUniversalAdditionalCameraData().renderPostProcessing = true;
-
-            var root = new GameObject("Broadcast cameras");
+            var root = new GameObject("Broadcast cameras"); root.transform.SetParent(pres.transform, false);
             var anchor = new GameObject("Summit anchor").transform; anchor.SetParent(root.transform); anchor.position = new Vector3(0f, 0.6f, 0f);
             var group = new GameObject("Fighters still in (target group)").AddComponent<CinemachineTargetGroup>(); group.transform.SetParent(root.transform);
 
@@ -134,19 +166,19 @@ namespace PoKingHill.EditorTools
             dolly.CameraPosition = 0f; dolly.CameraRotation = CinemachineSplineDolly.RotationMode.Default;
             crane.gameObject.AddComponent<CinemachineRotationComposer>();
 
-            var impulse = rig.AddComponent<CinemachineImpulseSource>();
+            var impulse = pres.AddComponent<CinemachineImpulseSource>();
             impulse.ImpulseDefinition.ImpulseShape = CinemachineImpulseDefinition.ImpulseShapes.Bump; impulse.ImpulseDefinition.ImpulseDuration = 0.22f;
 
-            var bc = rig.AddComponent<BroadcastCamera>();
-            bc.director = director; bc.brain = brain; bc.classic = classic; bc.summit = summit; bc.faller = faller; bc.winner = winner; bc.replay = replay; bc.menu = menu;
+            var bc = pres.AddComponent<BroadcastCamera>();
+            bc.summit = summit; bc.faller = faller; bc.winner = winner; bc.replay = replay; bc.menu = menu;
             bc.group = group; bc.impulse = impulse; bc.summitAnchor = anchor; bc.crane = crane; bc.intro = intro;
         }
 
         // ------------------------------------------------------------------ effects
-        static MatchFx BuildFx(GameObject rig, DemoDirector director, Sea sea)
+        static void BuildFx(GameObject pres)
         {
-            var fx = rig.AddComponent<MatchFx>(); fx.director = director;
-            var root = new GameObject("Effects (render only)").transform;
+            var fx = pres.AddComponent<MatchFx>();
+            var root = new GameObject("Effects (render only)").transform; root.SetParent(pres.transform, false);
             var soft = Tex("fx_soft", (x, y) => { float r = Mathf.Clamp01(1f - new Vector2(x - 0.5f, y - 0.5f).magnitude * 2f); return new Color(1, 1, 1, r * r); });
             var ring = Tex("fx_ring", (x, y) => { float r = new Vector2(x - 0.5f, y - 0.5f).magnitude * 2f; float a = Mathf.Clamp01(1f - Mathf.Abs(r - 0.82f) / 0.12f); return new Color(1, 1, 1, a * a); });
             var scuff = Tex("fx_scuff", (x, y) =>
@@ -207,38 +239,36 @@ namespace PoKingHill.EditorTools
                 var ca = p.Add<ColorAdjustments>(true); ca.contrast.Override(8f); ca.saturation.Override(6f);
             });
             var hit = Profile("PostHit", p => { p.Add<ChromaticAberration>(true).intensity.Override(0.65f); p.Add<LensDistortion>(true).intensity.Override(-0.22f); });
-            var gv = new GameObject("Post-process (grade)").AddComponent<Volume>(); gv.isGlobal = true; gv.sharedProfile = grade; gv.priority = 0;
-            var hv = new GameObject("Post-process (hit punch)").AddComponent<Volume>(); hv.isGlobal = true; hv.sharedProfile = hit; hv.priority = 1; hv.weight = 0;
+            var gv = new GameObject("Post-process (grade)").AddComponent<Volume>(); gv.isGlobal = true; gv.sharedProfile = grade; gv.priority = 0; gv.transform.SetParent(root, false);
+            var hv = new GameObject("Post-process (hit punch)").AddComponent<Volume>(); hv.isGlobal = true; hv.sharedProfile = hit; hv.priority = 1; hv.weight = 0; hv.transform.SetParent(root, false);
             fx.hitVolume = hv;
 
-            // lights: the imported directional light is the sun; a warm spot follows the king
-            fx.sun = UnityEngine.Object.FindObjectsByType<Light>(FindObjectsInactive.Include).FirstOrDefault(l => l.type == LightType.Directional);
-            if (fx.sun != null) fx.sun.shadows = LightShadows.Soft;
-            var spot = new GameObject("King spotlight").AddComponent<Light>(); spot.type = LightType.Spot; spot.spotAngle = 30f; spot.range = 10f; spot.intensity = 8f;
+            // lights: a warm spot follows the king (the imported directional light is the sun, wired by Dress)
+            var spot = new GameObject("King spotlight").AddComponent<Light>(); spot.type = LightType.Spot; spot.spotAngle = 30f; spot.range = 10f; spot.intensity = 8f; spot.transform.SetParent(root, false);
             spot.color = new Color(1f, 0.88f, 0.62f); spot.shadows = LightShadows.None; spot.enabled = false;
             fx.kingSpot = spot;
             // lightning: a directional flash (MatchFx aims it per strike) and the bolt itself
-            var flash = new GameObject("Lightning flash").AddComponent<Light>(); flash.type = LightType.Directional; flash.color = new Color(0.80f, 0.86f, 1f);
+            var flash = new GameObject("Lightning flash").AddComponent<Light>(); flash.type = LightType.Directional; flash.color = new Color(0.80f, 0.86f, 1f); flash.transform.SetParent(root, false);
             flash.intensity = 0f; flash.shadows = LightShadows.None; flash.enabled = false; fx.lightning = flash;
             var bolt = new GameObject("Lightning bolt").AddComponent<LineRenderer>(); bolt.transform.SetParent(root);
             // a solid HDR white-blue line (the soft particle texture fades out along a line's length), bloom adds the glow
             var boltMat = ShaderMat("Bolt", "Universal Render Pipeline/Unlit"); boltMat.SetColor("_BaseColor", new Color(2.4f, 2.6f, 3.2f)); EditorUtility.SetDirty(boltMat);
-            bolt.sharedMaterial = boltMat; bolt.widthMultiplier = 0.5f; bolt.widthCurve = AnimationCurve.Linear(0f, 1f, 1f, 0.35f);   // MatchFx scales the width by distance bolt.useWorldSpace = true; bolt.positionCount = 2; bolt.enabled = false;
+            bolt.sharedMaterial = boltMat; bolt.widthMultiplier = 0.5f; bolt.widthCurve = AnimationCurve.Linear(0f, 1f, 1f, 0.35f);   // MatchFx scales the width by distance
+            bolt.useWorldSpace = true; bolt.positionCount = 2; bolt.enabled = false;
             bolt.colorGradient = new Gradient { colorKeys = new[] { new GradientColorKey(new Color(0.85f, 0.9f, 1f), 0f), new GradientColorKey(Color.white, 1f) }, alphaKeys = new[] { new GradientAlphaKey(1f, 0f), new GradientAlphaKey(1f, 1f) } };
             bolt.shadowCastingMode = ShadowCastingMode.Off; bolt.receiveShadows = false; fx.bolt = bolt;
             // danger: a red point light over the fighter furthest past the rim
-            var danger = new GameObject("Danger light").AddComponent<Light>(); danger.type = LightType.Point; danger.range = 3.5f; danger.color = new Color(1f, 0.16f, 0.1f);
+            var danger = new GameObject("Danger light").AddComponent<Light>(); danger.type = LightType.Point; danger.range = 3.5f; danger.color = new Color(1f, 0.16f, 0.1f); danger.transform.SetParent(root, false);
             danger.shadows = LightShadows.None; danger.enabled = false; fx.danger = danger;
 
-            // water surface shader on the sea disc
+            // water surface shader for the sea disc (Dress puts it on the scene's sea)
             var waterShader = Shader.Find("PoKingHill/Water");
-            if (waterShader != null && sea != null && sea.waterVisual != null)
+            if (waterShader != null)
             {
                 var wm = AssetDatabase.LoadAssetAtPath<Material>(FxDir + "/Water.mat");
                 if (wm == null) { wm = new Material(waterShader); AssetDatabase.CreateAsset(wm, FxDir + "/Water.mat"); }
-                sea.waterVisual.GetComponent<MeshRenderer>().sharedMaterial = wm; fx.water = wm;
+                fx.water = wm;
             }
-            return fx;
         }
 
         static ParticleSystem Particles(Transform parent, string name, Material mat, float life, Vector2 size, Color color, float gravity, int max)

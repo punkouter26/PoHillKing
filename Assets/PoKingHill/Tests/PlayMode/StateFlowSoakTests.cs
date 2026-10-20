@@ -65,7 +65,7 @@ namespace PoKingHill.Tests
                         case 8: hud.SetCollapsed(true); break;
                         case 9: hud.SetCollapsed(false); break;
                         case 10: if (d.State == MatchState.Fight) d.NewRound(); break;
-                        case 11: hud.Tab = rng.Next(5); break;
+                        case 11: hud.Tab = rng.Next(HudView.TabCount); hud.Section = rng.Next(HudView.SectionCount); break;
                         case 12: d.PuppetRequested = !d.PuppetRequested; break;
                     }
                     Invariants(d, hud, names[a]);
