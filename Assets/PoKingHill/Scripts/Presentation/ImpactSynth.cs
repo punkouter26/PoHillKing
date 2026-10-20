@@ -219,7 +219,7 @@ namespace PoKingHill
                 if (other >= 0) { _clank = Mathf.Max(_clank, strength * gain); _clankPan = pan; Clanks++; }
                 return;
             }
-            pool.Play(SoundPool.Kind.Thud, p, strength * g, pitch * (robots[i].body == "trump" ? 0.85f : 1f));
+            pool.Play(SoundPool.Kind.Thud, p, strength * g, pitch * (robots[i].body == "trump" ? 0.85f : robots[i].body == "grandpa" ? 0.9f : 1f));
             if (other < 0) return;
             if (!human && !otherHuman) { pool.Play(SoundPool.Kind.Clank, p, strength * g * 0.8f, pitch); Clanks++; }
             else if (human)

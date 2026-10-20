@@ -23,7 +23,7 @@ namespace PoKingHill.EditorTools
         const string ModelDir = "Assets/PoKingHill/Models";
         const string DemoScene = SceneDir + "/Demo_duel.unity";
 
-        // Which fighter's body a testbed scene holds: -kothRobot g1 (default), kim or trump. Human bodies' files sit in subfolders.
+        // Which fighter's body a testbed scene holds: -kothRobot g1 (default), kim, trump or grandpa. Human bodies' files sit in subfolders.
         static string Robot => Cli.Arg("-kothRobot", "g1");
         static string ModelsOf(string robot) => robot == "g1" ? ModelDir : $"{ModelDir}/{robot}";
         static string SceneOf(string robot, string tag) => $"{SceneDir}/Testbed_{(robot == "g1" ? "" : robot + "_")}{tag}.unity";
@@ -71,8 +71,8 @@ namespace PoKingHill.EditorTools
             if (jointMap == null || dump == null) throw new Exception("joint_map.json / model_dump json missing under " + models + " (run koth.build_mjcf)");
 
             var rig = new GameObject("KothRig");
-            // One runner per robot the model holds, as listed by build_mjcf in the dump (koth_6p: four G1, Kim as e_ and Trump as f_).
-            // Each body uses its own kind's joint map, and every Kim body wears her scanned mesh.
+            // One runner per robot the model holds, as listed by build_mjcf in the dump (koth_7p: four G1, Kim as e_, Trump as f_,
+            // Grandpa as g_). Each body uses its own kind's joint map, and every human body wears its mesh.
             foreach (var r in RobotsOf(dump, tag, robot))
             {
                 var go = new GameObject("Policy_" + r.prefix); go.transform.SetParent(rig.transform);
@@ -138,28 +138,30 @@ namespace PoKingHill.EditorTools
             return Enumerable.Range(0, n).Select(i => new RobotEntry { prefix = (char)('a' + i) + "_", body = tag.EndsWith("5p") && i == 4 ? "kim" : robot }).ToArray();
         }
 
-        /// <summary>Fighters/&lt;Body&gt;: a human body's mesh folder (Kim, Trump).</summary>
+        /// <summary>Fighters/&lt;Body&gt;: a human body's mesh folder (Kim, Trump, Grandpa).</summary>
         static string SkinDir(string body) => $"Assets/PoKingHill/Fighters/{char.ToUpperInvariant(body[0])}{body.Substring(1)}";
 
-        /// <summary>Dress one human fighter in its mesh: kim.fbx (tools/make_kim.py, with a URP material built from her
-        /// textures) or &lt;body&gt;.glb (tools/make_glb_fighter.py, imported by glTFast with its own materials). The mesh
-        /// follows the MuJoCo bodies through SkinFollower and the collision shapes stop being drawn.</summary>
+        /// <summary>Dress one human fighter in its mesh: &lt;body&gt;.fbx (tools/make_kim.py, tools/make_grandpa.py, with a
+        /// URP material built from &lt;body&gt;_albedo / _normal) or &lt;body&gt;.glb (tools/make_glb_fighter.py, imported by
+        /// glTFast with its own materials). The mesh follows the MuJoCo bodies through SkinFollower and the collision
+        /// shapes stop being drawn.</summary>
         static void AddSkin(string prefix, string body, GameObject rig)
         {
-            string dir = SkinDir(body);
-            var prefab = AssetDatabase.LoadAssetAtPath<GameObject>($"{dir}/{body}.fbx") ?? AssetDatabase.LoadAssetAtPath<GameObject>($"{dir}/{body}.glb");
+            string dir = SkinDir(body), Body = $"{char.ToUpperInvariant(body[0])}{body.Substring(1)}";
+            var fbx = AssetDatabase.LoadAssetAtPath<GameObject>($"{dir}/{body}.fbx");
+            var prefab = fbx ?? AssetDatabase.LoadAssetAtPath<GameObject>($"{dir}/{body}.glb");
             var table = AssetDatabase.LoadAssetAtPath<TextAsset>($"{ModelsOf(body)}/{body}_skin.json");
-            if (prefab == null || table == null) throw new Exception($"{dir}/{body}.fbx|.glb or {body}_skin.json missing (tools/make_kim.py or tools/make_glb_fighter.py, then koth.build_mjcf with KOTH_ROBOT={body})");
-            var skin = (GameObject)PrefabUtility.InstantiatePrefab(prefab); skin.name = $"{char.ToUpperInvariant(body[0])}{body.Substring(1)}Skin_{prefix}";
-            if (body == "kim")
+            if (prefab == null || table == null) throw new Exception($"{dir}/{body}.fbx|.glb or {body}_skin.json missing (tools/make_kim.py, make_grandpa.py or make_glb_fighter.py, then koth.build_mjcf with KOTH_ROBOT={body})");
+            var skin = (GameObject)PrefabUtility.InstantiatePrefab(prefab); skin.name = $"{Body}Skin_{prefix}";
+            if (fbx != null)
             {
-                var mat = AssetDatabase.LoadAssetAtPath<Material>($"{dir}/Kim.mat");
+                var mat = AssetDatabase.LoadAssetAtPath<Material>($"{dir}/{Body}.mat");
                 if (mat == null)
                 {
                     mat = new Material(Shader.Find("Universal Render Pipeline/Lit")); mat.SetFloat("_Smoothness", 0.2f);
-                    mat.SetTexture("_BaseMap", MapTexture("kim_albedo", false, true, dir));
-                    mat.SetTexture("_BumpMap", MapTexture("kim_normal", true, false, dir)); mat.EnableKeyword("_NORMALMAP");
-                    AssetDatabase.CreateAsset(mat, $"{dir}/Kim.mat");
+                    mat.SetTexture("_BaseMap", MapTexture($"{body}_albedo", false, true, dir));
+                    mat.SetTexture("_BumpMap", MapTexture($"{body}_normal", true, false, dir)); mat.EnableKeyword("_NORMALMAP");
+                    AssetDatabase.CreateAsset(mat, $"{dir}/{Body}.mat");
                 }
                 foreach (var r in skin.GetComponentsInChildren<SkinnedMeshRenderer>()) r.sharedMaterial = mat;
             }
@@ -197,13 +199,13 @@ namespace PoKingHill.EditorTools
         }
 
         [MenuItem("PoKingHill/Build duel demo scene")]
-        public static void BuildDuelDemo() => BuildDuelDemo("koth_6p");
+        public static void BuildDuelDemo() => BuildDuelDemo("koth_7p");
 
         /// <summary>The two-fighter gates' scene (git-ignored), so a gate run never overwrites the game scene.</summary>
         const string GateScene = SceneDir + "/Gate_duel_2p.unity";
 
         /// <summary>Builds the game scene from an imported arena scene and saves it to <paramref name="savePath"/>
-        /// (Demo_duel.unity by default): the game uses the one with four G1, Kim and Trump (koth_6p, default), the two-fighter
+        /// (Demo_duel.unity by default): the game uses the one with four G1, Kim, Trump and Grandpa (koth_7p, default), the two-fighter
         /// parity gates the scene the brains were trained in (koth_2p, saved as Gate_duel_2p.unity). The menu seats the
         /// ticked agents on the bodies, everyone starts on the summit and the sea rises as the round clock. Presentation
         /// (HUD, cameras, effects) comes from GameSceneBuilder. No PhysX components are created.</summary>
@@ -252,7 +254,7 @@ namespace PoKingHill.EditorTools
             var tactical = Onnx("tactical_policy");
             if (tactical != null) roster.Add(new Fighter { name = "G1 Tactical (trained on tactics)", shortName = "Tactical", obsDim = InputsOf(tactical), goal = GoalMode.Opponent, policy = tactical,
                                                            value = Onnx("tactical_value"), mlp = Mlp(ModelDir, "tactical_mlp"), valueMlp = Mlp(ModelDir, "tactical_value_mlp"), action = Action(ModelDir, "tactical") });
-            // A human is offered only when this scene has its body (koth_6p: Kim e_, Trump f_) and a brain of theirs exists:
+            // A human is offered only when this scene has its body (koth_7p: Kim e_, Trump f_, Grandpa g_) and a brain of theirs exists:
             // the fighting brain (Models/<body>/fighter_policy.onnx, 112 inputs) when exported, else the walker that
             // walks at the nearest opponent. vmax: the walking speed the fighter was trained with (Trump's style: 0.7).
             // The newest brain of a human that exists wins: ffa (four-way, 121 inputs, trained against G1), the styled
@@ -273,10 +275,11 @@ namespace PoKingHill.EditorTools
             }
             roster.Add(Human("kim", "Kim", "Kim", 1f));
             roster.Add(Human("trump", "Trump (Bulldozer: 102 kg, slow, shoves with his body)", "Trump", 0.7f, "bull"));
+            roster.Add(Human("grandpa", "Grandpa (86 kg, in his eighties, leans in and shoves)", "Grandpa", 1f));
             director.roster = roster.ToArray();
             if (director.roster.Any(f => f.available && f.policy == null)) throw new Exception("a roster policy is missing in " + ModelDir);
             // get-up brains (training rung getup, exported as Models[/<body>]/getup_policy.onnx) for the bodies that have one
-            director.getupBrains = new[] { "g1", "kim", "trump" }
+            director.getupBrains = new[] { "g1", "kim", "trump", "grandpa" }
                 .Select(b => new BodyBrain { body = b, policy = AssetDatabase.LoadAssetAtPath<Unity.InferenceEngine.ModelAsset>($"{ModelsOf(b)}/getup_policy.onnx") })
                 .Where(b => b.policy != null).ToArray();
             director.maps = new[] { "Mountain top", "Summit (baseline)" };
@@ -410,6 +413,7 @@ namespace PoKingHill.EditorTools
         /// KOTH_ROBOT=kim scripts/duel_stats.py --policy fighter).</summary>
         public static void RunKimDuelStats() => RunDuelStats("kim", int.Parse(Cli.Arg("-kothRounds", "200")), -1, -1);
         public static void RunTrumpDuelStats() => RunDuelStats("trump", int.Parse(Cli.Arg("-kothRounds", "200")), -1, -1);
+        public static void RunGrandpaDuelStats() => RunDuelStats("grandpa", int.Parse(Cli.Arg("-kothRounds", "200")), -1, -1);
 
         /// <summary>The statistics gate on a robot's two-body testbed; agent index -1 = that robot's own roster entry.</summary>
         public static void RunDuelStats(string robot, int rounds, int a, int b) => RunDuelStats(robot, rounds, a, b, play: true);
@@ -471,7 +475,7 @@ namespace PoKingHill.EditorTools
             EditorApplication.EnterPlaymode();
         }
 
-        const string GateFfaScene = SceneDir + "/Gate_ffa_4p.unity", GateFfaMixedScene = SceneDir + "/Gate_ffa_6p.unity";
+        const string GateFfaScene = SceneDir + "/Gate_ffa_4p.unity", GateFfaMixedScene = SceneDir + "/Gate_ffa_7p.unity";
 
         /// <summary>Free-for-all statistics gate: the candidate (-kothCandidate short name, default the Free-for-all brain,
         /// else the All-rounder) on body A against three opponents drawn every round from the pool eval.py --rung r5ffa uses
@@ -481,16 +485,16 @@ namespace PoKingHill.EditorTools
         public static void RunFfaStats() => RunFfaStats(Cli.Arg("-kothCandidate", ""));
 
         /// <summary>The free-for-all gate for any candidate (roster badge; "" = the G1 Free-for-all brain, else the
-        /// All-rounder). A human candidate (Kim, Trump) plays in the six-body scene (koth_6p, Gate_ffa_6p.unity) against
-        /// three G1 drawn from the same pool, the other human body parked: the Python reference is eval.py --rung
+        /// All-rounder). A human candidate (Kim, Trump, Grandpa) plays in the seven-body scene (koth_7p, Gate_ffa_7p.unity)
+        /// against three G1 drawn from the same pool, the other human bodies parked: the Python reference is eval.py --rung
         /// &lt;body&gt;_ffa with that pool. Writes training/assets/&lt;candidate body&gt;/ffa_stats_unity.json.</summary>
         public static void RunFfaStats(string candidate) { if (RunFfaStatsScene(candidate)) EditorApplication.EnterPlaymode(); }
 
         static bool RunFfaStatsScene(string candidate)
         {
-            bool human = candidate == "Kim" || candidate == "Trump";
+            bool human = candidate == "Kim" || candidate == "Trump" || candidate == "Grandpa";
             string gate = human ? GateFfaMixedScene : GateFfaScene;
-            BuildDuelDemo(human ? "koth_6p" : "koth_4p", gate);
+            BuildDuelDemo(human ? "koth_7p" : "koth_4p", gate);
             EditorSceneManager.OpenScene(gate, OpenSceneMode.Single);
             foreach (var sea in UnityEngine.Object.FindObjectsByType<Sea>(FindObjectsInactive.Include)) UnityEngine.Object.DestroyImmediate(sea);
             var dd = UnityEngine.Object.FindAnyObjectByType<DemoDirector>(); dd.sea = null; dd.roundSeconds = 20f;

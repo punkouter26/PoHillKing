@@ -103,8 +103,10 @@ namespace PoKingHill.Tests
         [TestCase("Assets/PoKingHill/Models", "koth_4p", "g1", "a_ b_ c_ d_")]
         [TestCase("Assets/PoKingHill/Models", "koth_5p", "g1", "a_ b_ c_ d_ e_:kim")]
         [TestCase("Assets/PoKingHill/Models", "koth_6p", "g1", "a_ b_ c_ d_ e_:kim f_:trump")]
+        [TestCase("Assets/PoKingHill/Models", "koth_7p", "g1", "a_ b_ c_ d_ e_:kim f_:trump g_:grandpa")]
         [TestCase("Assets/PoKingHill/Models/kim", "koth_2p", "kim", "a_:kim b_:kim")]
         [TestCase("Assets/PoKingHill/Models/trump", "koth_2p", "trump", "a_:trump b_:trump")]
+        [TestCase("Assets/PoKingHill/Models/grandpa", "koth_2p", "grandpa", "a_:grandpa b_:grandpa")]
         public void ModelDumpListsItsRobots(string dir, string tag, string robot, string expected)
         {
             var dump = AssetDatabase.LoadAssetAtPath<TextAsset>($"{dir}/model_dump_{tag}.json");

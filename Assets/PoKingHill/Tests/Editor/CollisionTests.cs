@@ -20,7 +20,7 @@ namespace PoKingHill.Tests
             ("kim", "a_left_foot1_collision", "a_right_foot_box_collision", 0.6),
         };
 
-        [TestCase("g1"), TestCase("kim"), TestCase("trump")]
+        [TestCase("g1"), TestCase("kim"), TestCase("trump"), TestCase("grandpa")]
         public void CollidingSelfPairsDoNotOverlapInTheZeroPose(string robot)
         {
             string xml = Path.GetFullPath($"training/assets/{robot}/scene_koth_2p_unity.xml");

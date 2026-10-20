@@ -11,7 +11,7 @@ namespace PoKingHill
     {
         public string name = "Fighter";
         [Tooltip("What fits on a badge, e.g. All-rounder")] public string shortName = "";
-        [Tooltip("The kind of body this brain drives (g1, kim, trump)")] public string body = "g1";
+        [Tooltip("The kind of body this brain drives (g1, kim, trump, grandpa)")] public string body = "g1";
         public ModelAsset policy;
         [Tooltip("Optional critic exported by export_policy.py --value: drives the win-odds bar")] public ModelAsset value;
         [Tooltip("103 = locomotion inputs, 112 = with opponent/ring inputs")] public int obsDim = 112;
@@ -78,7 +78,7 @@ namespace PoKingHill
         /// <summary>Colour of each body's badge and team trim, in fighters[] order after seating.</summary>
         public static readonly Color[] SeatColors =
             { new(0.95f, 0.36f, 0.30f), new(0.27f, 0.62f, 0.98f), new(0.98f, 0.78f, 0.25f), new(0.45f, 0.85f, 0.45f), new(0.80f, 0.50f, 0.95f),
-              new(0.30f, 0.85f, 0.85f) };
+              new(0.30f, 0.85f, 0.85f), new(0.98f, 0.52f, 0.72f) };
 
         public static DemoDirector Instance { get; private set; }
         public MatchState State { get; private set; } = MatchState.Booting;

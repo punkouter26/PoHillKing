@@ -1,0 +1,58 @@
+16:49:01 | INFO: Data are loaded, start creating Blender stuff
+16:49:01 | INFO: Blender create Mesh node node_0
+16:49:01 | INFO: glTF import finished in 0.12s
+Info: Removed 7738 vertices
+Info: Removed: 0 vertices, 0 edges, 0 faces
+1. mesh: 32722 -> 24984 vertices, 41716 faces (8284 quads), non-manifold edges 14420 -> 0, loose vertices 0, scale 1.6057, origin at the feet
+   material: one Principled BSDF, mapped inputs {'Base Color': True, 'Normal': True, 'Roughness': True, 'Metallic': True}
+2. armature: Hips (0.0, 0.0, 0.932), UpperLeg.L (0.0, 0.102, 0.912), LowerLeg.L (0.018, 0.131, 0.49), Foot.L (-0.031, 0.152, 0.086), Toe.L (0.167, 0.163, 0.035), UpperLeg.R (0.0, -0.109, 0.912), LowerLeg.R (-0.073, -0.124, 0.49), Foot.R (-0.111, -0.127, 0.086), Toe.R (0.02, -0.247, 0.035), Spine (0.0, 0.0, 1.032), Chest (0.0, 0.0, 1.238), Neck (-0.02, 0.0, 1.436), Head (-0.01, 0.0, 1.514), Shoulder.L (-0.01, 0.03, 1.386), UpperArm.L (-0.02, 0.185, 1.376), LowerArm.L (0.187, 0.388, 1.386), Hand.L (0.392, 0.517, 1.374), Shoulder.R (-0.01, -0.03, 1.386), UpperArm.R (-0.02, -0.185, 1.376), LowerArm.R (-0.048, -0.48, 1.331), Hand.R (0.008, -0.721, 1.31)
+Info: 7199 vertex weights limited
+   skin: bone heat, unweighted vertices 0, vertices owned per bone {'Hips': 164, 'UpperLeg.L': 2844, 'LowerLeg.L': 1627, 'Foot.L': 879, 'Toe.L': 121, 'UpperLeg.R': 2873, 'LowerLeg.R': 1815, 'Foot.R': 767, 'Toe.R': 127, 'Spine': 2801, 'Chest': 265, 'Neck': 296, 'Head': 1799, 'Shoulder.L': 681, 'UpperArm.L': 2000, 'LowerArm.L': 390, 'Hand.L': 776, 'Shoulder.R': 790, 'UpperArm.R': 2064, 'LowerArm.R': 915, 'Hand.R': 990}
+   palm L: no clear flat side (normal spread 322 vs 247), left as is
+   palm R: no clear flat side (normal spread 384 vs 362), left as is
+   grounded: raised 22.9 mm
+3. T-pose: arms horizontal, legs straight, palms turned down by {'L': 0.0, 'R': 0.0} degrees (L/R), made the rest pose
+   walk check: worst edge stretch x4.13, 99.9th percentile x1.782 over 32 frames; edges stretched over x1.5 (edge-frames by bone): {'Spine': 1149, 'UpperLeg.L': 774, 'UpperLeg.R': 669, 'LowerLeg.L': 378, 'LowerLeg.R': 217, 'UpperArm.R': 173} of 66716 edges
+
+FBX export starting... 'C:\\Users\\punko\\Downloads\\PoHillKing\\Assets\\Art\\Exports\\FBX\\Grandpa\\Character_TPose.fbx'
+(bpy.data.armatures['GrandpaRig'], 'POSE')
+export finished in 0.2286 sec.
+INFO Draco is available, use library at C:\Program Files\WindowsApps\BlenderFoundation.Blender_5.2.2.0_x64__ppwjx1n5r4v9t\Blender\5.2\scripts\addons_core\io_scene_gltf2\bf_intern_draco_bridge.dll
+INFO MeshOptimizer is available, use library at C:\Program Files\WindowsApps\BlenderFoundation.Blender_5.2.2.0_x64__ppwjx1n5r4v9t\Blender\5.2\scripts\addons_core\io_scene_gltf2\bf_intern_meshopt_bridge.dll
+16:49:07 | INFO: Starting glTF 2.0 export
+16:49:07 | INFO: Extracting primitive: Grandpa
+16:49:08 | WARNING: More than one shader node tex image used for a texture. The resulting glTF sampler will behave like the first shader node tex image.
+16:49:08 | INFO: Primitives created: 1
+16:49:08 | INFO: Finished glTF 2.0 export in 0.8606982231140137 s
+
+   exported C:\Users\punko\Downloads\PoHillKing\Assets\Art\Exports\FBX\Grandpa\Character_TPose.fbx (28539 KB) and C:\Users\punko\Downloads\PoHillKing\Assets\Art\Exports\GLB\Grandpa.glb
+4. game rest pose: arms 20.0 degrees out; bbox [-0.21  -0.446  0.   ] [0.256 0.422 1.743]
+   Hips         head [0.0, 0.0, 0.9545000195503235]  r50 0.1609  r80 0.185  verts 164
+   UpperLeg.L   head [-0.0, 0.10209999978542328, 0.934499979019165]  r50 0.1068  r80 0.1235  verts 2844
+   LowerLeg.L   head [-0.0, 0.10209999978542328, 0.534500002861023]  r50 0.0775  r80 0.0884  verts 1627
+   Foot.L       head [0.0, 0.10209999978542328, 0.12700000405311584]  r50 0.0629  r80 0.0906  verts 879
+   Toe.L        head [0.19629999995231628, 0.10209999978542328, 0.06920000165700912]  r50 0.025  r80 0.0397  verts 121
+   UpperLeg.R   head [0.0, -0.10890000313520432, 0.934499979019165]  r50 0.1088  r80 0.1299  verts 2873
+   LowerLeg.R   head [-0.0, -0.10890000313520432, 0.5295000076293945]  r50 0.0814  r80 0.098  verts 1815
+   Foot.R       head [0.0, -0.10890000313520432, 0.1234000027179718]  r50 0.0578  r80 0.0873  verts 767
+   Toe.R        head [0.17739999294281006, -0.10890000313520432, 0.07109999656677246]  r50 0.0331  r80 0.0475  verts 127
+   Spine        head [0.0, 0.0, 1.054900050163269]  r50 0.1896  r80 0.2022  verts 2801
+   Chest        head [0.0, 0.0, 1.2841999530792236]  r50 0.1632  r80 0.1816  verts 265
+   Neck         head [-0.019999999552965164, 0.0, 1.4819999933242798]  r50 0.0721  r80 0.0944  verts 296
+   Head         head [-0.010400000028312206, 0.0, 1.559399962425232]  r50 0.1129  r80 0.1365  verts 1799
+   Shoulder.L   head [-0.009999999776482582, 0.029999999329447746, 1.4089000225067139]  r50 0.1198  r80 0.1363  verts 681
+   UpperArm.L   head [-0.019999999552965164, 0.1850000023841858, 1.398900032043457]  r50 0.0734  r80 0.099  verts 2000
+   LowerArm.L   head [-0.019999999552965164, 0.28459998965263367, 1.125100016593933]  r50 0.0388  r80 0.0539  verts 390
+   Hand.L       head [-0.019999999552965164, 0.3675000071525574, 0.8974999785423279]  r50 0.0485  r80 0.0654  verts 776
+   Shoulder.R   head [-0.009999999776482582, -0.029999999329447746, 1.4089000225067139]  r50 0.1028  r80 0.1606  verts 790
+   UpperArm.R   head [-0.019999999552965164, -0.1850000023841858, 1.398900032043457]  r50 0.0811  r80 0.1214  verts 2064
+   LowerArm.R   head [-0.019999999552965164, -0.28790000081062317, 1.1160999536514282]  r50 0.0424  r80 0.0603  verts 915
+   Hand.R       head [-0.019999999552965164, -0.3727000057697296, 0.8830999732017517]  r50 0.0491  r80 0.0679  verts 990
+
+FBX export starting... 'C:\\Users\\punko\\Downloads\\PoHillKing\\Assets\\PoKingHill\\Fighters\\Grandpa\\grandpa.fbx'
+(bpy.data.armatures['GrandpaRig'], 'POSE')
+export finished in 0.2120 sec.
+   wrote C:\Users\punko\Downloads\PoHillKing\training\assets\grandpa\grandpa_rig.json, C:\Users\punko\Downloads\PoHillKing\Assets\PoKingHill\Fighters\Grandpa/grandpa.fbx, textures ['grandpa_albedo.png', 'grandpa_normal.png']
+Info: Saved as "Grandpa.blend"
+5. archived C:\Users\punko\Downloads\PoHillKing\Assets\Art\Raw\Grandpa~\Grandpa.blend
+DONE

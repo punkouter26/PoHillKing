@@ -1,0 +1,281 @@
+<mujoco model="grandpa_koth_1p">
+  <compiler angle="radian" meshdir="assets/" texturedir="assets/" />
+  <option integrator="implicitfast" iterations="5" ls_iterations="10" />
+  <default>
+    <default class="grandpa">
+      <joint solreflimit="0.008" solimplimit="0 0.99 0.01" damping="0.5" frictionloss="0.2" />
+      <geom contype="0" conaffinity="0" condim="1" />
+      <general biastype="affine" gainprm="0" />
+      <default class="grandpa_collision">
+        <geom type="capsule" group="3" rgba="0.8 0.6 0.5 1" />
+        <default class="grandpa_foot_box">
+          <geom type="box" group="4" />
+        </default>
+        <default class="grandpa_foot_capsule" />
+      </default>
+      <default class="grandpa_hip">
+        <general gainprm="510" biasprm="0 -510 -13" />
+        <default class="grandpa_hip_pitch">
+          <joint range="-1.8 0.35" armature="0.03" axis="0 1 0" />
+          <general forcerange="-155 155" />
+        </default>
+        <default class="grandpa_hip_roll">
+          <joint armature="0.03" axis="1 0 0" />
+          <general forcerange="-108 108" />
+        </default>
+        <default class="grandpa_hip_yaw">
+          <joint range="-0.55 0.55" armature="0.016" />
+          <general forcerange="-54 54" />
+        </default>
+      </default>
+      <default class="grandpa_knee">
+        <joint range="-0.05 2.2" armature="0.03" axis="0 1 0" />
+        <general forcerange="-155 155" gainprm="680" biasprm="0 -680 -13" />
+      </default>
+      <default class="grandpa_ankle">
+        <general gainprm="135" biasprm="0 -135 -4.6" />
+        <default class="grandpa_ankle_pitch">
+          <joint range="-0.4 0.7" armature="0.016" axis="0 1 0" />
+          <general forcerange="-116 116" gainprm="620" biasprm="0 -620 -10" />
+        </default>
+        <default class="grandpa_ankle_roll">
+          <joint range="-0.33 0.33" armature="0.008" axis="1 0 0" />
+          <general forcerange="-35 35" />
+        </default>
+      </default>
+      <default class="grandpa_waist_yaw">
+        <joint range="-0.6 0.6" armature="0.03" />
+        <general forcerange="-62 62" gainprm="425" biasprm="0 -425 -10" />
+      </default>
+      <default class="grandpa_waist_roll">
+        <joint range="-0.35 0.35" armature="0.03" axis="1 0 0" />
+        <general forcerange="-108 108" gainprm="595" biasprm="0 -595 -13" />
+      </default>
+      <default class="grandpa_waist_pitch">
+        <joint range="-0.25 0.85" armature="0.03" axis="0 1 0" />
+        <general forcerange="-155 155" gainprm="595" biasprm="0 -595 -13" />
+      </default>
+      <default class="grandpa_shoulder">
+        <general gainprm="108" biasprm="0 -108 -3.9" />
+        <default class="grandpa_shoulder_pitch">
+          <joint range="-2.5 0.7" armature="0.0065" axis="0 1 0" />
+          <general forcerange="-54 54" />
+        </default>
+        <default class="grandpa_shoulder_roll">
+          <joint armature="0.0065" axis="1 0 0" />
+          <general forcerange="-50 50" />
+        </default>
+        <default class="grandpa_shoulder_yaw">
+          <joint range="-1.2 1.2" armature="0.004" />
+          <general forcerange="-31 31" />
+        </default>
+      </default>
+      <default class="grandpa_elbow">
+        <joint range="0 2.3" armature="0.005" axis="0 -1 0" />
+        <general forcerange="-42 42" gainprm="77" biasprm="0 -77 -2.7" />
+      </default>
+      <default class="grandpa_wrist">
+        <general gainprm="19" biasprm="0 -19 -0.6" />
+        <default class="grandpa_wrist_roll">
+          <joint range="-1.2 1.2" armature="0.0012" />
+          <general forcerange="-9 9" />
+        </default>
+        <default class="grandpa_wrist_pitch">
+          <joint range="-0.85 0.85" armature="0.0012" axis="0 1 0" />
+          <general forcerange="-8 8" />
+        </default>
+        <default class="grandpa_wrist_yaw">
+          <joint range="-0.3 0.3" armature="0.0012" axis="1 0 0" />
+          <general forcerange="-8 8" />
+        </default>
+      </default>
+    </default>
+  </default>
+  <worldbody>
+    <geom name="floor" size="0 0 0.05" type="plane" contype="4" conaffinity="31" friction="0.6" rgba="0.4 0.4 0.4 1" />
+    <light pos="0 0 6" type="directional" />
+    <body name="a_pelvis" childclass="grandpa" pos="0 0 0.98">
+      <joint name="a_floating_base_joint" type="free" solreflimit="0.02" solimplimit="0.9 0.95 0.001" damping="0" frictionloss="0" />
+      <geom name="a_pelvis_collision" class="grandpa_collision" size="0.16 0.02" pos="-0.03225 0 -0.01" quat="0.707107 0.707107 0 0" contype="1" conaffinity="6" condim="3" friction="0.8" mass="9.6062" />
+      <body name="a_left_hip_pitch_link" pos="0 0.1055 -0.02">
+        <inertial pos="0 0 0" mass="0.6" diaginertia="0.00054 0.00054 0.00054" />
+        <joint name="a_left_hip_pitch_joint" class="grandpa_hip_pitch" />
+        <body name="a_left_hip_roll_link">
+          <inertial pos="0 0 0" mass="0.6" diaginertia="0.00054 0.00054 0.00054" />
+          <joint name="a_left_hip_roll_joint" class="grandpa_hip_roll" range="-0.3 0.6" />
+          <body name="a_left_hip_yaw_link">
+            <joint name="a_left_hip_yaw_joint" class="grandpa_hip_yaw" />
+            <geom name="a_left_thigh_collision" class="grandpa_collision" size="0.09 0.16905" pos="0 0 -0.20125" contype="1" conaffinity="6" condim="3" friction="0.8" mass="10.978" />
+            <body name="a_left_knee_link" pos="0 0 -0.4025">
+              <joint name="a_left_knee_joint" class="grandpa_knee" />
+              <geom name="a_left_shin_collision" class="grandpa_collision" size="0.08525 0.1017" pos="0 0 -0.12204" contype="1" conaffinity="22" condim="3" friction="0.8" mass="2.4205" />
+              <geom name="a_left_linkage_brace_collision" class="grandpa_collision" size="0.062 0.07119" pos="0 0 -0.31527" contype="1" conaffinity="22" condim="3" friction="0.8" mass="1.3033" />
+              <body name="a_left_ankle_pitch_link" pos="0 0 -0.4068">
+                <inertial pos="0 0 0" mass="0.2" diaginertia="0.00018 0.00018 0.00018" />
+                <joint name="a_left_ankle_pitch_joint" class="grandpa_ankle_pitch" />
+                <body name="a_left_ankle_roll_link">
+                  <joint name="a_left_ankle_roll_joint" class="grandpa_ankle_roll" />
+                  <geom name="a_left_foot_box_collision" class="grandpa_foot_box" size="0.1666 0.06445 0.012" pos="0.0888 0 -0.1132" contype="17" conaffinity="22" condim="3" friction="0.6" mass="0.9182" />
+                  <geom name="a_left_foot1_collision" class="grandpa_foot_capsule" size="0.012 0.0275" pos="0.2129 -0.045115 -0.1112" quat="0.707107 0 -0.707107 0" contype="17" conaffinity="22" condim="3" friction="0.6" mass="0.02" />
+                  <geom name="a_left_foot3_collision" class="grandpa_foot_capsule" size="0.012 0.0275" pos="0.2129 0.045115 -0.1112" quat="0.707107 0 -0.707107 0" contype="17" conaffinity="22" condim="3" friction="0.6" mass="0.02" />
+                  <geom name="a_left_foot2_collision" class="grandpa_foot_capsule" size="0.022 0.1416" pos="0.0888 0 -0.1012" quat="0.707107 0 -0.707107 0" contype="17" conaffinity="22" condim="3" friction="0.6" mass="0.02" />
+                  <site name="a_left_foot" pos="0.0888 0 -0.1252" />
+                </body>
+              </body>
+            </body>
+          </body>
+        </body>
+      </body>
+      <body name="a_right_hip_pitch_link" pos="0 -0.1055 -0.02">
+        <inertial pos="0 0 0" mass="0.6" diaginertia="0.00054 0.00054 0.00054" />
+        <joint name="a_right_hip_pitch_joint" class="grandpa_hip_pitch" />
+        <body name="a_right_hip_roll_link">
+          <inertial pos="0 0 0" mass="0.6" diaginertia="0.00054 0.00054 0.00054" />
+          <joint name="a_right_hip_roll_joint" class="grandpa_hip_roll" range="-0.6 0.3" />
+          <body name="a_right_hip_yaw_link">
+            <joint name="a_right_hip_yaw_joint" class="grandpa_hip_yaw" />
+            <geom name="a_right_thigh_collision" class="grandpa_collision" size="0.09 0.16905" pos="0 0 -0.20125" contype="1" conaffinity="6" condim="3" friction="0.8" mass="10.978" />
+            <body name="a_right_knee_link" pos="0 0 -0.4025">
+              <joint name="a_right_knee_joint" class="grandpa_knee" />
+              <geom name="a_right_shin_collision" class="grandpa_collision" size="0.08525 0.1017" pos="0 0 -0.12204" contype="1" conaffinity="22" condim="3" friction="0.8" mass="2.4205" />
+              <geom name="a_right_linkage_brace_collision" class="grandpa_collision" size="0.062 0.07119" pos="0 0 -0.31527" contype="1" conaffinity="22" condim="3" friction="0.8" mass="1.3033" />
+              <body name="a_right_ankle_pitch_link" pos="0 0 -0.4068">
+                <inertial pos="0 0 0" mass="0.2" diaginertia="0.00018 0.00018 0.00018" />
+                <joint name="a_right_ankle_pitch_joint" class="grandpa_ankle_pitch" />
+                <body name="a_right_ankle_roll_link">
+                  <joint name="a_right_ankle_roll_joint" class="grandpa_ankle_roll" />
+                  <geom name="a_right_foot_box_collision" class="grandpa_foot_box" size="0.1666 0.06445 0.012" pos="0.0888 0 -0.1132" contype="17" conaffinity="22" condim="3" friction="0.6" mass="0.9182" />
+                  <geom name="a_right_foot1_collision" class="grandpa_foot_capsule" size="0.012 0.0275" pos="0.2129 -0.045115 -0.1112" quat="0.707107 0 -0.707107 0" contype="17" conaffinity="22" condim="3" friction="0.6" mass="0.02" />
+                  <geom name="a_right_foot3_collision" class="grandpa_foot_capsule" size="0.012 0.0275" pos="0.2129 0.045115 -0.1112" quat="0.707107 0 -0.707107 0" contype="17" conaffinity="22" condim="3" friction="0.6" mass="0.02" />
+                  <geom name="a_right_foot2_collision" class="grandpa_foot_capsule" size="0.022 0.1416" pos="0.0888 0 -0.1012" quat="0.707107 0 -0.707107 0" contype="17" conaffinity="22" condim="3" friction="0.6" mass="0.02" />
+                  <site name="a_right_foot" pos="0.0888 0 -0.1252" />
+                </body>
+              </body>
+            </body>
+          </body>
+        </body>
+      </body>
+      <body name="a_waist_yaw_link" pos="0 0 0.1004">
+        <inertial pos="0 0 0" mass="0.75" diaginertia="0.000675 0.000675 0.000675" />
+        <joint name="a_waist_yaw_joint" class="grandpa_waist_yaw" />
+        <body name="a_waist_roll_link">
+          <inertial pos="0 0 0" mass="0.75" diaginertia="0.000675 0.000675 0.000675" />
+          <joint name="a_waist_roll_joint" class="grandpa_waist_roll" />
+          <body name="a_torso_link">
+            <joint name="a_waist_pitch_joint" class="grandpa_waist_pitch" />
+            <geom name="a_abdomen_collision" class="grandpa_collision" size="0.17 0.0374" pos="0.0006 0 0.11465" quat="0.707107 0.707107 0 0" contype="1" conaffinity="6" condim="3" friction="0.8" mass="12.544" />
+            <geom name="a_chest_collision" class="grandpa_collision" size="0.15 0.035" pos="-0.01795 0 0.28665" quat="0.707107 0.707107 0 0" contype="1" conaffinity="6" condim="3" friction="0.8" mass="13.726" />
+            <geom name="a_head_collision" class="grandpa_collision" size="0.09175" pos="0.0021 0 0.59625" type="sphere" contype="1" conaffinity="6" condim="3" friction="0.8" mass="5.9684" />
+            <body name="a_left_shoulder_pitch_link" pos="-0.02 0.185 0.344">
+              <inertial pos="0 0 0" mass="0.3" diaginertia="0.00027 0.00027 0.00027" />
+              <joint name="a_left_shoulder_pitch_joint" class="grandpa_shoulder_pitch" />
+              <body name="a_left_shoulder_roll_link">
+                <inertial pos="0 0 0" mass="0.3" diaginertia="0.00027 0.00027 0.00027" />
+                <joint name="a_left_shoulder_roll_joint" class="grandpa_shoulder_roll" range="-0.4 2.2" />
+                <body name="a_left_shoulder_yaw_link">
+                  <joint name="a_left_shoulder_yaw_joint" class="grandpa_shoulder_yaw" />
+                  <geom name="a_left_upper_arm_collision" class="grandpa_collision" size="0.05 0.118458" pos="0 0.050625 -0.13915" quat="0.98482 0.173581 0 0" contype="1" conaffinity="6" condim="3" friction="0.8" mass="1.7306" />
+                  <body name="a_left_elbow_link" pos="0 0.10125 -0.2783">
+                    <joint name="a_left_elbow_joint" class="grandpa_elbow" />
+                    <geom name="a_left_forearm_collision" class="grandpa_collision" size="0.0388 0.104166" pos="0 0.0440215 -0.12091" quat="0.984799 0.173697 0 0" contype="1" conaffinity="6" condim="3" friction="0.8" mass="1.2532" />
+                    <body name="a_left_wrist_roll_link" pos="0 0.08385 -0.2303">
+                      <inertial pos="0 0 0" mass="0.07" diaginertia="6.3e-05 6.3e-05 6.3e-05" />
+                      <joint name="a_left_wrist_roll_joint" class="grandpa_wrist_roll" />
+                      <body name="a_left_wrist_pitch_link">
+                        <inertial pos="0 0 0" mass="0.07" diaginertia="6.3e-05 6.3e-05 6.3e-05" />
+                        <joint name="a_left_wrist_pitch_joint" class="grandpa_wrist_pitch" />
+                        <body name="a_left_wrist_yaw_link">
+                          <joint name="a_left_wrist_yaw_joint" class="grandpa_wrist_yaw" />
+                          <geom name="a_left_hand_collision" class="grandpa_collision" size="0.035 0.04418" pos="0 0 -0.06418" contype="1" conaffinity="6" condim="3" friction="0.8" mass="0.5246" />
+                        </body>
+                      </body>
+                    </body>
+                  </body>
+                </body>
+              </body>
+            </body>
+            <body name="a_right_shoulder_pitch_link" pos="-0.02 -0.185 0.344">
+              <inertial pos="0 0 0" mass="0.3" diaginertia="0.00027 0.00027 0.00027" />
+              <joint name="a_right_shoulder_pitch_joint" class="grandpa_shoulder_pitch" />
+              <body name="a_right_shoulder_roll_link">
+                <inertial pos="0 0 0" mass="0.3" diaginertia="0.00027 0.00027 0.00027" />
+                <joint name="a_right_shoulder_roll_joint" class="grandpa_shoulder_roll" range="-2.2 0.4" />
+                <body name="a_right_shoulder_yaw_link">
+                  <joint name="a_right_shoulder_yaw_joint" class="grandpa_shoulder_yaw" />
+                  <geom name="a_right_upper_arm_collision" class="grandpa_collision" size="0.05 0.118458" pos="0 -0.050625 -0.13915" quat="0.98482 -0.173581 0 0" contype="1" conaffinity="6" condim="3" friction="0.8" mass="1.7306" />
+                  <body name="a_right_elbow_link" pos="0 -0.10125 -0.2783">
+                    <joint name="a_right_elbow_joint" class="grandpa_elbow" />
+                    <geom name="a_right_forearm_collision" class="grandpa_collision" size="0.0388 0.104166" pos="0 -0.0440215 -0.12091" quat="0.984799 -0.173697 0 0" contype="1" conaffinity="6" condim="3" friction="0.8" mass="1.2532" />
+                    <body name="a_right_wrist_roll_link" pos="0 -0.08385 -0.2303">
+                      <inertial pos="0 0 0" mass="0.07" diaginertia="6.3e-05 6.3e-05 6.3e-05" />
+                      <joint name="a_right_wrist_roll_joint" class="grandpa_wrist_roll" />
+                      <body name="a_right_wrist_pitch_link">
+                        <inertial pos="0 0 0" mass="0.07" diaginertia="6.3e-05 6.3e-05 6.3e-05" />
+                        <joint name="a_right_wrist_pitch_joint" class="grandpa_wrist_pitch" />
+                        <body name="a_right_wrist_yaw_link">
+                          <joint name="a_right_wrist_yaw_joint" class="grandpa_wrist_yaw" />
+                          <geom name="a_right_hand_collision" class="grandpa_collision" size="0.035 0.04418" pos="0 0 -0.06418" contype="1" conaffinity="6" condim="3" friction="0.8" mass="0.5246" />
+                        </body>
+                      </body>
+                    </body>
+                  </body>
+                </body>
+              </body>
+            </body>
+          </body>
+        </body>
+      </body>
+    </body>
+    <body name="box0" pos="100 0 50">
+      <joint name="box0_free" type="free" />
+      <geom name="box0_geom" size="0.1 0.1 0.1" type="box" contype="8" conaffinity="15" friction="0.5" rgba="0.9 0.3 0.1 1" mass="2" />
+    </body>
+    <body name="box1" pos="100.5 0 50">
+      <joint name="box1_free" type="free" />
+      <geom name="box1_geom" size="0.1 0.1 0.1" type="box" contype="8" conaffinity="15" friction="0.5" rgba="0.9 0.3 0.1 1" mass="2" />
+    </body>
+    <body name="box2" pos="101 0 50">
+      <joint name="box2_free" type="free" />
+      <geom name="box2_geom" size="0.1 0.1 0.1" type="box" contype="8" conaffinity="15" friction="0.5" rgba="0.9 0.3 0.1 1" mass="2" />
+    </body>
+    <body name="box3" pos="101.5 0 50">
+      <joint name="box3_free" type="free" />
+      <geom name="box3_geom" size="0.1 0.1 0.1" type="box" contype="8" conaffinity="15" friction="0.5" rgba="0.9 0.3 0.1 1" mass="2" />
+    </body>
+  </worldbody>
+  <contact>
+    <exclude body1="a_left_knee_link" body2="a_left_ankle_roll_link" />
+    <exclude body1="a_right_knee_link" body2="a_right_ankle_roll_link" />
+  </contact>
+  <actuator>
+    <general name="a_left_hip_pitch_joint" class="grandpa_hip_pitch" joint="a_left_hip_pitch_joint" ctrlrange="-1.8 0.35" biastype="affine" gainprm="510" biasprm="0 -510 -13" ctrllimited="true" forcerange="-155 155" forcelimited="true" />
+    <general name="a_left_hip_roll_joint" class="grandpa_hip_roll" joint="a_left_hip_roll_joint" ctrlrange="-0.3 0.6" biastype="affine" gainprm="510" biasprm="0 -510 -13" ctrllimited="true" forcerange="-108 108" forcelimited="true" />
+    <general name="a_left_hip_yaw_joint" class="grandpa_hip_yaw" joint="a_left_hip_yaw_joint" ctrlrange="-0.55 0.55" biastype="affine" gainprm="510" biasprm="0 -510 -13" ctrllimited="true" forcerange="-54 54" forcelimited="true" />
+    <general name="a_left_knee_joint" class="grandpa_knee" joint="a_left_knee_joint" ctrlrange="-0.05 2.2" biastype="affine" gainprm="680" biasprm="0 -680 -13" ctrllimited="true" forcerange="-155 155" forcelimited="true" />
+    <general name="a_left_ankle_pitch_joint" class="grandpa_ankle_pitch" joint="a_left_ankle_pitch_joint" ctrlrange="-0.4 0.7" biastype="affine" gainprm="620" biasprm="0 -620 -10" ctrllimited="true" forcerange="-116 116" forcelimited="true" />
+    <general name="a_left_ankle_roll_joint" class="grandpa_ankle_roll" joint="a_left_ankle_roll_joint" ctrlrange="-0.33 0.33" biastype="affine" gainprm="135" biasprm="0 -135 -4.6" ctrllimited="true" forcerange="-35 35" forcelimited="true" />
+    <general name="a_right_hip_pitch_joint" class="grandpa_hip_pitch" joint="a_right_hip_pitch_joint" ctrlrange="-1.8 0.35" biastype="affine" gainprm="510" biasprm="0 -510 -13" ctrllimited="true" forcerange="-155 155" forcelimited="true" />
+    <general name="a_right_hip_roll_joint" class="grandpa_hip_roll" joint="a_right_hip_roll_joint" ctrlrange="-0.6 0.3" biastype="affine" gainprm="510" biasprm="0 -510 -13" ctrllimited="true" forcerange="-108 108" forcelimited="true" />
+    <general name="a_right_hip_yaw_joint" class="grandpa_hip_yaw" joint="a_right_hip_yaw_joint" ctrlrange="-0.55 0.55" biastype="affine" gainprm="510" biasprm="0 -510 -13" ctrllimited="true" forcerange="-54 54" forcelimited="true" />
+    <general name="a_right_knee_joint" class="grandpa_knee" joint="a_right_knee_joint" ctrlrange="-0.05 2.2" biastype="affine" gainprm="680" biasprm="0 -680 -13" ctrllimited="true" forcerange="-155 155" forcelimited="true" />
+    <general name="a_right_ankle_pitch_joint" class="grandpa_ankle_pitch" joint="a_right_ankle_pitch_joint" ctrlrange="-0.4 0.7" biastype="affine" gainprm="620" biasprm="0 -620 -10" ctrllimited="true" forcerange="-116 116" forcelimited="true" />
+    <general name="a_right_ankle_roll_joint" class="grandpa_ankle_roll" joint="a_right_ankle_roll_joint" ctrlrange="-0.33 0.33" biastype="affine" gainprm="135" biasprm="0 -135 -4.6" ctrllimited="true" forcerange="-35 35" forcelimited="true" />
+    <general name="a_waist_yaw_joint" class="grandpa_waist_yaw" joint="a_waist_yaw_joint" ctrlrange="-0.6 0.6" biastype="affine" gainprm="425" biasprm="0 -425 -10" ctrllimited="true" forcerange="-62 62" forcelimited="true" />
+    <general name="a_waist_roll_joint" class="grandpa_waist_roll" joint="a_waist_roll_joint" ctrlrange="-0.35 0.35" biastype="affine" gainprm="595" biasprm="0 -595 -13" ctrllimited="true" forcerange="-108 108" forcelimited="true" />
+    <general name="a_waist_pitch_joint" class="grandpa_waist_pitch" joint="a_waist_pitch_joint" ctrlrange="-0.25 0.85" biastype="affine" gainprm="595" biasprm="0 -595 -13" ctrllimited="true" forcerange="-155 155" forcelimited="true" />
+    <general name="a_left_shoulder_pitch_joint" class="grandpa_shoulder_pitch" joint="a_left_shoulder_pitch_joint" ctrlrange="-2.5 0.7" biastype="affine" gainprm="108" biasprm="0 -108 -3.9" ctrllimited="true" forcerange="-54 54" forcelimited="true" />
+    <general name="a_left_shoulder_roll_joint" class="grandpa_shoulder_roll" joint="a_left_shoulder_roll_joint" ctrlrange="-0.4 2.2" biastype="affine" gainprm="108" biasprm="0 -108 -3.9" ctrllimited="true" forcerange="-50 50" forcelimited="true" />
+    <general name="a_left_shoulder_yaw_joint" class="grandpa_shoulder_yaw" joint="a_left_shoulder_yaw_joint" ctrlrange="-1.2 1.2" biastype="affine" gainprm="108" biasprm="0 -108 -3.9" ctrllimited="true" forcerange="-31 31" forcelimited="true" />
+    <general name="a_left_elbow_joint" class="grandpa_elbow" joint="a_left_elbow_joint" ctrlrange="0 2.3" biastype="affine" gainprm="77" biasprm="0 -77 -2.7" ctrllimited="true" forcerange="-42 42" forcelimited="true" />
+    <general name="a_left_wrist_roll_joint" class="grandpa_wrist_roll" joint="a_left_wrist_roll_joint" ctrlrange="-1.2 1.2" biastype="affine" gainprm="19" biasprm="0 -19 -0.6" ctrllimited="true" forcerange="-9 9" forcelimited="true" />
+    <general name="a_left_wrist_pitch_joint" class="grandpa_wrist_pitch" joint="a_left_wrist_pitch_joint" ctrlrange="-0.85 0.85" biastype="affine" gainprm="19" biasprm="0 -19 -0.6" ctrllimited="true" forcerange="-8 8" forcelimited="true" />
+    <general name="a_left_wrist_yaw_joint" class="grandpa_wrist_yaw" joint="a_left_wrist_yaw_joint" ctrlrange="-0.3 0.3" biastype="affine" gainprm="19" biasprm="0 -19 -0.6" ctrllimited="true" forcerange="-8 8" forcelimited="true" />
+    <general name="a_right_shoulder_pitch_joint" class="grandpa_shoulder_pitch" joint="a_right_shoulder_pitch_joint" ctrlrange="-2.5 0.7" biastype="affine" gainprm="108" biasprm="0 -108 -3.9" ctrllimited="true" forcerange="-54 54" forcelimited="true" />
+    <general name="a_right_shoulder_roll_joint" class="grandpa_shoulder_roll" joint="a_right_shoulder_roll_joint" ctrlrange="-2.2 0.4" biastype="affine" gainprm="108" biasprm="0 -108 -3.9" ctrllimited="true" forcerange="-50 50" forcelimited="true" />
+    <general name="a_right_shoulder_yaw_joint" class="grandpa_shoulder_yaw" joint="a_right_shoulder_yaw_joint" ctrlrange="-1.2 1.2" biastype="affine" gainprm="108" biasprm="0 -108 -3.9" ctrllimited="true" forcerange="-31 31" forcelimited="true" />
+    <general name="a_right_elbow_joint" class="grandpa_elbow" joint="a_right_elbow_joint" ctrlrange="0 2.3" biastype="affine" gainprm="77" biasprm="0 -77 -2.7" ctrllimited="true" forcerange="-42 42" forcelimited="true" />
+    <general name="a_right_wrist_roll_joint" class="grandpa_wrist_roll" joint="a_right_wrist_roll_joint" ctrlrange="-1.2 1.2" biastype="affine" gainprm="19" biasprm="0 -19 -0.6" ctrllimited="true" forcerange="-9 9" forcelimited="true" />
+    <general name="a_right_wrist_pitch_joint" class="grandpa_wrist_pitch" joint="a_right_wrist_pitch_joint" ctrlrange="-0.85 0.85" biastype="affine" gainprm="19" biasprm="0 -19 -0.6" ctrllimited="true" forcerange="-8 8" forcelimited="true" />
+    <general name="a_right_wrist_yaw_joint" class="grandpa_wrist_yaw" joint="a_right_wrist_yaw_joint" ctrlrange="-0.3 0.3" biastype="affine" gainprm="19" biasprm="0 -19 -0.6" ctrllimited="true" forcerange="-8 8" forcelimited="true" />
+  </actuator>
+  </mujoco>

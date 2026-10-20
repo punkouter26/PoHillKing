@@ -1,0 +1,87 @@
+{
+ "mesh": {
+  "vertices_in": 32722,
+  "vertices": 24984,
+  "faces": 41716,
+  "quads": 8284,
+  "non_manifold_before": 14420,
+  "non_manifold_after": 0,
+  "loose": 0
+ },
+ "material": {
+  "Base Color": true,
+  "Normal": true,
+  "Roughness": true,
+  "Metallic": true
+ },
+ "source_pose": [
+  "0_source_three_quarter_f01.png",
+  "0_source_front_f01.png"
+ ],
+ "skin": {
+  "method": "bone heat",
+  "unweighted": 0,
+  "owned": {
+   "Hips": 164,
+   "UpperLeg.L": 2844,
+   "LowerLeg.L": 1627,
+   "Foot.L": 879,
+   "Toe.L": 121,
+   "UpperLeg.R": 2873,
+   "LowerLeg.R": 1815,
+   "Foot.R": 767,
+   "Toe.R": 127,
+   "Spine": 2801,
+   "Chest": 265,
+   "Neck": 296,
+   "Head": 1799,
+   "Shoulder.L": 681,
+   "UpperArm.L": 2000,
+   "LowerArm.L": 390,
+   "Hand.L": 776,
+   "Shoulder.R": 790,
+   "UpperArm.R": 2064,
+   "LowerArm.R": 915,
+   "Hand.R": 990
+  }
+ },
+ "palm_turn_deg": {
+  "L": 0.0,
+  "R": 0.0
+ },
+ "tpose": [
+  "1_tpose_front_f01.png",
+  "1_tpose_three_quarter_f01.png"
+ ],
+ "walk": {
+  "worst_stretch": 4.133,
+  "p999_stretch": 1.782,
+  "over_1_5_by_bone": {
+   "Spine": 1149,
+   "UpperLeg.L": 774,
+   "UpperLeg.R": 669,
+   "LowerLeg.L": 378,
+   "LowerLeg.R": 217,
+   "UpperArm.R": 173
+  },
+  "edges": 66716
+ },
+ "walk_frames": [
+  "2_walk_side_f01.png",
+  "2_walk_side_f09.png",
+  "2_walk_side_f17.png",
+  "2_walk_side_f25.png",
+  "2_walk_three_quarter_f05.png"
+ ],
+ "game_pose": [
+  "3_game_rest_front_f01.png",
+  "3_game_rest_side_f01.png"
+ ],
+ "outputs": [
+  "C:\\Users\\punko\\Downloads\\PoHillKing\\Assets\\Art\\Exports\\FBX\\Grandpa\\Character_TPose.fbx",
+  "C:\\Users\\punko\\Downloads\\PoHillKing\\Assets\\Art\\Exports\\GLB\\Grandpa.glb",
+  "C:\\Users\\punko\\Downloads\\PoHillKing\\training\\assets\\grandpa\\grandpa_rig.json",
+  "C:\\Users\\punko\\Downloads\\PoHillKing\\Assets\\PoKingHill\\Fighters\\Grandpa\\grandpa.fbx",
+  "C:\\Users\\punko\\Downloads\\PoHillKing\\Assets\\Art\\Raw\\Grandpa~\\Grandpa.blend"
+ ]
+}

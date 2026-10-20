@@ -219,7 +219,7 @@ def default_cfg(rung: str = "r0") -> dict:
     return cfg
 
 
-HUMANS = ("kim", "trump")         # human bodies (koth/build_<body>.py) with the G1's 29 joints
+HUMANS = ("kim", "trump", "grandpa")         # human bodies (koth/build_<body>.py) with the G1's 29 joints
 
 
 def mix_scene(bodies: list) -> str:
@@ -238,7 +238,7 @@ def scene_bodies(scene_path: str, prefixes: list) -> list:
 
 def human_overrides(cfg: dict, body: str) -> dict:
     """A human body's walking recipe 'b' (staged), first written for Kim: her first r0 run used the G1's settings and
-    failed (log 2026-10-09). Trump uses the same recipe with his own mass ratio and swing height.
+    failed (log 2026-10-09). Trump and Grandpa use the same recipe with their own mass ratio and swing height.
     - Kicks are a velocity change (qvel += dv), i.e. an impulse of m * dv: scale dv by m_G1 / m_Kim so a kick carries
       the same impulse as on the G1 (33.3 kg vs 56.0 kg -> x 0.60, 2 m/s -> 1.19 m/s). Boxes are real bodies and
       already transfer the right momentum, so their speed is left alone.
@@ -254,9 +254,9 @@ def human_overrides(cfg: dict, body: str) -> dict:
     try:
         ratio = robot_mass("g1") / robot_mass(body)
     except OSError:
-        ratio = 33.341 / {"kim": 55.994, "trump": 102.0}[body]
+        ratio = 33.341 / {"kim": 55.994, "trump": 102.0, "grandpa": 86.0}[body]
     cfg["push"].update(vel=[v * ratio for v in cfg["push"]["vel"]], curriculum_iters=300, curriculum_start=0.25, steps_per_iter=24)
-    cfg["swing_height"] = {"kim": 0.09, "trump": 0.10}[body]     # Trump: long legs but an older man's shuffle
+    cfg["swing_height"] = {"kim": 0.09, "trump": 0.10, "grandpa": 0.09}[body]     # Trump, Grandpa: an older man's shuffle
     cfg["reward"].update(pose=-0.05, joint_deviation_hip=-0.15, joint_deviation_knee=-0.05)
     cfg["terminate_on_leg_contact"] = False
     cfg["mass_ratio"] = ratio
