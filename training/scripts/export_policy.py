@@ -12,7 +12,8 @@ original path removes a stale one. A checkpoint whose run wrote graduation.json 
 gradient, or a --graduate-reward target not reached) is refused unless --force: it has not graduated (AGENTS.md)."""
 import argparse, json, os, sys
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-import numpy as np, torch, onnx, onnxruntime as ort
+import numpy as np, torch, onnx
+from koth import cpu_sim
 from koth.actor import Actor
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -24,9 +25,9 @@ def export_module(net: torch.nn.Module, dim: int, path: str, output_name: str = 
     torch.onnx.export(net, (torch.zeros(1, dim),), path, export_params=True, opset_version=17, input_names=["obs"], output_names=[output_name], dynamo=False)
     m = onnx.load(path); onnx.checker.check_model(m); onnx.save(m, path, save_as_external_data=False)
     if os.path.exists(path + ".data"): os.remove(path + ".data")
-    sess = ort.InferenceSession(path, providers=["CPUExecutionProvider"]); x = torch.randn(1000, dim) * 2
+    x = torch.randn(1000, dim) * 2
     with torch.no_grad(): ref = net(x).numpy()
-    return float(np.abs(ref - np.concatenate([sess.run(None, {"obs": x[i:i + 1].numpy()})[0] for i in range(1000)])).max())
+    return float(np.abs(ref - cpu_sim.onnx_rows(cpu_sim.session(path), x.numpy())).max())
 
 
 def graduation_problem(ckpt: str) -> str | None:

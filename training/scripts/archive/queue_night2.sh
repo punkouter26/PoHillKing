@@ -1,11 +1,11 @@
 #!/usr/bin/env bash
-# Night queue (2026-10-18), part 2, after part 1 (scripts/queue_night.sh): cross-body training. Every brain so far
+# Night queue (2026-10-18), part 2, after part 1 (scripts/archive/queue_night.sh): cross-body training. Every brain so far
 # fought only its own body, while the game mixes them (Trump and Kim 0 of 8 six-way rounds). Mixed scenes come from
 # `python -m koth.build_mjcf mix <body> ...` (assets/g1).
 #   X: Trump and Kim duel the G1 league brains (rungs trump_vs_g1, kim_vs_g1, 112 inputs)
 #   F: then a four-way free-for-all against three G1 (trump_ffa, kim_ffa, 121 inputs, warm from X)
 # Trump continues from the bull charge (bull2) only if it passed part 1's bars; otherwise from fight1.
-cd "$(dirname "$0")/.." || exit 1
+cd "$(dirname "$0")/../.." || exit 1
 export PYTHONUNBUFFERED=1
 PY=.venv/Scripts/python.exe; LOG=runs/overnight; L=runs/league
 note() { echo "$(date '+%H:%M:%S') $*" | tee -a $LOG/progress.txt; }

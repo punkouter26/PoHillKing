@@ -11,8 +11,8 @@ Outputs into Assets/PoKingHill/Models/:  <rung>_policy.onnx   <rung>_reference_t
 Checks: torch policy vs ONNX max abs error < 1e-5 on 1000 random observations."""
 import argparse, json, os, shutil, sys
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-import numpy as np, torch, mujoco, onnxruntime as ort
-from koth.obs import goal_command, OBS_DIM, GAIT_FREQ_HZ
+import numpy as np, torch, mujoco
+from koth.obs import goal_command, OBS_DIM
 from koth.build_mjcf import ASSETS, UNITY_MODELS    # Models/ for G1, Models/<robot>/ otherwise
 from koth.rules import PLATEAU_R, SLOPE_K
 from koth import cpu_sim
@@ -29,7 +29,7 @@ def record(onnx_path, scene, prefixes, cmd, seconds, goal="none", spawns=None, s
     per = lambda v: list(v) if isinstance(v, (list, tuple)) else [v] * len(prefixes)
     onnx_paths, goals, stops, vmaxs = per(onnx_path), per(goal), per(stop_dist), per(vmax)
     """Returns {prefix: reference dict}. spawns: {prefix: (r, bearing, yaw)} or None for the keyframe pose."""
-    spec = json.load(open(os.path.join(ASSETS, "joint_map.json")))
+    spec = cpu_sim.joint_map()
     m = mujoco.MjModel.from_xml_path(os.path.join(ASSETS, scene)); d = mujoco.MjData(m)
     mujoco.mj_resetDataKeyframe(m, d, 0)
     R = {}
@@ -44,7 +44,7 @@ def record(onnx_path, scene, prefixes, cmd, seconds, goal="none", spawns=None, s
     pool = cpu_sim.pool(m, spec["pool_bodies"])
     park = cpu_sim.park(d, pool)
     default = np.array(spec["default_pose"], dtype=np.float32)       # float32-rounded default pose, as Unity holds it
-    sessions = [ort.InferenceSession(p_, providers=["CPUExecutionProvider"]) for p_ in onnx_paths]
+    sessions = [cpu_sim.session(p_) for p_ in onnx_paths]
     f32 = lambda a: [float(np.float32(v)) for v in a]; f64 = lambda a: [float(v) for v in a]
     T = cpu_sim.T
     for tick in range(int(round(seconds / spec["ctrl_dt"]))):
@@ -59,19 +59,18 @@ def record(onnx_path, scene, prefixes, cmd, seconds, goal="none", spawns=None, s
                 s["cmd"] = goal_command(T(d.qpos[rq + 3:rq + 7]), T(gv), stops[pi], vmaxs[pi])[0].numpy().astype(np.float32)
             combat = sess.get_inputs()[0].shape[1] > OBS_DIM          # combat policy: append the opponent/ring block
             obs = cpu_sim.observe(d, s, default, s["cmd"], s["phase"], other=other if combat else None)[0].numpy().astype(np.float32)
-            raw = sess.run(None, {"obs": obs[None]})[0][0]
+            raw = cpu_sim.infer(sess, obs)
             act = np.clip(raw, -1, 1).astype(np.float32)
-            s["ctrl"] = np.clip(default.astype(np.float64) + spec["action_scale"] * act.astype(np.float64), s["lo"], s["hi"])
+            s["ctrl"] = cpu_sim.default_ctrl(s, default, spec["action_scale"], act)
             s["frames"].append(dict(t=float(d.time), root_pos=f64(d.qpos[rq:rq + 3]), root_quat=f64(d.qpos[rq + 3:rq + 7]),
                                     root_linvel=f64(d.qvel[rd:rd + 3]), root_angvel=f64(d.qvel[rd + 3:rd + 6]),
                                     joint_pos=f64(d.qpos[s["qadr"]]), joint_vel=f64(d.qvel[s["dadr"]]),
                                     obs=f32(obs), action=f32(raw), ctrl=f64(s["ctrl"]), command=f32(s["cmd"])))
-            s["last"] = act; s["phase"] = np.float32(s["phase"] + np.float32(2 * np.pi * GAIT_FREQ_HZ * spec["ctrl_dt"]))
-            if s["phase"] > 2 * np.pi: s["phase"] = np.float32(s["phase"] - np.float32(2 * np.pi))
+            s["last"] = act; s["phase"] = cpu_sim.advance_phase(s["phase"], spec["ctrl_dt"])
         cpu_sim.step(m, d, pool, park, [R[p] for p in prefixes], spec["decimation"])
     out = {}
     for p in prefixes:
-        fr = R[p]["frames"]; up = [1 - 2 * (f["root_quat"][1] ** 2 + f["root_quat"][2] ** 2) for f in fr]
+        fr = R[p]["frames"]; up = [cpu_sim.upright(f["root_quat"]) for f in fr]
         rad = [float(np.hypot(*f["root_pos"][:2])) for f in fr]
         print(f"{p} reference: {len(fr)} ticks, pelvis z {fr[0]['root_pos'][2]:.4f} -> {fr[-1]['root_pos'][2]:.4f}, min upright {min(up):.4f}, "
               f"radius {rad[0]:.3f} -> {rad[-1]:.3f} m, moved {np.hypot(fr[-1]['root_pos'][0] - fr[0]['root_pos'][0], fr[-1]['root_pos'][1] - fr[0]['root_pos'][1]):.3f} m")

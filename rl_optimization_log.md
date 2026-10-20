@@ -437,3 +437,17 @@ FBX importer builds the LODGroup, Low quality forces LOD1. AO baked in Cycles: m
 0.25 because the coincident LOD1/2 meshes occluded everything). Banner wind `_KothWind` 0.30 calm, 1.30 in a gust.
 EditMode 43/43 (the scene test now checks the LODGroup, the props, the banner shader and that the map has no collider),
 PlayMode 3/3. No physics changed, so the gates were not re-run for this part.
+
+## 2026-10-20 · Cleanup (no physics, reward or obs change)
+
+Tooling only, while `queue_options.sh` → `queue_bodies.sh` → `queue_followup.sh` ran (none of them, nor anything they
+call, was touched). Shared CPU helpers (`joint_map`, `session`, `infer`, `onnx_rows`, `check_inputs`, `advance_phase`,
+`default_ctrl`, `upright`) moved into `koth/cpu_sim.py` and replace copies in `duel_stats.py`, `getup_stats.py`,
+`record_reference.py`, `onnx_to_ckpt.py`, `export_mlp.py`, `export_policy.py`, `step_response.py`. Checked identical
+before/after on CPU: `duel_stats` JSON (4 and 16 rounds, with and without `--getup`), `getup_stats` (4 drops),
+`record_reference` sha256 for r1 and r3, `export_mlp` bytes sha256, `step_response` JSON, `onnx_to_ckpt` error 3.81e-6.
+`prune_runs.py` rewritten as a dry run that protects league/overnight/audits, the champion, live runs and every runs/
+path the docs and queue scripts name: 191 files, 1.0 GB of intermediate checkpoints and stale logs, not yet applied.
+11 finished one-off queues moved to `training/scripts/archive/`. Unity side: the game lost its network features and
+got one Settings page; gates were not re-run (no simulation code changed), EditMode 49/49, PlayMode 7/7
+(report: `SCREENSHOTS/clean-261020/report.html`).

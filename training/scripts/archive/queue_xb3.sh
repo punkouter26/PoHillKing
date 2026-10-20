@@ -3,7 +3,7 @@
 # undecided, Kim 19 % wins (both from 32 %): with draw = loss (-10) a long stall against a stronger opponent paid.
 # v3, as the humans' own fighters were trained: first push a standing G1 off (<body>_att_g1), then the G1 league
 # (<body>_vs_g1, the standing walker kept in the pool); draws cost twice a loss; deterministic opponents; critic warm-up.
-cd "$(dirname "$0")/.." || exit 1
+cd "$(dirname "$0")/../.." || exit 1
 export PYTHONUNBUFFERED=1
 PY=.venv/Scripts/python.exe; LOG=runs/overnight; L=runs/league
 note() { echo "$(date '+%H:%M:%S') $*" | tee -a $LOG/progress.txt; }

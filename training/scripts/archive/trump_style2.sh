@@ -2,7 +2,7 @@
 # Trump's style, second pass: trump_fight1 pushed with his trunk on 34 % of close-contact steps and his arms on 10 %,
 # barely different from Kim's ordinary fighter (30 % / 8 %, scripts/style_stats.py). Pay only for trunk shoves
 # (push_out 0, belly_push 8) and charge arm contact four times as much, warm from fight1.
-cd "$(dirname "$0")/.." || exit 1
+cd "$(dirname "$0")/../.." || exit 1
 export KOTH_ROBOT=trump PYTHONUNBUFFERED=1
 PY=.venv/Scripts/python.exe; LOG=runs/overnight
 note() { echo "$(date '+%H:%M:%S') $*" | tee -a $LOG/progress.txt; }

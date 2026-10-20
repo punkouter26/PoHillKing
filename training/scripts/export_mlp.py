@@ -11,7 +11,8 @@ is x = (obs - mean) / divisor, then Linear/ELU, the last layer linear: the same 
 against onnxruntime on 1,000 random inputs with a numpy implementation of that forward pass."""
 import argparse, os, struct, sys
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-import numpy as np, onnxruntime as ort
+import numpy as np
+from koth import cpu_sim
 from scripts.onnx_to_ckpt import convert
 from koth.actor import NORM_EPS, mlp_indices
 
@@ -45,9 +46,7 @@ def write(onnx_path: str) -> str:
         f.write(struct.pack("<iii", 0x504C4D4B, 1, len(ws))); f.write(struct.pack(f"<{len(dims)}i", *dims))
         f.write(mean.tobytes()); f.write(div.tobytes())
         for w, b in ws: f.write(np.ascontiguousarray(w).tobytes()); f.write(b.tobytes())
-    sess = ort.InferenceSession(onnx_path, providers=["CPUExecutionProvider"]); name = sess.get_inputs()[0].name
-    x = np.random.default_rng(0).standard_normal((1000, dims[0])).astype(np.float32) * 2
-    ref = np.concatenate([sess.run(None, {name: x[i:i + 1]})[0] for i in range(len(x))])
+    x = cpu_sim.check_inputs(dims[0]); ref = cpu_sim.onnx_rows(cpu_sim.session(onnx_path), x)
     err = float(np.abs(forward(mean, div, ws, x) - ref).max()); scale = max(1.0, float(np.abs(ref).max()))
     assert err < 1e-4 * scale, f"{out}: numpy forward differs from the ONNX by {err:.2e}"
     print(f"wrote {out}: dims {dims}, {os.path.getsize(out) / 1024:.0f} KB, max error vs ONNX {err:.1e}")

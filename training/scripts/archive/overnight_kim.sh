@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
 # Kim recipe b, unattended: stand (kim_r0b) -> walk (kim_r1b, resumed) -> evals. Exports go to a scratch name
 # (walker_r1b) so the brain the game ships is only replaced after its bars are checked.
-#   bash scripts/overnight_kim.sh [r0 iterations] [r1 iterations]
-cd "$(dirname "$0")/.." || exit 1
+#   bash scripts/archive/overnight_kim.sh [r0 iterations] [r1 iterations]
+cd "$(dirname "$0")/../.." || exit 1
 export KOTH_ROBOT=kim PYTHONUNBUFFERED=1
 PY=.venv/Scripts/python.exe; R0=${1:-600}; R1=${2:-1000}; LOG=runs/overnight; mkdir -p $LOG
 stamp() { date '+%H:%M:%S'; }

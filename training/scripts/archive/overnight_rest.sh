@@ -1,10 +1,10 @@
 #!/usr/bin/env bash
-# Overnight queue after the Kim walk run (scripts/overnight_kim.sh): waits for it, then trains
+# Overnight queue after the Kim walk run (scripts/archive/overnight_kim.sh): waits for it, then trains
 #   B  free-for-all brain r5ffa (121 inputs), warm from the champion (careful1, rebuilt from its ONNX)
 #   C  duel fine-tune of the champion under the Unity rules (no own-leg-contact ending), plus a baseline eval
 #   D  Kim's first fighting brain: push a standing Kim off (r4att), then a short league (r4league)
 # Every export goes to a new name; the brains the game ships are replaced only after their numbers are checked.
-cd "$(dirname "$0")/.." || exit 1
+cd "$(dirname "$0")/../.." || exit 1
 export PYTHONUNBUFFERED=1
 PY=.venv/Scripts/python.exe; LOG=runs/overnight; mkdir -p $LOG
 note() { echo "$(date '+%H:%M:%S') $*" | tee -a $LOG/progress.txt; }

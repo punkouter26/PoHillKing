@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Day-2 queue: Kim velocity-tracking fine-tune, then the second free-for-all generation. Exports go to new names.
-cd "$(dirname "$0")/.." || exit 1
+cd "$(dirname "$0")/../.." || exit 1
 export PYTHONUNBUFFERED=1
 PY=.venv/Scripts/python.exe; LOG=runs/overnight; L=runs/league; mkdir -p $LOG
 note() { echo "$(date '+%H:%M:%S') $*" | tee -a $LOG/progress.txt; }

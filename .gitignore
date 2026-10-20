@@ -58,3 +58,8 @@ Assets/PoKingHill/Scenes/Gate_duel_trump_2p.unity
 Assets/PoKingHill/Scenes/Gate_duel_trump_2p.unity.meta
 # Unity observation dumps for obs_audit.py (ParityBatch.RunObsDump): large, regenerated on demand
 training/assets/*/unity_obs_*
+
+# Python build metadata and Unity crash recovery
+training/*.egg-info/
+Assets/_Recovery/
+Assets/_Recovery.meta

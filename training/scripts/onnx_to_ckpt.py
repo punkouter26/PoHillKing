@@ -10,8 +10,9 @@ the trained statistics instead of re-estimating them from its first batch. Check
 1,000 random inputs (max abs error printed; fails above 1e-4)."""
 import argparse, os, sys
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-import numpy as np, onnx, onnxruntime as ort, torch
+import numpy as np, onnx, torch
 from onnx import numpy_helper
+from koth import cpu_sim
 from koth.actor import Actor, NORM_EPS
 
 
@@ -32,9 +33,7 @@ def convert(onnx_path: str, std: float = 0.3) -> dict:
 
 def check(ck: dict, onnx_path: str) -> float:
     actor = Actor(ck["actor_state_dict"]).eval(); dim = actor.obs_dim
-    x = np.random.default_rng(0).standard_normal((1000, dim)).astype(np.float32) * 2
-    sess = ort.InferenceSession(onnx_path, providers=["CPUExecutionProvider"]); name = sess.get_inputs()[0].name
-    ref = np.concatenate([sess.run(None, {name: x[i:i + 1]})[0] for i in range(len(x))])
+    x = cpu_sim.check_inputs(dim); ref = cpu_sim.onnx_rows(cpu_sim.session(onnx_path), x)
     with torch.no_grad(): got = actor(torch.from_numpy(x)).numpy()
     return float(np.abs(got - ref).max())
 

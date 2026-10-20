@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Trump's bull charge (rung trump_bull: trump_r4bull + the styled action path with obs.BULL_POSE), warm from fight1.
 # fight2 (reward weights alone: belly_push 8, arm_contact -4, push_out 0) lost to fight1 and touched more with its arms.
-cd "$(dirname "$0")/.." || exit 1
+cd "$(dirname "$0")/../.." || exit 1
 export KOTH_ROBOT=trump PYTHONUNBUFFERED=1
 PY=.venv/Scripts/python.exe; LOG=runs/overnight
 note() { echo "$(date '+%H:%M:%S') $*" | tee -a $LOG/progress.txt; }

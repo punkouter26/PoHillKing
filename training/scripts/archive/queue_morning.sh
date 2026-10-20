@@ -2,7 +2,7 @@
 # Cross-body duels, second try (2026-10-19). trump_xg1 / kim_xg1 trained against frozen G1 brains acting with the
 # rebuilt actors' arbitrary std 0.3: those G1 mostly fell on their own (fight1 beats them 84 %, the deterministic ones
 # 29 %), and both humans came out worse. Now: deterministic G1 opponents and a critic warm-up before the actor moves.
-cd "$(dirname "$0")/.." || exit 1
+cd "$(dirname "$0")/../.." || exit 1
 export PYTHONUNBUFFERED=1
 PY=.venv/Scripts/python.exe; LOG=runs/overnight; L=runs/league
 note() { echo "$(date '+%H:%M:%S') $*" | tee -a $LOG/progress.txt; }

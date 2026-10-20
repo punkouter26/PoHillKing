@@ -10,8 +10,7 @@ game's DemoDirector rule) within --count seconds (the game's get-up count, 5 s).
 getup_stats_python.json: success share, median and quartiles of the time to stand."""
 import argparse, json, os, sys
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-import numpy as np, mujoco, onnxruntime as ort
-from koth.obs import GAIT_FREQ_HZ
+import numpy as np, mujoco
 from koth.build_mjcf import ASSETS, UNITY_MODELS
 from koth import cpu_sim
 
@@ -31,8 +30,8 @@ def main():
     ap = argparse.ArgumentParser(); ap.add_argument("--policy", default="getup"); ap.add_argument("--drops", type=int, default=200)
     ap.add_argument("--seconds", type=float, default=8.0); ap.add_argument("--count", type=float, default=5.0); ap.add_argument("--seed", type=int, default=0)
     a = ap.parse_args()
-    spec = json.load(open(os.path.join(ASSETS, "joint_map.json")))
-    sess = ort.InferenceSession(os.path.join(UNITY_MODELS, f"{a.policy}_policy.onnx"), providers=["CPUExecutionProvider"])
+    spec = cpu_sim.joint_map()
+    sess = cpu_sim.session(os.path.join(UNITY_MODELS, f"{a.policy}_policy.onnx"))
     m = mujoco.MjModel.from_xml_path(os.path.join(ASSETS, "scene_flat_1p_train.xml")); d = mujoco.MjData(m)
     s = cpu_sim.robot(m, spec["joints"], "a_"); boxes = cpu_sim.pool(m, spec["pool_bodies"])
     default = np.array(spec["default_pose"]); key_z = spec["key_root_z"]; rng = np.random.default_rng(a.seed)
@@ -43,12 +42,11 @@ def main():
         s["last"] = np.zeros(29, dtype=np.float32); phase = np.float32(0); since = None; t_stand = None
         for tick in range(int(a.seconds / spec["ctrl_dt"])):
             obs = cpu_sim.observe(d, s, default, np.zeros(3), phase)[0].numpy().astype(np.float32)
-            act = np.clip(sess.run(None, {"obs": obs[None]})[0][0], -1, 1).astype(np.float32)
-            s["ctrl"] = np.clip(default + spec["action_scale"] * act.astype(np.float64), s["lo"], s["hi"]); s["last"] = act
-            phase = np.float32(phase + np.float32(2 * np.pi * GAIT_FREQ_HZ * spec["ctrl_dt"]))
-            if phase > 2 * np.pi: phase = np.float32(phase - np.float32(2 * np.pi))
+            act = np.clip(cpu_sim.infer(sess, obs), -1, 1).astype(np.float32)
+            s["ctrl"] = cpu_sim.default_ctrl(s, default, spec["action_scale"], act); s["last"] = act
+            phase = cpu_sim.advance_phase(phase, spec["ctrl_dt"])
             cpu_sim.step(m, d, boxes, parked, [s], spec["decimation"])
-            rq = s["rq"]; quat = d.qpos[rq + 3:rq + 7]; up = 1 - 2 * (quat[1] ** 2 + quat[2] ** 2); t = (tick + 1) * spec["ctrl_dt"]
+            rq = s["rq"]; quat = d.qpos[rq + 3:rq + 7]; up = cpu_sim.upright(quat); t = (tick + 1) * spec["ctrl_dt"]
             if up > STAND_UP and d.qpos[rq + 2] > STAND_H * key_z:
                 since = t if since is None else since
                 if t - since >= HOLD_S and t_stand is None: t_stand = t

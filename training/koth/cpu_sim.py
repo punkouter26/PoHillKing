@@ -1,14 +1,60 @@
-"""CPU MuJoCo helpers for the scripts that run policies outside Warp (duel_stats, play, record_reference, view).
+"""CPU MuJoCo helpers for the scripts that run policies outside Warp (duel_stats, getup_stats, play, record_reference,
+view, export_mlp, onnx_to_ckpt).
 
 The tick is Unity's PolicyRunner order: every robot observes the same pre-step state, infers, writes ctrl; then
 `decimation` physics steps, with the parked pool boxes re-pinned (qpos = park pose, qvel = 0) before each one.
 observe() builds the observation with koth/obs.py in float64 from mjData; callers keep their own precision for the
 inputs they own (last action, command, phase, default pose) and their own rounding of the result."""
 from __future__ import annotations
+import json, os
 import numpy as np, torch, mujoco
-from koth.obs import build_obs, build_combat
+from koth.obs import build_obs, build_combat, GAIT_FREQ_HZ
 
 J, ACT = mujoco.mjtObj.mjOBJ_JOINT, mujoco.mjtObj.mjOBJ_ACTUATOR
+
+
+def joint_map(body: str | None = None) -> dict:
+    """assets/<body>/joint_map.json; None = the KOTH_ROBOT body (koth.build_mjcf.ASSETS)."""
+    from koth.build_mjcf import ASSETS
+    return json.load(open(os.path.join(os.path.dirname(ASSETS), body, "joint_map.json") if body else os.path.join(ASSETS, "joint_map.json")))
+
+
+def session(onnx_path: str):
+    """onnxruntime CPU session (the brains are batch-1 MLPs with one input, "obs")."""
+    import onnxruntime as ort
+    return ort.InferenceSession(onnx_path, providers=["CPUExecutionProvider"])
+
+
+def infer(sess, obs: np.ndarray) -> np.ndarray:
+    """Raw network output for one float32 observation."""
+    return sess.run(None, {"obs": obs[None]})[0][0]
+
+
+def onnx_rows(sess, x: np.ndarray) -> np.ndarray:
+    """The session's output for each row of x, one batch-1 call per row (the exported graphs have batch 1)."""
+    name = sess.get_inputs()[0].name
+    return np.concatenate([sess.run(None, {name: x[i:i + 1]})[0] for i in range(len(x))])
+
+
+def check_inputs(dim: int, n: int = 1000) -> np.ndarray:
+    """The fixed random inputs (seed 0, std 2, float32) the export checks compare torch / numpy against ONNX on."""
+    return np.random.default_rng(0).standard_normal((n, dim)).astype(np.float32) * 2
+
+
+def advance_phase(phase, ctrl_dt: float) -> np.float32:
+    """PolicyRunner's gait phase step in float32, wrapped once past 2 pi."""
+    p = np.float32(phase + np.float32(2 * np.pi * GAIT_FREQ_HZ * ctrl_dt))
+    return np.float32(p - np.float32(2 * np.pi)) if p > 2 * np.pi else p
+
+
+def default_ctrl(s: dict, default, scale: float, act) -> np.ndarray:
+    """ctrl = default + scale * action in float64, clamped to robot s's ctrl range (the plain action path)."""
+    return np.clip(np.asarray(default, dtype=np.float64) + scale * np.asarray(act, dtype=np.float64), s["lo"], s["hi"])
+
+
+def upright(quat) -> float:
+    """World z of the body's z axis from a (w, x, y, z) quaternion."""
+    return 1 - 2 * (quat[1] ** 2 + quat[2] ** 2)
 
 
 def T(x) -> torch.Tensor:

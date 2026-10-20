@@ -15,17 +15,17 @@
 import argparse, json, os, sys
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 import numpy as np, mujoco
+from koth import cpu_sim
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-J, ACT = mujoco.mjtObj.mjOBJ_JOINT, mujoco.mjtObj.mjOBJ_ACTUATOR
+J = mujoco.mjtObj.mjOBJ_JOINT
 
 
 def load(body):
-    spec = json.load(open(os.path.join(ROOT, "assets", body, "joint_map.json")))
+    spec = cpu_sim.joint_map(body)
     m = mujoco.MjModel.from_xml_path(os.path.join(ROOT, "assets", body, "scene_flat_1p_train.xml")); d = mujoco.MjData(m)
-    j = [mujoco.mj_name2id(m, J, "a_" + n) for n in spec["joints"]]; a = [mujoco.mj_name2id(m, ACT, "a_" + n) for n in spec["joints"]]
-    root = mujoco.mj_name2id(m, J, "a_floating_base_joint")
-    return spec, m, d, np.array([m.jnt_qposadr[i] for i in j]), np.array([m.jnt_dofadr[i] for i in j]), np.array(a), m.jnt_qposadr[root], m.jnt_dofadr[root], j
+    s = cpu_sim.robot(m, spec["joints"], "a_"); j = [mujoco.mj_name2id(m, J, "a_" + n) for n in spec["joints"]]
+    return spec, m, d, s["qadr"], s["dadr"], s["aid"], s["rq"], s["rd"], j
 
 
 def hold_state(spec, m, d, qa, aid, rq, z):
@@ -65,7 +65,7 @@ def symmetry(body, seconds=2.0):
     for k in range(n):
         d.ctrl[aid] = spec["hold_ctrl"]; mujoco.mj_step(m, d)
         if k >= n // 2: tau += d.actuator_force[aid]
-    tau /= n - n // 2; up = 1 - 2 * (d.qpos[rq + 4] ** 2 + d.qpos[rq + 5] ** 2)
+    tau /= n - n // 2; up = cpu_sim.upright(d.qpos[rq + 3:rq + 7])
     names = spec["joints"]; rows = []
     for i, nm in enumerate(names):
         if not nm.startswith("left_"): continue

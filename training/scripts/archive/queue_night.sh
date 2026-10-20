@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Night queue (2026-10-18), part 1: Trump's bull charge eased in (trump_bull, style_ramp_iters 300), then the third
 # G1 free-for-all generation. Exports go to new names; nothing the game ships is replaced here.
-cd "$(dirname "$0")/.." || exit 1
+cd "$(dirname "$0")/../.." || exit 1
 export PYTHONUNBUFFERED=1
 PY=.venv/Scripts/python.exe; LOG=runs/overnight; L=runs/league; mkdir -p $LOG
 note() { echo "$(date '+%H:%M:%S') $*" | tee -a $LOG/progress.txt; }

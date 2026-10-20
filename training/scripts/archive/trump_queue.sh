@@ -2,8 +2,8 @@
 # Trump, unattended: stand (trump_r0b) -> walk (trump_r1b, resumed, Kim's tracking weight 1.5 from the start) ->
 # attack a standing Trump in his style (r4att + belly_push) -> the style rung against a pool (trump_r4bull) -> evals
 # and exports to Models/trump/ (walker_policy, fighter_policy, each with its critic).
-#   bash scripts/trump_queue.sh [r0 iterations] [r1 iterations]
-cd "$(dirname "$0")/.." || exit 1
+#   bash scripts/archive/trump_queue.sh [r0 iterations] [r1 iterations]
+cd "$(dirname "$0")/../.." || exit 1
 export KOTH_ROBOT=trump PYTHONUNBUFFERED=1
 PY=.venv/Scripts/python.exe; R0=${1:-600}; R1=${2:-1000}; LOG=runs/overnight; mkdir -p $LOG
 note() { echo "$(date '+%H:%M:%S') $*" | tee -a $LOG/progress.txt; }

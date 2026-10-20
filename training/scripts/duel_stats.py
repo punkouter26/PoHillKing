@@ -15,8 +15,8 @@ A brain exported with <name>_action.json (koth/action_map.py: tanh map, per-join
 that action path, as Unity's PolicyRunner does."""
 import argparse, json, os, sys
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-import numpy as np, torch, mujoco, onnxruntime as ort
-from koth.obs import goal_command, GAIT_FREQ_HZ, STYLE_POSES, SHOVE_FAR, SHOVE_NEAR, SHOVE_SMOOTH
+import numpy as np, mujoco
+from koth.obs import goal_command, STYLE_POSES, SHOVE_FAR, SHOVE_NEAR, SHOVE_SMOOTH
 from koth.build_mjcf import ASSETS, UNITY_MODELS
 from koth.rules import is_out, ground_z, OUT_RADIUS, PLATEAU_R, FALL_UP, FALL_HEIGHT
 from koth import cpu_sim
@@ -29,9 +29,9 @@ ap.add_argument("--style-pose", default="shove", choices=list(STYLE_POSES), help
 ap.add_argument("--vmax", type=float, default=1.0, help="goal-law walking speed, as the roster entry (Trump: 0.7)")
 ap.add_argument("--getup", action="store_true", help="the game's get-up rule with getup_policy.onnx (see the docstring)")
 ap.add_argument("--getup-seconds", type=float, default=5.0); ap.add_argument("--max-getups", type=int, default=2); a = ap.parse_args()
-spec = json.load(open(os.path.join(ASSETS, "joint_map.json")))
+spec = cpu_sim.joint_map()
 policy_path = os.path.join(UNITY_MODELS, f"{a.policy}_policy.onnx")
-sess = ort.InferenceSession(policy_path, providers=["CPUExecutionProvider"])
+sess = cpu_sim.session(policy_path)
 m = mujoco.MjModel.from_xml_path(os.path.join(ASSETS, "scene_koth_2p_train.xml")); d = mujoco.MjData(m)
 R = cpu_sim.robots(m, spec["joints"], ("a_", "b_"))
 for s_ in R: s_["amap"] = NumpyMap(read_sidecar(policy_path), spec["action_scale"], *NumpyMap.gains(m, s_["aid"]))
@@ -40,14 +40,14 @@ default = np.array(spec["default_pose"])
 shove_offset = np.array([next((v - default[i] for k, v in STYLE_POSES[a.style_pose].items() if k in j), 0.0) for i, j in enumerate(spec["joints"])])
 rng = np.random.default_rng(a.seed)
 T = cpu_sim.T
-getup_sess = ort.InferenceSession(os.path.join(UNITY_MODELS, "getup_policy.onnx"), providers=["CPUExecutionProvider"]) if a.getup else None
+getup_sess = cpu_sim.session(os.path.join(UNITY_MODELS, "getup_policy.onnx")) if a.getup else None
 key_z = spec["key_root_z"]
 
 
 def out_with_getup(s, t):
     """DemoDirector.OutWithGetUp for robot s at round time t (s["down"], s["stood"], s["getups"] carry the state)."""
     pos, quat = d.qpos[s["rq"]:s["rq"] + 3], d.qpos[s["rq"] + 3:s["rq"] + 7]
-    rad = np.hypot(pos[0], pos[1]); h = pos[2] - ground_z(rad); up = 1 - 2 * (quat[1] ** 2 + quat[2] ** 2)
+    rad = np.hypot(pos[0], pos[1]); h = pos[2] - ground_z(rad); up = cpu_sim.upright(quat)
     if rad > OUT_RADIUS: return True
     if s["down"] is not None:
         if up > 0.9 and h > 0.85 * key_z:
@@ -75,22 +75,20 @@ for rnd in range(a.rounds):
             o = R[1 - i]; rq = s["rq"]; quat = d.qpos[rq + 3:rq + 7]
             if s["down"] is not None:              # the get-up brain drives (PolicyRunner.GetUpTick): zero command, no style path
                 obs = cpu_sim.observe(d, s, default, np.zeros(3), s["phase"])[0].numpy().astype(np.float32)
-                act = np.clip(getup_sess.run(None, {"obs": obs[None]})[0][0], -1, 1).astype(np.float32)
-                s["ctrl"] = np.clip(default + spec["action_scale"] * act.astype(np.float64), s["lo"], s["hi"]); s["last"] = act; s["f"] = act.astype(np.float64)
-                s["phase"] = np.float32(s["phase"] + np.float32(2 * np.pi * GAIT_FREQ_HZ * spec["ctrl_dt"]))
-                if s["phase"] > 2 * np.pi: s["phase"] = np.float32(s["phase"] - np.float32(2 * np.pi))
+                act = np.clip(cpu_sim.infer(getup_sess, obs), -1, 1).astype(np.float32)
+                s["ctrl"] = cpu_sim.default_ctrl(s, default, spec["action_scale"], act); s["last"] = act; s["f"] = act.astype(np.float64)
+                s["phase"] = cpu_sim.advance_phase(s["phase"], spec["ctrl_dt"])
                 continue
             cmd = goal_command(T(quat), T([d.qpos[o["rq"]] - d.qpos[rq], d.qpos[o["rq"] + 1] - d.qpos[rq + 1]]), 0.0, a.vmax)[0].numpy()
             obs = cpu_sim.observe(d, s, default, cmd, s["phase"], other=o)[0].numpy().astype(np.float32)
-            act = s["amap"].to_action(sess.run(None, {"obs": obs[None]})[0][0])
+            act = s["amap"].to_action(cpu_sim.infer(sess, obs))
             f = act.astype(np.float64); off = 0.0
             if a.shove:
                 f = s["f"] = SHOVE_SMOOTH * s["f"] + (1 - SHOVE_SMOOTH) * f
                 dist = np.hypot(d.qpos[o["rq"]] - d.qpos[rq], d.qpos[o["rq"] + 1] - d.qpos[rq + 1])
                 off = np.clip((SHOVE_FAR - dist) / (SHOVE_FAR - SHOVE_NEAR), 0, 1) * shove_offset
             s["ctrl"] = s["amap"].target(default + off, f, d.qpos[s["qadr"]], d.qvel[s["dadr"]], s["lo"], s["hi"]); s["last"] = act
-            s["phase"] = np.float32(s["phase"] + np.float32(2 * np.pi * GAIT_FREQ_HZ * spec["ctrl_dt"]))
-            if s["phase"] > 2 * np.pi: s["phase"] = np.float32(s["phase"] - np.float32(2 * np.pi))
+            s["phase"] = cpu_sim.advance_phase(s["phase"], spec["ctrl_dt"])
         cpu_sim.step(m, d, pool, park, R, spec["decimation"])
         t_now = (tick + 1) * spec["ctrl_dt"]
         out = [out_with_getup(s, t_now) if a.getup else is_out(d.qpos[s["rq"]:s["rq"] + 3], d.qpos[s["rq"] + 3:s["rq"] + 7]) for s in R]
