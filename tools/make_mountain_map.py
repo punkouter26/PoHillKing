@@ -2,13 +2,26 @@
 
     exec(open(r"<repo>/tools/make_mountain_map.py").read())
 
-Builds three meshes and their textures and exports them to Assets/PoKingHill/Maps/Mountain:
-  Mountain   the hill itself, radius 10.5 m. Physics is untouched: the collision shape stays the dome from
-             koth/build_mjcf.py (flat disc r < 1.5 m at z = 0, then z = -(r - 1.5)^2 / 9). The visible surface
-             equals that dome exactly for r < 1.9 m and departs from it by a rock relief that grows with radius.
+Headless: blender -b --factory-startup --python tools/make_mountain_map.py (the Microsoft Store build runs through
+%LOCALAPPDATA%/Microsoft/WindowsApps/blender-launcher.exe).
+
+Builds these meshes and their textures and exports them to Assets/PoKingHill/Maps/Mountain (mountain.fbx):
+  Mountain   the hill itself, radius 10.5 m, in three levels of detail (Mountain_LOD0-2 under one parent; Unity
+             makes them a LODGroup, QualityTier's Low preset forces LOD1). Physics is untouched: the collision shape
+             stays the dome from koth/build_mjcf.py (flat disc r < 1.5 m at z = 0, then z = -(r - 1.5)^2 / 9). The
+             visible surface equals that dome exactly for r < 1.9 m in every level, and departs from it by a rock
+             relief that grows with radius.
   Rocks      loose boulders on the slopes, 3.2 m and further from the centre. Render only, like everything here:
              a robot that has already been thrown off can pass through one.
+  Crags      jagged rock spires 3.6-6.5 m out, none on the broadcast camera's side of the summit.
+  Ruins      a broken colonnade on a stone platform on the far slope, 5 m out: columns, a lintel, a fallen drum.
+  Banners    three flags on poles 3.4 m out behind the summit (BannerPoles + Banners). The cloth carries its seat
+             colour in vertex colours and u = distance from the pole, which FX/Banner.shader uses to sway it in the
+             wind MatchFx sets (render only).
   Backdrop   distant peaks standing in the sea, 120-220 m out.
+Ambient occlusion from the crags, ruins, rocks and the hill's own relief is baked with Cycles into the mask's
+occlusion channel, so the props sit in the rock. The finished scene is archived as Assets/Art/Raw/Mountain~/Mountain.blend
+(the ~ keeps Unity from trying to import it) with a GLB copy for reference in Assets/Art/Exports/GLB/Mountain.glb.
 Rock colour, normals, roughness and occlusion come from two CC0 photo scans from polyhaven.com (aerial_rocks_02
 for the whole hill, rock_face_03 for the close-up grain and the boulders). They are downloaded into
 tools/polyhaven on first use; that folder is not in git.
@@ -31,6 +44,13 @@ AERIAL_SPAN_M = 36.0                       # metres of hill covered by the whole
 PHOTOS = os.path.join(REPO, "tools", "polyhaven")
 PHOTO_RES = {"aerial_rocks_02": "4k", "rock_face_03": "2k"}
 LUMA = np.array([0.30, 0.59, 0.11], np.float32)
+# The FBX export turns the map a half turn about the vertical, so the broadcast camera (Unity z = -6.2) looks from
+# Blender +y: no prop in these angles, or it would stand between the camera and the fight.
+CAMERA_SIDE = (np.radians(40), np.radians(140))
+ARCHIVE = os.path.join(REPO, "Assets", "Art", "Raw", "Mountain~")
+GLB_DIR = os.path.join(REPO, "Assets", "Art", "Exports", "GLB")
+AO_TEX = 1024
+_mask = {}
 _photos = {}
 
 
@@ -180,10 +200,14 @@ def make_object(name, verts, faces, uvs, mat):
     mesh.polygons.foreach_set("use_smooth", np.ones(len(mesh.polygons), bool)); mesh.materials.append(mat); mesh.update()
     if sum(p.normal.z for p in mesh.polygons) < 0: mesh.flip_normals()          # terrain faces look up
     assert max(len(p.vertices) for p in mesh.polygons) <= 4, "ngon in " + name
+    obj = bpy.data.objects.new(name, mesh); ensure_collection().objects.link(obj)
+    return obj
+
+
+def ensure_collection():
     coll = bpy.data.collections.get("PoKingHill_Map")
     if coll is None: coll = bpy.data.collections.new("PoKingHill_Map"); bpy.context.scene.collection.children.link(coll)
-    obj = bpy.data.objects.new(name, mesh); coll.objects.link(obj)
-    return obj
+    return coll
 
 
 def polar_grid(radii, n_ang):
@@ -200,16 +224,29 @@ def polar_grid(radii, n_ang):
     return x, y, faces
 
 
-def build_mountain():
-    # Mesh: rings are dense where the camera looks (plateau rim to about 6 m).
+def mountain_lod(level, uvs_of):
+    """Level 0: rings dense where the camera looks (plateau rim to about 6 m). Levels 1 and 2 keep every ring
+    inside 2.5 m (the summit stays the collision dome) and drop every second / fourth ring and angle beyond."""
     radii = np.unique(np.concatenate([np.linspace(0.15, PLATEAU_R, 10), np.linspace(PLATEAU_R, 6.0, 110), np.linspace(6.0, R_MAX, 60)]))
-    x, y, faces = polar_grid(radii, 288)
+    if level:
+        near = radii[radii <= 2.5]; far = radii[radii > 2.5][::2 ** level]
+        radii = np.unique(np.concatenate([near, far, [R_MAX]]))
+    x, y, faces = polar_grid(radii, 288 // 2 ** level)
     z = dome(np.hypot(x, y)) + relief(x, y)
+    inner = np.hypot(x, y) < EXACT_R
+    assert np.abs(z[inner] - dome(np.hypot(x, y))[inner]).max() < 1e-6, "visible summit differs from the collision dome"
+    return np.stack([x, y, z], axis=1), faces, uvs_of(x, y)
+
+
+def build_mountain():
     # UVs: the dome unrolled along its own profile (distance walked down the slope, not horizontal radius), so
     # texels are not smeared down the steep lower faces as a plain top-down projection does.
     rr = np.linspace(0, R_MAX, 4000); arc = np.concatenate([[0], np.cumsum(np.hypot(np.diff(rr), np.diff(dome(rr))))]); s_max = arc[-1]
-    r = np.hypot(x, y); k = np.interp(r, rr, arc) / np.maximum(r, 1e-9) / (2 * s_max)
-    uvs = np.stack([x * k + 0.5, y * k + 0.5], axis=1).astype(np.float32)
+
+    def uvs_of(x, y):
+        r = np.hypot(x, y); k = np.interp(r, rr, arc) / np.maximum(r, 1e-9) / (2 * s_max)
+        return np.stack([x * k + 0.5, y * k + 0.5], axis=1).astype(np.float32)
+
     c = (np.arange(TEX) + 0.5) / TEX * 2 * s_max - s_max; px, py = np.meshgrid(c, c); ps = np.hypot(px, py)
     back = np.interp(ps, arc, rr) / np.maximum(ps, 1e-9); gx, gy = px * back, py * back         # texel -> world x, y
     surf = lambda u, v: dome(np.hypot(u, v)) + relief(u, v)
@@ -218,16 +255,21 @@ def build_mountain():
     print("detail tiling for the Unity material:", round(2 * s_max / DETAIL_TILE_M, 2))
     pu, pv = px / AERIAL_SPAN_M + 0.5, py / AERIAL_SPAN_M + 0.5
     rgb, mask = colours(gx, gy, full, slope, det, pu, pv)
-    albedo = save_png("mountain_albedo", rgb, "sRGB"); save_png("mountain_mask", mask, "Non-Color")
+    albedo = save_png("mountain_albedo", rgb, "sRGB"); save_png("mountain_mask", mask, "Non-Color"); _mask["rgba"] = mask
     # Normal map: the scan's own surface detail plus the generated cracks and grain.
     a = normal_map(det, mpp) * 2 - 1; b = sample(photo("aerial_rocks_02", "nor_gl"), pu, pv) * 2 - 1
     n = np.dstack([a[..., 0] + b[..., 0], a[..., 1] + b[..., 1], a[..., 2] * b[..., 2]]); n /= np.linalg.norm(n, axis=2, keepdims=True)
     normal = save_png("mountain_normal", n * 0.5 + 0.5, "Non-Color")
-    obj = make_object("Mountain", np.stack([x, y, z], axis=1), faces, uvs, material("MountainRock", albedo, normal))
-    # The promise the game relies on: inside EXACT_R the visible surface is the collision dome.
-    inner = np.hypot(x, y) < EXACT_R
-    assert np.abs(z[inner] - dome(np.hypot(x, y))[inner]).max() < 1e-6, "visible summit differs from the collision dome"
-    return obj
+    mat = material("MountainRock", albedo, normal)
+    old = bpy.data.objects.get("Mountain")
+    if old: bpy.data.objects.remove(old, do_unlink=True)
+    parent = bpy.data.objects.new("Mountain", None); ensure_collection().objects.link(parent)
+    lods = []
+    for level in range(3):
+        verts, faces, uvs = mountain_lod(level, uvs_of)
+        obj = make_object(f"Mountain_LOD{level}", verts, faces, uvs, mat); obj.parent = parent; lods.append(obj)
+        print(f"Mountain_LOD{level}: {len(verts)} verts")
+    return parent, lods
 
 
 def build_backdrop():
@@ -292,8 +334,192 @@ def build_rocks(mat):
     old = bpy.data.objects.get("Rocks")
     if old: bpy.data.objects.remove(old, do_unlink=True)
     mesh = bpy.data.meshes.new("Rocks"); bm.to_mesh(mesh); bm.free(); mesh.materials.append(mat)
-    obj = bpy.data.objects.new("Rocks", mesh); bpy.data.collections["PoKingHill_Map"].objects.link(obj)
+    obj = bpy.data.objects.new("Rocks", mesh); ensure_collection().objects.link(obj)
     return obj
+
+
+def ground(x, y):
+    return float(dome(np.array([np.hypot(x, y)]))[0] + relief(np.array([x]), np.array([y]))[0])
+
+
+def off_camera(ang):
+    a = ang % (2 * np.pi)
+    return not (CAMERA_SIDE[0] < a < CAMERA_SIDE[1])
+
+
+def box_uv(bm, uv, faces, scale):
+    """Box mapping: each face projected along its dominant axis (metres x scale)."""
+    for f in faces:
+        axis = int(np.argmax(np.abs(np.array(f.normal[:])))); keep = [k for k in range(3) if k != axis]
+        for loop in f.loops: loop[uv].uv = (loop.vert.co[keep[0]] * scale, loop.vert.co[keep[1]] * scale)
+
+
+def finish(bm, name, mat):
+    old = bpy.data.objects.get(name)
+    if old: bpy.data.objects.remove(old, do_unlink=True)
+    mesh = bpy.data.meshes.new(name); bm.to_mesh(mesh); bm.free(); mesh.materials.append(mat)
+    obj = bpy.data.objects.new(name, mesh); ensure_collection().objects.link(obj)
+    return obj
+
+
+def build_crags(mat):
+    """Jagged spires standing out of the slope: icospheres stretched up, tapered, leaning outward, ridged."""
+    import bmesh
+    prng = np.random.default_rng(41); bm = bmesh.new(); uv = bm.loops.layers.uv.new("UVMap"); placed = 0
+    while placed < 14:
+        ang = prng.uniform(0, 2 * np.pi)
+        if not off_camera(ang): continue
+        r = prng.uniform(3.6, 6.5); w = prng.uniform(0.3, 0.6); h = prng.uniform(0.5, 1.2) * (0.6 + 0.12 * r)      # stubby, broken
+        cx, cy = r * np.cos(ang), r * np.sin(ang); base = ground(cx, cy) - 0.35 * w
+        verts = bmesh.ops.create_icosphere(bm, subdivisions=3, radius=1.0)["verts"]
+        unit = np.array([v.co[:] for v in verts]); t = (unit[:, 2] + 1) / 2                     # 0 at the foot, 1 at the tip
+        ridge = 0.55 + 0.9 * fbm(unit[:, 0] * 2.3 + 5.3 * placed, unit[:, 1] * 2.3 + unit[:, 2] * 3.1, 3, seed=90, ridged=True)
+        radial = w * ridge * (1.0 - 0.55 * t ** 1.3)
+        t = np.minimum(t, 0.85 + 0.15 * fbm(unit[:, 0] * 3 + placed, unit[:, 1] * 3, 2, seed=91))   # a snapped, uneven top, not a point
+        lean = 0.25 * h * t ** 2                                                                   # leans away from the summit
+        turn = prng.uniform(0, 2 * np.pi); c, s_ = np.cos(turn), np.sin(turn)
+        lx, ly = unit[:, 0] * radial * prng.uniform(0.7, 1.0), unit[:, 1] * radial
+        world = np.stack([cx + c * lx - s_ * ly + lean * np.cos(ang), cy + s_ * lx + c * ly + lean * np.sin(ang), base + t * h], axis=1)
+        for k, v in enumerate(verts): v.co = world[k]
+        faces = {f for v in verts for f in v.link_faces}
+        for f in faces: f.smooth = False
+        bmesh.ops.recalc_face_normals(bm, faces=list(faces))
+        box_uv(bm, uv, faces, 1.0 / DETAIL_TILE_M * 2)
+        placed += 1
+    return finish(bm, "Crags", mat)
+
+
+def ruin_material():
+    """Pale weathered limestone from the rock_face_03 grain, warmer and lighter than the hill."""
+    scan = photo("rock_face_03", "Diffuse")[::2, ::2]; lum = scan @ LUMA
+    stone = np.clip(0.55 + 0.8 * (lum[..., None] - lum.mean()), 0, 1) * np.array([0.86, 0.80, 0.70])
+    return material("RuinStone", save_png("ruin_albedo", np.clip(stone, 0, 1), "sRGB"), bpy.data.images.get("rock_detail_normal"))
+
+
+def build_ruins(mat):
+    """A broken colonnade on a stone platform on the far slope: five columns (two carrying a lintel), a fallen drum."""
+    import bmesh
+    from mathutils import Matrix, Vector
+    prng = np.random.default_rng(57); bm = bmesh.new(); uv = bm.loops.layers.uv.new("UVMap")
+    ang, r = np.radians(-112), 5.1
+    cx, cy = r * np.cos(ang), r * np.sin(ang); tang = np.array([-np.sin(ang), np.cos(ang), 0.0]); out = np.array([np.cos(ang), np.sin(ang), 0.0])
+    top = max(ground(cx + dx * tang[0] + dy * out[0], cy + dx * tang[1] + dy * out[1]) for dx in (-1.3, 0, 1.3) for dy in (-0.6, 0.6)) + 0.05
+    yaw = Matrix.Rotation(float(np.arctan2(tang[1], tang[0])), 4, "Z")
+    made = []
+
+    def cube(center, size, rot=Matrix.Identity(4)):
+        g = bmesh.ops.create_cube(bm, size=1.0, matrix=Matrix.Translation(Vector(center)) @ yaw @ rot @ Matrix.Diagonal((*size, 1.0)))
+        made.extend(g["verts"])
+
+    def column(center, height, radius, broken):
+        g = bmesh.ops.create_cone(bm, cap_ends=True, cap_tris=True, segments=14, radius1=radius, radius2=radius * 0.92, depth=height,
+                                  matrix=Matrix.Translation(Vector((center[0], center[1], center[2] + height / 2))))
+        for v in g["verts"]:
+            if v.co.z > center[2] + height - 1e-3 and broken: v.co.z -= prng.uniform(0.0, 0.18)       # a snapped-off top
+        made.extend(g["verts"])
+
+    # platform, sunk into the slope on its downhill side
+    cube((cx, cy, top - 0.45), (2.9, 1.5, 0.9))
+    heights = [2.1, 1.3, 2.1, 0.7, 1.6]
+    for k, h in enumerate(heights):
+        p = np.array([cx, cy, top]) + tang * (k - 2) * 0.62 + out * 0.15
+        cube((p[0], p[1], top + 0.06), (0.5, 0.5, 0.12))                                              # plinth
+        column((p[0], p[1], top + 0.12), h, 0.17, broken=h < 2.0)
+        if h >= 2.0: cube((p[0], p[1], top + 0.12 + h + 0.06), (0.46, 0.46, 0.12))                # capital
+    a, b = np.array([cx, cy, 0]) + tang * -2 * 0.62, np.array([cx, cy, 0]) + tang * 0 * 0.62     # columns 0 and 2 carry it
+    mid = (a + b) / 2 + out * 0.15
+    cube((mid[0], mid[1], top + 0.12 + 2.1 + 0.12 + 0.11), (1.6, 0.36, 0.22))                      # lintel
+    d = np.array([cx, cy, 0]) + tang * 1.9 + out * 0.9
+    g = bmesh.ops.create_cone(bm, cap_ends=True, cap_tris=True, segments=14, radius1=0.17, radius2=0.17, depth=0.8,
+                              matrix=Matrix.Translation(Vector((d[0], d[1], ground(d[0], d[1]) + 0.12))) @ yaw @ Matrix.Rotation(np.pi / 2, 4, "Y"))
+    made.extend(g["verts"])                                                                          # a fallen drum
+    faces = {f for v in made for f in v.link_faces}
+    for f in faces: f.smooth = False
+    box_uv(bm, uv, faces, 1.0 / DETAIL_TILE_M * 2)
+    return finish(bm, "Ruins", mat)
+
+
+BANNER_COLOURS = [(0.94, 0.38, 0.34), (0.98, 0.78, 0.25), (0.25, 0.56, 0.98)]      # the first three seat colours
+
+
+def build_banners():
+    """Three flags on poles behind the summit. Poles: dark metal. Cloth: a 12 x 8 grid, u = 0 at the pole, the seat
+    colour in vertex colours, the emblem texture banner_albedo (white field, gold band and crown)."""
+    import bmesh
+    from mathutils import Matrix, Vector
+    poles = bmesh.new(); cloth = bmesh.new(); puv = poles.loops.layers.uv.new("UVMap")
+    cuv = cloth.loops.layers.uv.new("UVMap"); col = cloth.loops.layers.color.new("Col")
+    W, H, NU, NV, POLE = 0.95, 0.62, 12, 8, 2.8
+    for k, deg in enumerate((-60, -95, -130)):
+        ang = np.radians(deg); r = 3.4; px, py = r * np.cos(ang), r * np.sin(ang); z0 = ground(px, py) - 0.15
+        g = bmesh.ops.create_cone(poles, cap_ends=True, cap_tris=True, segments=10, radius1=0.035, radius2=0.03, depth=POLE,
+                                  matrix=Matrix.Translation(Vector((px, py, z0 + POLE / 2))))
+        bmesh.ops.create_uvsphere(poles, u_segments=10, v_segments=6, radius=0.06, matrix=Matrix.Translation(Vector((px, py, z0 + POLE + 0.04))))
+        # cloth hangs off the pole sideways (tangent to the summit), facing the camera
+        tang = np.array([-np.sin(ang), np.cos(ang), 0.0]) * (1 if k % 2 == 0 else -1)
+        grid = [[None] * (NU + 1) for _ in range(NV + 1)]
+        for j in range(NV + 1):
+            for i in range(NU + 1):
+                u, v = i / NU, j / NV
+                p = np.array([px, py, z0 + POLE - 0.12 - (1 - v) * H]) + tang * (0.04 + u * W)
+                grid[j][i] = cloth.verts.new(p.tolist())
+        for j in range(NV):
+            for i in range(NU):
+                f = cloth.faces.new((grid[j][i], grid[j][i + 1], grid[j + 1][i + 1], grid[j + 1][i]))
+                for loop in f.loops:
+                    vi = next((jj, ii) for jj in range(NV + 1) for ii in range(NU + 1) if grid[jj][ii] == loop.vert)
+                    loop[cuv].uv = (vi[1] / NU, vi[0] / NV); loop[col] = (*BANNER_COLOURS[k], 1.0)
+                f.smooth = True
+    for f in poles.faces: f.smooth = True
+    metal = material("PoleMetal", save_png("pole_albedo", np.full((4, 4, 3), 0.18), "sRGB"), None)
+    t = (np.arange(256) + 0.5) / 256; u, v = np.meshgrid(t, t)
+    field = np.ones((256, 256, 3)) * 0.92
+    border = (u > 0.94) | (v < 0.05) | (v > 0.95)
+    band = np.abs(v - 0.5) < 0.07
+    crown = (v > 0.6) & (v < 0.82) & (np.abs(u - 0.55) < 0.18) & ((v - 0.6) < 0.22 * (1 - np.abs(((u - 0.37) / 0.12) % 1.0 * 2 - 1)))
+    gold = np.array([0.95, 0.76, 0.28]); field[band | crown] = gold; field[border] = field[border] * 0.55
+    cloth_mat = material("BannerCloth", save_png("banner_albedo", field, "sRGB"), None)
+    return finish(poles, "BannerPoles", metal), finish(cloth, "Banners", cloth_mat)
+
+
+def bake_ao(mountain, occluders, hidden):
+    """Cycles ambient occlusion of the hill (LOD0) with every prop as an occluder, in the hill's UV layout, folded
+    into the mask's occlusion channel (green) and saved again. `hidden` (the other levels of detail, which lie on
+    the same surface and would occlude everything) stay out of the render while it bakes."""
+    for o in hidden: o.hide_render = True
+    scene = bpy.context.scene; scene.render.engine = "CYCLES"; scene.cycles.samples = 48; scene.cycles.device = "CPU"
+    if scene.world is None: scene.world = bpy.data.worlds.new("World")
+    scene.world.light_settings.distance = 1.2
+    img = bpy.data.images.new("mountain_ao", AO_TEX, AO_TEX, alpha=False); img.colorspace_settings.name = "Non-Color"
+    nt = mountain.data.materials[0].node_tree; node = nt.nodes.new("ShaderNodeTexImage"); node.image = img
+    for n in nt.nodes: n.select = False
+    node.select = True; nt.nodes.active = node
+    for o in bpy.context.scene.objects:
+        if o is not None: o.select_set(False)
+    mountain.select_set(True); bpy.context.view_layer.objects.active = mountain
+    bpy.ops.object.bake(type="AO", margin=4)
+    a = np.empty(AO_TEX * AO_TEX * 4, np.float32); img.pixels.foreach_get(a); ao = a.reshape(AO_TEX, AO_TEX, 4)[..., 0]
+    nt.nodes.remove(node); bpy.data.images.remove(img)
+    for o in hidden: o.hide_render = False
+    c = (np.arange(AO_TEX) + 0.5) / AO_TEX * 2 - 1; disc = np.hypot(*np.meshgrid(c, c)) < 0.98       # texels the unrolled hill covers
+    print("baked AO over the hill: mean", round(float(ao[disc].mean()), 3), "5th percentile", round(float(np.percentile(ao[disc], 5)), 3))
+    rep_ = TEX // AO_TEX; ao = np.kron(ao, np.ones((rep_, rep_), np.float32))
+    mask = _mask["rgba"].copy(); mask[..., 1] = mask[..., 1] * (0.35 + 0.65 * ao)
+    save_png("mountain_mask", mask, "Non-Color")
+    print("baked AO: mean", round(float(ao.mean()), 3), "min", round(float(ao.min()), 3))
+    scene.render.engine = "BLENDER_EEVEE_NEXT" if "BLENDER_EEVEE_NEXT" in {e.identifier for e in bpy.types.RenderSettings.bl_rna.properties["engine"].enum_items} else scene.render.engine
+
+
+def archive(objs):
+    """The finished scene as a .blend (images referenced relative to it) and a GLB copy for reference."""
+    os.makedirs(ARCHIVE, exist_ok=True); os.makedirs(GLB_DIR, exist_ok=True)
+    for o in bpy.context.scene.objects:
+        if o is not None: o.select_set(False)
+    for o in objs: o.select_set(True)
+    bpy.ops.export_scene.gltf(filepath=os.path.join(GLB_DIR, "Mountain.glb"), export_format="GLB", use_selection=True, export_apply=True)
+    blend = os.path.join(ARCHIVE, "Mountain.blend")
+    bpy.ops.wm.save_as_mainfile(filepath=blend, compress=True, relative_remap=True, copy=True)
+    return blend
 
 
 def export(objs):
@@ -301,7 +527,7 @@ def export(objs):
     for o in objs: o.select_set(True)
     bpy.context.view_layer.objects.active = objs[0]
     path = os.path.join(OUT, "mountain.fbx")
-    bpy.ops.export_scene.fbx(filepath=path, use_selection=True, object_types={"MESH"}, apply_scale_options="FBX_SCALE_ALL",
+    bpy.ops.export_scene.fbx(filepath=path, use_selection=True, object_types={"MESH", "EMPTY"}, apply_scale_options="FBX_SCALE_ALL",
                              bake_space_transform=True, axis_forward="-Z", axis_up="Y", bake_anim=False, add_leaf_bones=False,
                              mesh_smooth_type="FACE", use_tspace=True)
     return path
@@ -309,6 +535,11 @@ def export(objs):
 
 os.makedirs(OUT, exist_ok=True)
 bpy.context.scene.unit_settings.system = "METRIC"; bpy.context.scene.unit_settings.scale_length = 1.0
-mountain = build_mountain(); backdrop = build_backdrop(); rocks = build_rocks(build_detail())
-print("exported", export([mountain, backdrop, rocks]), "| mountain verts", len(mountain.data.vertices), "| backdrop verts", len(backdrop.data.vertices))
+for junk in [o for o in bpy.data.objects if o.name in ("Cube", "Light", "Camera")]: bpy.data.objects.remove(junk, do_unlink=True)   # factory startup scene
+mountain, lods = build_mountain(); backdrop = build_backdrop(); boulder = build_detail(); rocks = build_rocks(boulder)
+crags = build_crags(boulder); ruins = build_ruins(ruin_material()); poles, banners = build_banners()
+bake_ao(lods[0], [rocks, crags, ruins, poles], lods[1:])
+objs = [mountain, *lods, backdrop, rocks, crags, ruins, poles, banners]
+print("exported", export(objs), "| mountain verts", len(lods[0].data.vertices), "| backdrop verts", len(backdrop.data.vertices))
 bpy.data.orphans_purge(do_recursive=True)
+print("archived", archive(objs))

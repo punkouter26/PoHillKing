@@ -1,0 +1,94 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Mountain Map Upgrade</title>
+<style>
+  :root { --bg: #f6f6f4; --ink: #1d1d1f; --dim: #5d5d63; --card: #ffffff; --line: #ddd; --bad: #c0392b; --good: #1e8449; --pin: #e8a300; --pin-ink: #1a1406; }
+  @media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) { --bg: #151517; --ink: #ececef; --dim: #a0a0a8; --card: #1f1f23; --line: #333; --bad: #ff6b5b; --good: #4cd18a; } }
+  :root[data-theme="dark"] { --bg: #151517; --ink: #ececef; --dim: #a0a0a8; --card: #1f1f23; --line: #333; --bad: #ff6b5b; --good: #4cd18a; }
+  body { margin: 0; padding: 24px 16px 48px; background: var(--bg); color: var(--ink); font: 16px/1.5 system-ui, sans-serif; }
+  main { max-width: 1000px; margin: 0 auto; }
+  h1 { font-size: 26px; margin: 0 0 4px; } h2 { font-size: 20px; margin: 40px 0 8px; }
+  p.sub { color: var(--dim); margin: 0 0 24px; }
+  .pair { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 16px; }
+  figure { margin: 0; background: var(--card); border: 1px solid var(--line); border-radius: 12px; padding: 12px; }
+  .shot { position: relative; }
+  .shot img { width: 100%; height: auto; border-radius: 8px; display: block; }
+  .pin { position: absolute; transform: translate(-50%, -50%); width: 26px; height: 26px; border-radius: 13px; background: var(--pin); color: var(--pin-ink);
+         font: 700 14px/26px system-ui, sans-serif; text-align: center; box-shadow: 0 0 0 3px rgba(0,0,0,.45); }
+  figcaption { font-size: 14px; color: var(--dim); margin-top: 8px; }
+  figcaption ol { margin: 6px 0 0; padding-left: 20px; }
+  .tag { font-weight: 600; } .bad { color: var(--bad); } .good { color: var(--good); }
+  code { font-size: 14px; }
+  table { border-collapse: collapse; font-size: 14px; margin-top: 8px; display: block; overflow-x: auto; }
+  td, th { border-bottom: 1px solid var(--line); padding: 4px 10px 4px 0; text-align: left; vertical-align: top; }
+</style>
+</head>
+<body>
+<main>
+  <h1>Mountain map upgrade</h1>
+  <p class="sub">261019. GFX &amp; Audio option 8. Blender 5.2.2 LTS (Microsoft Store build) run headless on <code>tools/make_mountain_map.py</code>;
+  no Blender MCP server is connected to this session, so the scene was built by the repo's own generator script, which is the map's source of truth.
+  Render only: the collision dome is untouched, the summit inside 1.9 m equals it in every level of detail, and no prop stands within 3.2 m of the
+  centre (banners 3.4 m). Captures are camera renders without the HUD; the overview is <code>ParityBatch.MapOverview</code>.</p>
+
+  <h2>1. The whole hill</h2>
+  <div class="pair">
+    <figure><div class="shot"><img src="before/01_overview.png" alt="Before: bare hill with boulders"></div>
+      <figcaption><span class="tag bad">Before</span>: the hill, loose boulders and the distant peaks.</figcaption></figure>
+    <figure><div class="shot"><img src="after/01_overview.png" alt="After: crags, ruins and banners"><span class="pin" style="left:64%;top:15%">1</span><span class="pin" style="left:74%;top:25%">2</span><span class="pin" style="left:65%;top:45%">3</span></div>
+      <figcaption><span class="tag good">After</span><ol><li>Three banners on poles, 3.4 m out behind the summit, in the first three seat colours with a gold band and crown.</li>
+      <li>A broken colonnade on a stone platform on the far slope: five columns (two carry a lintel), a fallen drum.</li>
+      <li>Fourteen crags: broken rock clusters 3.6-6.5 m out, none on the broadcast camera's side.</li></ol></figcaption></figure>
+  </div>
+
+  <h2>2. From the game's cameras</h2>
+  <p>The broadcast camera frames the summit from Unity z = -6.2, so props were kept off that side (<code>CAMERA_SIDE</code> in the script): they stand behind
+  the fight and never between the camera and a fighter.</p>
+  <div class="pair">
+    <figure><div class="shot"><img src="before/02_menu_orbit.png" alt="Before: menu orbit, empty summit edge"></div>
+      <figcaption><span class="tag bad">Before</span>: menu orbit.</figcaption></figure>
+    <figure><div class="shot"><img src="after/02_menu_orbit.png" alt="After: menu orbit with crags on the skyline"></div>
+      <figcaption><span class="tag good">After</span>: menu orbit; crags on the skyline.</figcaption></figure>
+    <figure><div class="shot"><img src="before/03_fight.png" alt="Before: six-way fight, open sea behind"></div>
+      <figcaption><span class="tag bad">Before</span>: six-way fight, open sea behind.</figcaption></figure>
+    <figure><div class="shot"><img src="after/03_fight.png" alt="After: six-way fight with banner and colonnade behind"><span class="pin" style="left:85%;top:18%">1</span><span class="pin" style="left:83%;top:33%">2</span><span class="pin" style="left:15%;top:44%">3</span></div>
+      <figcaption><span class="tag good">After</span><ol><li>Banner behind the fighters.</li><li>The colonnade.</li><li>A crag on the skyline.</li></ol></figcaption></figure>
+  </div>
+
+  <h2>3. Banners in the wind</h2>
+  <p><code>FX/Banner.shader</code> moves the cloth in the vertex stage: a wave travelling out along the flag and a faster flutter, both growing with the
+  distance from the pole, the flag pushed downwind, and the shading normal tilted by the wave's slope so the folds read as moving light and dark bands.
+  <code>MatchFx</code> publishes the wind as the global <code>_KothWind</code>: a breeze of 0.3 (plus up to 0.5 from the live weather's wind speed), 1.3 along
+  the gust during a Hazards gust (measured: 0.30 calm, 1.30 one second into a gust, back to 0.30 after it).</p>
+  <div class="pair">
+    <figure><div class="shot"><img src="after/04_banners_calm.png" alt="Banners in calm air"></div><figcaption>Calm (wind 0.3).</figcaption></figure>
+    <figure><div class="shot"><img src="after/04_gust_a.png" alt="Banners in a gust, frame 1"></div><figcaption>Gust (wind 1.3), frame 1.</figcaption></figure>
+    <figure><div class="shot"><img src="after/04_gust_b.png" alt="Banners in a gust, 0.25 s later"></div><figcaption>Gust, 0.25 s later: the folds have moved.</figcaption></figure>
+  </div>
+
+  <h2>4. Levels of detail and baked shading</h2>
+  <table>
+    <tr><th>Mesh</th><th>Vertices</th><th>Notes</th></tr>
+    <tr><td>Mountain_LOD0</td><td>51 265</td><td>As before: dense rings from the plateau rim to 6 m.</td></tr>
+    <tr><td>Mountain_LOD1</td><td>15 409</td><td>Every ring inside 2.5 m kept, every second ring and angle beyond. The Low quality preset forces it (<code>QualityTier</code> calls <code>LODGroup.ForceLOD(1)</code>).</td></tr>
+    <tr><td>Mountain_LOD2</td><td>5 113</td><td>Every fourth beyond 2.5 m; far views only.</td></tr>
+    <tr><td>Crags / Ruins / Banners + poles</td><td>11 805 / 811 / 351 + 222</td><td>Box-mapped UVs; caps triangulated so the FBX carries tangents.</td></tr>
+  </table>
+  <p>Unity's FBX importer makes the three <code>_LODn</code> meshes a LODGroup by itself. Forcing LOD2 for a frame changes the shading over the whole hill while
+  the separate rock meshes stay pixel-identical, so the switch works. Ambient occlusion is baked in Cycles (48 samples, 1.2 m reach) from the hill, the
+  crags, ruins, rocks and poles into the mask's occlusion channel: mean 0.87 over the hill, 5th percentile 0.56. The first bake read 0.25 because LOD1 and
+  LOD2 lie on the same surface and occluded everything; they are now hidden while it bakes.</p>
+
+  <h2>5. Source files</h2>
+  <ul>
+    <li><code>tools/make_mountain_map.py</code>: the generator (run headless; the Store build through <code>%LOCALAPPDATA%/Microsoft/WindowsApps/blender-launcher.exe</code>).</li>
+    <li><code>Assets/Art/Raw/Mountain~/Mountain.blend</code>: the archived scene (the <code>~</code> stops Unity from trying to import a .blend), with a README.</li>
+    <li><code>Assets/Art/Exports/GLB/Mountain.glb</code>: a self-contained GLB copy for reference (26 MB, textures embedded).</li>
+    <li><code>Assets/PoKingHill/Maps/Mountain</code>: <code>mountain.fbx</code> and its textures, plus new <code>ruin_albedo</code>, <code>banner_albedo</code>, <code>pole_albedo</code> and the materials RuinStone, PoleMetal, BannerCloth.</li>
+  </ul>
+</main>
+</body>
+</html>

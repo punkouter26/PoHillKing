@@ -22,6 +22,8 @@ namespace PoKingHill
     ///              delayed by the distance
     ///   danger     a pulsing red light on the fighter whose capture point is closest past the rim (Biometrics)
     ///   drips      a fighter that has been in the sea drips for a few seconds once out of it
+    ///   wind       the global _KothWind the Mountain map's banners sway in (FX/Banner.shader): a breeze from the live
+    ///              weather's wind speed, a strong push along the gust during a Hazards gust
     /// Budgets (particles, decals, shockwaves) follow QualityTier.
     /// The particle systems, decal pool, volume and lights are scene objects built by the editor builder, so they
     /// can be tuned by hand; this component only drives them.
@@ -43,6 +45,8 @@ namespace PoKingHill
         public ImpactSynth synth;                 // optional: thunder
         public Biometrics bio;                    // optional: the danger light
         public QualityTier quality;               // optional: budgets
+        public Hazards hazards;                   // optional: gusts blow the map's banners
+        Vector4 _wind = new(0.94f, 0f, 0.34f, 0.3f); static readonly int KothWind = Shader.PropertyToID("_KothWind");
         float _nextBolt = -1f, _boltAt = -10f; float[] _wetUntil = System.Array.Empty<float>(); float _nextDrip;
         readonly Vector3[] _boltPts = new Vector3[12];
 
@@ -200,9 +204,20 @@ namespace PoKingHill
             }
 
             bool fight = director.State == MatchState.Fight && On;
+            Wind();
             Lightning(fight, storm);
             Danger(fight);
             Drips(fight);
+        }
+
+        void Wind()
+        {
+            float breeze = 0.3f + (weather != null && weather.Ready ? Mathf.Clamp01(weather.WindKmh / 60f) * 0.5f : 0f);
+            Vector3 dir = new(_wind.x, 0f, _wind.z); float target = breeze;
+            if (hazards != null && hazards.Gusting) { var g = hazards.WindDir; dir = new Vector3(g.x, 0f, g.y); target = 1.3f; }      // MuJoCo x, y -> Unity x, z
+            dir = Vector3.Slerp(new Vector3(_wind.x, 0f, _wind.z), dir.sqrMagnitude > 1e-4f ? dir.normalized : Vector3.right, Time.unscaledDeltaTime * 2f).normalized;
+            _wind = new Vector4(dir.x, 0f, dir.z, Mathf.MoveTowards(_wind.w, target, Time.unscaledDeltaTime * 1.5f));
+            Shader.SetGlobalVector(KothWind, _wind);
         }
 
         // A strike over the sea every 5-12 s once the storm is past half way (or with a live thunderstorm).

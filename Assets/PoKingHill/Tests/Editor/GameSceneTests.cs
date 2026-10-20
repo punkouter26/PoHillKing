@@ -53,7 +53,15 @@ namespace PoKingHill.Tests
                 foreach (var ps in new[] { fx.dust, fx.sparks, fx.splash, fx.ripple, fx.confetti }) Assert.NotNull(ps, "particle system");
                 Assert.NotNull(fx.hitVolume); Assert.NotNull(fx.sun); Assert.NotNull(fx.kingSpot); Assert.NotNull(fx.steam); Assert.NotNull(fx.stamina); Assert.NotNull(fx.weather);
                 Assert.NotNull(fx.shockRing); Assert.NotNull(fx.drips); Assert.NotNull(fx.lightning); Assert.NotNull(fx.bolt); Assert.NotNull(fx.danger);
-                Assert.NotNull(fx.synth); Assert.NotNull(fx.bio); Assert.NotNull(fx.quality);
+                Assert.NotNull(fx.synth); Assert.NotNull(fx.bio); Assert.NotNull(fx.quality); Assert.NotNull(fx.hazards, "MatchFx.hazards (banner wind)");
+
+                // the Mountain map (tools/make_mountain_map.py): three levels of detail, the props, the swaying banners
+                var map = d.mapVisuals[0]; Assert.NotNull(map, "mountain map visual");
+                var lods = map.GetComponentInChildren<LODGroup>(true); Assert.NotNull(lods, "mountain LODGroup"); Assert.AreEqual(3, lods.lodCount);
+                var parts = map.GetComponentsInChildren<MeshRenderer>(true);
+                foreach (var n in new[] { "Crags", "Ruins", "BannerPoles", "Banners", "Rocks", "Backdrop" }) Assert.IsTrue(parts.Any(r => r.name == n), n + " missing from the map");
+                Assert.AreEqual("PoKingHill/Banner", parts.First(r => r.name == "Banners").sharedMaterial.shader.name);
+                Assert.IsTrue(parts.All(r => r.GetComponent<Collider>() == null), "the map is render only");
 
                 // sound: 3D one-shots and what the ambience follows
                 Assert.NotNull(d.synth.pool, "ImpactSynth.pool (SoundPool)"); Assert.NotNull(d.synth.director); Assert.NotNull(d.synth.hazards);

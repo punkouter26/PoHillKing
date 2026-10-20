@@ -44,7 +44,8 @@ namespace PoKingHill
 
         public override void AddRenderPasses(ScriptableRenderer renderer, ref RenderingData renderingData)
         {
-            if (material == null || !Shockwave.Active || renderingData.cameraData.cameraType != CameraType.Game || !GameSettings.Effects) return;
+            // play mode only: in the editor a wave time left from a play session (fast enter-play keeps statics) could still read as running
+            if (material == null || !Application.isPlaying || !Shockwave.Active || renderingData.cameraData.cameraType != CameraType.Game || !GameSettings.Effects) return;
             _pass.material = material; _pass.camera = renderingData.cameraData.camera;
             renderer.EnqueuePass(_pass);
         }

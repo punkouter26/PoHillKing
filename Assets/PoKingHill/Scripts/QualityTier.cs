@@ -9,7 +9,7 @@ namespace PoKingHill
     /// Render budget and live frame telemetry (GameSettings.Quality). Presets, applied to the game camera and the sun
     /// (never to the shared pipeline assets in the editor, where a change would be saved to disk):
     ///   Low      no post-processing, no shadows, no anti-aliasing, 40 % of the particles, 8 scuff decals, no shockwave,
-    ///            render scale 0.75 (player builds only)
+    ///            the map's lighter mesh (LODGroup forced to LOD1), render scale 0.75 (player builds only)
     ///   Medium   post-processing, hard shadows, FXAA, 70 % of the particles, 16 decals, render scale 0.9 (player builds)
     ///   High     everything: soft shadows, SMAA, all particles and 24 decals, render scale 1
     ///   Auto     starts High on desktop and Medium on phones; in a player build it steps down a tier when a fight runs
@@ -61,6 +61,8 @@ namespace PoKingHill
                 data.renderShadows = Current != Quality.Low;
                 data.antialiasing = Current == Quality.High ? AntialiasingMode.SubpixelMorphologicalAntiAliasing : Current == Quality.Medium ? AntialiasingMode.FastApproximateAntialiasing : AntialiasingMode.None;
             }
+            // the Mountain map's levels of detail (tools/make_mountain_map.py): Low keeps the lighter mesh even up close
+            foreach (var lg in FindObjectsByType<LODGroup>(FindObjectsInactive.Include)) lg.ForceLOD(Current == Quality.Low ? 1 : -1);
             if (sun != null) sun.shadows = Current == Quality.High ? LightShadows.Soft : Current == Quality.Medium ? LightShadows.Hard : LightShadows.None;
             // the pipeline asset is shared: change its render scale only in a player, where nothing is saved
             if (!Application.isEditor && GraphicsSettings.currentRenderPipeline is UniversalRenderPipelineAsset urp)

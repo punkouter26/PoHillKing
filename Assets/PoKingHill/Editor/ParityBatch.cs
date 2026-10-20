@@ -322,8 +322,28 @@ namespace PoKingHill.EditorTools
             var far = MapMaterial("BackdropRock", lit); far.SetTexture("_BaseMap", MapTexture("backdrop_albedo", false, true)); far.SetFloat("_Smoothness", 0.1f);
             var boulder = MapMaterial("BoulderRock", lit); boulder.SetTexture("_BaseMap", MapTexture("boulder_albedo", false, true)); boulder.SetFloat("_Smoothness", 0.15f);
             boulder.SetTexture("_BumpMap", MapTexture("rock_detail_normal", true, false)); boulder.EnableKeyword("_NORMALMAP");
-            foreach (var m in new[] { rock, far, boulder }) EditorUtility.SetDirty(m);
-            foreach (var r in root.GetComponentsInChildren<MeshRenderer>()) r.sharedMaterial = r.name.StartsWith("Backdrop") ? far : r.name.StartsWith("Rocks") ? boulder : rock;
+            var ruin = MapMaterial("RuinStone", lit); ruin.SetTexture("_BaseMap", MapTexture("ruin_albedo", false, true)); ruin.SetFloat("_Smoothness", 0.2f);
+            ruin.SetTexture("_BumpMap", MapTexture("rock_detail_normal", true, false)); ruin.EnableKeyword("_NORMALMAP");
+            var pole = MapMaterial("PoleMetal", lit); pole.SetColor("_BaseColor", new Color(0.16f, 0.16f, 0.18f)); pole.SetFloat("_Metallic", 0.8f); pole.SetFloat("_Smoothness", 0.55f);
+            // the cloth sways in MatchFx's _KothWind (FX/Banner.shader); an asset material, so a player build keeps the shader
+            var bannerShader = Shader.Find("PoKingHill/Banner"); if (bannerShader == null) throw new Exception("shader PoKingHill/Banner missing");
+            var cloth = MapMaterial("BannerCloth", bannerShader); if (cloth.shader != bannerShader) cloth.shader = bannerShader;
+            cloth.SetTexture("_BaseMap", MapTexture("banner_albedo", false, true));
+            foreach (var m in new[] { rock, far, boulder, ruin, pole, cloth }) EditorUtility.SetDirty(m);
+            foreach (var r in root.GetComponentsInChildren<MeshRenderer>())
+                r.sharedMaterial = r.name.StartsWith("Backdrop") ? far : r.name.StartsWith("Rocks") || r.name.StartsWith("Crags") ? boulder : r.name.StartsWith("Ruins") ? ruin
+                                 : r.name.StartsWith("BannerPoles") ? pole : r.name.StartsWith("Banners") ? cloth : rock;
+            // Mountain_LOD0-2: the FBX importer makes them a LODGroup; build one if it did not (QualityTier Low forces LOD1)
+            if (root.GetComponentInChildren<LODGroup>() == null)
+            {
+                var levels = Enumerable.Range(0, 3).Select(i => root.GetComponentsInChildren<MeshRenderer>().FirstOrDefault(r => r.name == "Mountain_LOD" + i)).ToArray();
+                if (levels.All(r => r != null))
+                {
+                    var lg = levels[0].transform.parent.gameObject.AddComponent<LODGroup>();
+                    lg.SetLODs(new[] { new LOD(0.35f, new Renderer[] { levels[0] }), new LOD(0.12f, new Renderer[] { levels[1] }), new LOD(0.01f, new Renderer[] { levels[2] }) });
+                    lg.RecalculateBounds();
+                }
+            }
             foreach (var c in root.GetComponentsInChildren<Collider>()) UnityEngine.Object.DestroyImmediate(c);
             foreach (var f in root.GetComponentsInChildren<MeshFilter>()) Debug.Log($"[ParityBatch] map mesh {f.name}: {f.sharedMesh.vertexCount} verts, world bounds {f.GetComponent<Renderer>().bounds}");
             return root;

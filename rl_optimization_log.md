@@ -427,3 +427,13 @@ audio only: no observation, action, ctrl or model change, and every new componen
   hit flash from contact force > 150 N stayed on while fighters leaned on each other (now only on `MatchEvents.Impact`);
   a 0.9 m bolt looked like a cartoon at 40 m (now ~2 px at any distance); the first shockwave was invisible at phone size, the
   second read as a fog band.
+
+**Option 8 done later the same night (Blender started).** No Blender MCP server is connected to Claude Code here, so the
+map was rebuilt by running `tools/make_mountain_map.py` in headless Blender 5.2.2 (Microsoft Store build; only
+`blender-launcher.exe` may be executed, and it does not pass stdout back, so the run logs through a wrapper). Render only:
+the summit inside 1.9 m equals the collision dome in all three levels of detail (asserted per level), no prop within
+3.2 m (banners 3.4 m), none on the broadcast camera's side. Hill LOD0 / 1 / 2: 51 265 / 15 409 / 5 113 vertices; Unity's
+FBX importer builds the LODGroup, Low quality forces LOD1. AO baked in Cycles: mean 0.87 over the hill (a first bake gave
+0.25 because the coincident LOD1/2 meshes occluded everything). Banner wind `_KothWind` 0.30 calm, 1.30 in a gust.
+EditMode 43/43 (the scene test now checks the LODGroup, the props, the banner shader and that the map has no collider),
+PlayMode 3/3. No physics changed, so the gates were not re-run for this part.

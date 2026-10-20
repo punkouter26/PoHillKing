@@ -28,6 +28,8 @@ namespace PoKingHill
         /// <summary>A gust is blowing / the ground is shaking right now (the ambience bed and MatchFx follow them).</summary>
         public bool Gusting => _windUntil > Now;
         public bool Quaking => _quakeUntil > Now;
+        /// <summary>Direction of the current or last gust, MuJoCo x, y (unit).</summary>
+        public Vector2 WindDir => _wind;
         double _windUntil, _iceUntil, _quakeUntil, _shrinkFrom = -1; Vector2 _wind; string _activeName = "";
         float _nextRandom; int[] _feet = Array.Empty<int>(); double[] _footFriction = Array.Empty<double>(); bool _iced;
         readonly System.Random _rng = new();

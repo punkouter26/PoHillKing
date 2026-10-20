@@ -80,7 +80,7 @@ namespace PoKingHill
                 string name = Name(m, MujocoLib.mjtObj.mjOBJ_BODY, b);
                 for (int k = 0; k < _runners.Length; k++) if (name.StartsWith(_runners[k].robotPrefix)) { _robotOfBody[b] = k; break; }
             }
-            foreach (var g in FindObjectsByType<MjGeom>(FindObjectsInactive.Exclude, FindObjectsSortMode.None))
+            foreach (var g in FindObjectsByType<MjGeom>(FindObjectsInactive.Exclude))
             {
                 int id = MujocoLib.mj_name2id(m, (int)MujocoLib.mjtObj.mjOBJ_GEOM, g.gameObject.name); if (id < 0) continue;
                 int body = m->geom_bodyid[id], robot = _robotOfBody[body]; if (robot < 0) continue;
@@ -93,7 +93,7 @@ namespace PoKingHill
                                       accent = bn.Contains("torso") || bn.EndsWith("pelvis") || bn.Contains("head") });
             }
             // the humans' skins (SkinFollower): their opaque materials move to the fighter shader too
-            foreach (var sf in FindObjectsByType<SkinFollower>(FindObjectsInactive.Exclude, FindObjectsSortMode.None))
+            foreach (var sf in FindObjectsByType<SkinFollower>(FindObjectsInactive.Exclude))
             {
                 int robot = Array.FindIndex(_runners, x => x.robotPrefix == sf.robotPrefix); if (robot < 0 || sf.skinRoot == null) continue;
                 foreach (var r in sf.skinRoot.GetComponentsInChildren<Renderer>())

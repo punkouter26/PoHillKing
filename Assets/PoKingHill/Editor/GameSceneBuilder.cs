@@ -54,7 +54,7 @@ namespace PoKingHill.EditorTools
             hud.bio = bio; hud.ledger = ledger; hud.stamina = stamina; hud.tactician = tactician; hud.weather = weather;
             hud.quality = quality; hud.synth = synth; hud.warp = warp;
             BuildCameraRig(rig, director, cam, classic);
-            var fx = BuildFx(rig, director, sea); fx.stamina = stamina; fx.weather = weather; fx.synth = synth; fx.bio = bio; fx.quality = quality;
+            var fx = BuildFx(rig, director, sea); fx.stamina = stamina; fx.weather = weather; fx.synth = synth; fx.bio = bio; fx.quality = quality; fx.hazards = hazards;
             quality.sun = fx.sun;
             EnsureFeature<DecalRendererFeature>("Decal", null);
             var shock = ShaderMat("Shockwave", "PoKingHill/Shockwave");
