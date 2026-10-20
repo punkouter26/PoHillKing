@@ -7,7 +7,8 @@ Outputs (all under training/assets/):
   g1/scene_koth_4p.xml         four G1 on the arena (Unity free-for-all only; `python -m koth.build_mjcf 4p`)
   g1/scene_koth_5p.xml         four G1 (a_..d_) and Kim (e_) on the arena (`python -m koth.build_mjcf 5p`)
   g1/scene_koth_6p.xml         four G1, Kim (e_) and Trump (f_) (`python -m koth.build_mjcf 6p`)
-  g1/scene_koth_7p.xml         four G1, Kim (e_), Trump (f_) and Grandpa (g_): the game scene (`python -m koth.build_mjcf 7p`)
+  g1/scene_koth_game.xml       the game scene: two Kim, two Trump, two Grandpa, no G1 (`python -m koth.build_mjcf game`)
+  g1/scene_koth_7p.xml         four G1, Kim (e_), Trump (f_) and Grandpa (g_): the former game scene, kept for the free-for-all gate (`7p`)
   g1/scene_*_train.xml         MuJoCo-resolved canonical model + keyframe (what training loads)
   g1/scene_*_unity.xml         same text minus keyframe/sensor (what the Unity importer loads)
   g1/model_dump_<tag>.json     parity reference per scene (nq/nv/nu, masses, ranges, gains, options)
@@ -195,8 +196,8 @@ def pool_park(i: int) -> tuple[float, float, float]:
     return (100.0 + 0.5 * i, 0.0, 50.0)
 
 
-ROBOT_BITS = [1, 2, 32, 64]      # a_, b_, c_, d_
-PREFIXES = ["a_", "b_", "c_", "d_"]
+ROBOT_BITS = [1, 2, 32, 64, 128, 256, 512, 1024]      # a_ .. h_ (4 ground, 8 boxes, 16 feet are taken)
+PREFIXES = ["a_", "b_", "c_", "d_", "e_", "f_", "g_", "h_"]
 
 
 def make_pool(n: int = POOL_N, robots_mask: int = 3) -> list[ET.Element]:
@@ -359,7 +360,7 @@ def build_mixed(n_extra: int = 1):
     used for training. Every robot collides with every other one and with the thrown boxes."""
     global PD_GAINS
     scene = build_scene(ET.parse(SRC).getroot(), True, True, players=4)
-    extras = EXTRAS[:n_extra]; bits = sum(ROBOT_BITS) + sum(e[1] for e in extras)
+    extras = EXTRAS[:n_extra]; bits = sum(ROBOT_BITS[:4]) + sum(e[1] for e in extras)
     wb = scene.find("worldbody")
     for prefix, bit, robot, (x, y) in extras:
         P = human(robot); src = ET.parse(os.path.join(P.ASSETS, f"{robot}_mjx.xml")).getroot()
@@ -372,11 +373,25 @@ def build_mixed(n_extra: int = 1):
         wb.insert(list(wb).index(wb.find("body[@name='box0']")), pelvis)
         scene.find("actuator").extend(acts); scene.find("contact").extend(excl)
     tag = f"koth_{4 + n_extra}p"
-    return finish(scene, tag, PREFIXES + [e[0] for e in extras], {e[0]: human(e[2]).DEFAULT_POSE for e in extras},
+    return finish(scene, tag, PREFIXES[:4] + [e[0] for e in extras], {e[0]: human(e[2]).DEFAULT_POSE for e in extras},
                   bodies={e[0]: e[2] for e in extras})
 
 
-def build_mix(bodies: list[str]):
+# The game's fighters (Demo_duel.unity, ParityBatch.BuildDuelDemo): two bodies of every human kind, so each brain can
+# meet its own body (the only opponent it was trained against) as well as the others. A new rigged mesh joins here.
+GAME_BODIES = ["kim", "kim", "trump", "trump", "grandpa", "grandpa"]
+
+
+def build_game(bodies: list[str] | None = None):
+    """The game scene koth_game: only human bodies (the G1 left the game on 2026-10-20), a ring on the summit, every
+    body colliding with every other one and the thrown boxes. Built as a mixed scene (build_mix) and then stripped of the
+    G1's mesh assets, which no body uses. Unity-only: no training rung reads it."""
+    bodies = bodies or GAME_BODIES
+    assert "g1" not in bodies and 2 <= len(bodies) <= len(PREFIXES), bodies
+    return build_mix(bodies, tag="koth_game")
+
+
+def build_mix(bodies: list[str], tag: str | None = None):
     """A training scene with mixed bodies (cross-body training, env rungs <learner>_vs_<other> and <learner>_ffa):
     bodies[i] sits at PREFIXES[i] on the arena, two facing each other or a ring of more. Built on the G1 scene (so the
     G1's meshes are at hand) with every non-G1 robot swapped for that human's body at the same place and collision
@@ -402,7 +417,11 @@ def build_mix(bodies: list[str]):
         for g in pelvis.iter("geom"):
             if g.get("conaffinity"): g.set("conaffinity", str(int(g.get("conaffinity")) | 8))      # thrown boxes
         wb.insert(at, pelvis); acts.extend(h_acts); contact.extend(excl)
-    tag = f"koth_{n}p_" + "_".join(bodies)
+    tag = tag or f"koth_{n}p_" + "_".join(bodies)
+    if "g1" not in bodies:                     # no G1 body left: drop its meshes (the arena mesh stays)
+        used = {g.get("mesh") for g in scene.iter("geom") if g.get("mesh")}
+        asset = scene.find("asset")
+        for m in [m for m in asset.findall("mesh") if m.get("name") not in used]: asset.remove(m)
     return finish(scene, tag, PREFIXES[:n], {PREFIXES[i]: human(b).DEFAULT_POSE for i, b in enumerate(bodies) if b != "g1"},
                   bodies={PREFIXES[i]: b for i, b in enumerate(bodies)})
 
@@ -449,6 +468,12 @@ if __name__ == "__main__":
     import sys
     if sys.argv[1:2] == ["mix"]:              # cross-body training scenes: python -m koth.build_mjcf mix trump g1 [g1 g1]
         build_mix(sys.argv[2:]); sys.exit(0)
+    if sys.argv[1:2] == ["game"]:             # the game scene: python -m koth.build_mjcf game [kim kim trump trump ...]
+        import shutil
+        build_game(sys.argv[2:] or None)
+        os.makedirs(UNITY_MODELS, exist_ok=True)
+        shutil.copyfile(os.path.join(ASSETS, "model_dump_koth_game.json"), os.path.join(UNITY_MODELS, "model_dump_koth_game.json"))
+        sys.exit(0)
     if sys.argv[1:] in (["4p"], ["5p"], ["6p"], ["7p"]):      # a Unity-only scene; leaves every training asset untouched
         import shutil
         tag = "koth_" + sys.argv[1]

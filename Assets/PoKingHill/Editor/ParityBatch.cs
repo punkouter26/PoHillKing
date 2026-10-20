@@ -199,22 +199,21 @@ namespace PoKingHill.EditorTools
         }
 
         [MenuItem("PoKingHill/Build duel demo scene")]
-        public static void BuildDuelDemo() => BuildDuelDemo("koth_7p");
+        public static void BuildDuelDemo() => BuildDuelDemo("koth_game");
 
         /// <summary>The two-fighter gates' scene (git-ignored), so a gate run never overwrites the game scene.</summary>
         const string GateScene = SceneDir + "/Gate_duel_2p.unity";
 
         /// <summary>Builds the game scene from an imported arena scene and saves it to <paramref name="savePath"/>
-        /// (Demo_duel.unity by default): the game uses the one with four G1, Kim, Trump and Grandpa (koth_7p, default), the two-fighter
-        /// parity gates the scene the brains were trained in (koth_2p, saved as Gate_duel_2p.unity). The menu seats the
+        /// (Demo_duel.unity by default): the game uses koth_game (two bodies of every human kind and no G1, which left the game
+        /// on 2026-10-20; python -m koth.build_mjcf game), the two-fighter parity gates the scene the brains were trained in
+        /// (koth_2p, saved as Gate_duel_2p.unity). The G1 brains stay in Models/ for those gates but are not in the game roster. The menu seats the
         /// ticked agents on the bodies, everyone starts on the summit and the sea rises as the round clock. Presentation
         /// (HUD, cameras, effects) comes from GameSceneBuilder. No PhysX components are created.</summary>
         public static void BuildDuelDemo(string tag, string savePath = DemoScene, string robot = "g1")
         {
             AssetDatabase.Refresh();
             var scene = EditorSceneManager.OpenScene(SceneOf(robot, tag), OpenSceneMode.Single);
-            var attacker = AssetDatabase.LoadAssetAtPath<Unity.InferenceEngine.ModelAsset>($"{ModelDir}/attacker_policy.onnx");
-            if (attacker == null) throw new Exception("attacker_policy.onnx missing in " + ModelDir);
             var runners = UnityEngine.Object.FindObjectsByType<PolicyRunner>(FindObjectsInactive.Include).OrderBy(r => r.robotPrefix).ToArray();
             // Body kinds from the model dump: testbeds imported before PolicyRunner had a body field say "g1" for Kim too.
             var dumpAsset = AssetDatabase.LoadAssetAtPath<TextAsset>($"{ModelsOf(robot)}/model_dump_{tag}.json");
@@ -242,18 +241,10 @@ namespace PoKingHill.EditorTools
             TextAsset Action(string dir, string file) => AssetDatabase.LoadAssetAtPath<TextAsset>($"{dir}/{file}_action.json");
             Fighter F(string name, string badge, string file, int dim, GoalMode goal) => new Fighter { name = name, shortName = badge, obsDim = dim, goal = goal,
                 policy = Onnx(file + "_policy"), value = Onnx(file + "_value"), mlp = Mlp(ModelDir, file + "_mlp"), valueMlp = Mlp(ModelDir, file + "_value_mlp"), action = Action(ModelDir, file) };
-            var walker = F("G1 Walker (stands its ground)", "Walker", "r1", 103, GoalMode.None); walker.steerable = true;
-            var roster = new List<Fighter> { F("G1 All-rounder (champion)", "All-rounder", "attacker", 112, GoalMode.Opponent), F("G1 Duelist (generation 7)", "Duelist", "duelist", 112, GoalMode.Opponent),
-                                             F("G1 Rammer (generation 1)", "Rammer", "rammer", 112, GoalMode.Opponent), walker };
-            // The free-for-all brain (scripts/train.py --rung r5ffa) joins when it has been exported; its input size comes from the file.
-            var ffa = Onnx("ffa_policy");
-            if (ffa != null) roster.Insert(1, new Fighter { name = "G1 Free-for-all (trained 4-way)", shortName = "Free-for-all", obsDim = InputsOf(ffa), goal = GoalMode.Opponent, policy = ffa, value = Onnx("ffa_value"),
-                                                            mlp = Mlp(ModelDir, "ffa_mlp"), valueMlp = Mlp(ModelDir, "ffa_value_mlp"), action = Action(ModelDir, "ffa") });
-            // A brain trained with varied goal points (rung r4tactic: Press, flanks, regroup, lurk; scripts/export_policy.py
-            // --name tactical) joins when exported: the one the Tactician's rollouts are meant for (Tactician A/B gate).
-            var tactical = Onnx("tactical_policy");
-            if (tactical != null) roster.Add(new Fighter { name = "G1 Tactical (trained on tactics)", shortName = "Tactical", obsDim = InputsOf(tactical), goal = GoalMode.Opponent, policy = tactical,
-                                                           value = Onnx("tactical_value"), mlp = Mlp(ModelDir, "tactical_mlp"), valueMlp = Mlp(ModelDir, "tactical_value_mlp"), action = Action(ModelDir, "tactical") });
+            var roster = new List<Fighter>();
+            // The G1 agents (All-rounder, Free-for-all, Duelist, Rammer, Walker) left the game on 2026-10-20: the roster holds
+            // human bodies only. A gate scene that still has G1 bodies (koth_2p, koth_4p, koth_7p) gets them back through G1Roster.
+            if (runners.Any(r => r.body == "g1")) roster.AddRange(G1Roster(F));
             // A human is offered only when this scene has its body (koth_7p: Kim e_, Trump f_, Grandpa g_) and a brain of theirs exists:
             // the fighting brain (Models/<body>/fighter_policy.onnx, 112 inputs) when exported, else the walker that
             // walks at the nearest opponent. vmax: the walking speed the fighter was trained with (Trump's style: 0.7).
@@ -276,10 +267,22 @@ namespace PoKingHill.EditorTools
             roster.Add(Human("kim", "Kim", "Kim", 1f));
             roster.Add(Human("trump", "Trump (Bulldozer: 102 kg, slow, shoves with his body)", "Trump", 0.7f, "bull"));
             roster.Add(Human("grandpa", "Grandpa (86 kg, in his eighties, leans in and shoves)", "Grandpa", 1f));
+            // the puppet: a walking brain that follows the stick (velocity commands) on a body this scene has; the G1 Walker
+            // when there are G1 bodies, else the first human walker (Kim's), which takes one of her two bodies
+            if (!roster.Any(f => f.steerable))
+                foreach (var body in new[] { "kim", "trump", "grandpa" })
+                {
+                    var w = AssetDatabase.LoadAssetAtPath<Unity.InferenceEngine.ModelAsset>($"{ModelsOf(body)}/walker_policy.onnx");
+                    if (w == null || !runners.Any(r => r.body == body)) continue;
+                    string Name = $"{char.ToUpperInvariant(body[0])}{body.Substring(1)}";
+                    roster.Add(new Fighter { name = $"{Name} (you steer)", shortName = $"{Name} walker", body = body, policy = w, obsDim = 103, goal = GoalMode.None, vmax = 0.8f,
+                                             steerable = true, inGame = false, value = AssetDatabase.LoadAssetAtPath<Unity.InferenceEngine.ModelAsset>($"{ModelsOf(body)}/walker_value.onnx") });
+                    break;
+                }
             director.roster = roster.ToArray();
             if (director.roster.Any(f => f.available && f.policy == null)) throw new Exception("a roster policy is missing in " + ModelDir);
             // get-up brains (training rung getup, exported as Models[/<body>]/getup_policy.onnx) for the bodies that have one
-            director.getupBrains = new[] { "g1", "kim", "trump", "grandpa" }
+            director.getupBrains = new[] { "g1", "kim", "trump", "grandpa" }.Where(b => runners.Any(r => r.body == b))
                 .Select(b => new BodyBrain { body = b, policy = AssetDatabase.LoadAssetAtPath<Unity.InferenceEngine.ModelAsset>($"{ModelsOf(b)}/getup_policy.onnx") })
                 .Where(b => b.policy != null).ToArray();
             director.maps = new[] { "Mountain top", "Summit (baseline)" };
@@ -297,6 +300,19 @@ namespace PoKingHill.EditorTools
             AssertNoPhysX("in the demo scene");
             EditorSceneManager.SaveScene(scene, savePath);
             Debug.Log("[ParityBatch] saved " + savePath);
+        }
+
+        /// <summary>The G1 agents, for the gate scenes that still hold G1 bodies (two-fighter, four-way and koth_7p gates):
+        /// All-rounder (champion careful1), Free-for-all when exported, Duelist (gen7), Rammer (gen1) and the Walker (the puppet).</summary>
+        static IEnumerable<Fighter> G1Roster(Func<string, string, string, int, GoalMode, Fighter> F)
+        {
+            var walker = F("G1 Walker (stands its ground)", "Walker", "r1", 103, GoalMode.None); walker.steerable = true;
+            yield return F("G1 All-rounder (champion)", "All-rounder", "attacker", 112, GoalMode.Opponent);
+            var ffa = AssetDatabase.LoadAssetAtPath<Unity.InferenceEngine.ModelAsset>($"{ModelDir}/ffa_policy.onnx");
+            if (ffa != null) { var f = F("G1 Free-for-all (trained 4-way)", "Free-for-all", "ffa", InputsOf(ffa), GoalMode.Opponent); yield return f; }
+            yield return F("G1 Duelist (generation 7)", "Duelist", "duelist", 112, GoalMode.Opponent);
+            yield return F("G1 Rammer (generation 1)", "Rammer", "rammer", 112, GoalMode.Opponent);
+            yield return walker;
         }
 
         const string MapDir = "Assets/PoKingHill/Maps/Mountain";
