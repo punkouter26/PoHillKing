@@ -451,3 +451,48 @@ path the docs and queue scripts name: 191 files, 1.0 GB of intermediate checkpoi
 11 finished one-off queues moved to `training/scripts/archive/`. Unity side: the game lost its network features and
 got one Settings page; gates were not re-run (no simulation code changed), EditMode 49/49, PlayMode 7/7
 (report: `SCREENSHOTS/clean-261020/report.html`).
+
+## 2026-10-20 — calibration, action, reward and curriculum options; G1 leaves the game
+
+The ten options of the day (audits, action path, rewards, curricula), all opt-in: `check_determinism.py` bitwise identical
+on r0 r1 r4league r4sp r5ffa getup. Report: `SCREENSHOTS/training-261020/index.html`; lessons: `training/TRAINING_LESSONS.md`.
+
+**Audits (no training).**
+- `drive_audit.py` on every shipped brain: G1 brains sit on the +-1 action clamp 23-42 % of the time (careful1 29 %: ankle
+  roll 65 %, shoulder roll 63 %, raw p95 up to 3.9) while torque-limited only 1-4 % of ticks; Kim and Trump about 2 %.
+  Trump's left ankle roll at its torque limit 28.7 % vs right 1.7 %.
+- `step_response.py`: on every body hips and waist zeta 0.12-0.22 (overshoot 14-35 %), ankles and wrists 1.4-2.5; left/right
+  hold torques mirror for G1 and Kim, not for Trump (hip roll -2.54 / -0.28 Nm, ankle roll -2.59 / -0.55): his stance settle
+  leaned. Model itself mirror-symmetric (masses, frames, axes, geoms).
+- `reward_audit.py`: the zero clip binds on 18-19 % of fight-rung steps and erases 12-13 % of the penalty mass (walker and
+  get-up 0.1 %); r5ffa `opp_radius` can pay 32 per round, more than a win (30); Trump's fighter gets 64 % of its shaped
+  reward from `opp_radius`. No stall incentive in any brain (bell round 0-13 vs win 36-42).
+- `obs_audit.py` with Unity dumps (`ParityBatch.RunObsDump`, `ObsRecorder`): G1 duel inputs match training (drift <= 0.27 sd,
+  KS <= 0.13). In the six-way game Kim's fighter is out of distribution on 20 of 112 inputs (opponent distance and
+  command KS 0.43, waist pitch 0.83 sd forward), Trump's on 8.
+
+**G1 fine-tunes of careful1**, 400 iterations, 2048 worlds, duel_u1's pool and rewards (duel_u1 = control), 3 seeds x 256:
+
+| run | change | vs league | vs careful1 | vs duel_u1 | verdict |
+|---|---|---|---|---|---|
+| duel_u1 | (control) | 64 / 21 | 39 / 35 | 47 / 40 | |
+| scale1 | per-joint action scale (0.5 x careful1's raw p95, twins equal, capped by reach; folded into the warm start to 3e-6 rad) | 61 / 32 | 35 / 63 | 50 / 45 | level with the control |
+| mask1 | tanh map + torque-feasible window | 35 / 57 | 10 / 85 | 15 / 85 | rejected |
+| pbrs1 | rung r4pbrs: potential (opp radius - my radius) instead of ring shaping, outside the clip | 54 / 44 | 19 / 80 | 25 / 72 | rejected |
+| tactic1 | rung r4tactic: random tactics (Press 50 %) | 29 / 41 | 8 / 85 | 13 / 82 | rejected for Press play |
+| noclip1 | --no-reward-clip | 66 / 28 | 29 / 58 | 38 / 54 | rejected |
+
+**Cross-body ladder** (`--curriculum ladder`, opponents standing walker, gen1, gen7, careful1; advance at win share 0.5,
+step back below 0.3): trump_xg4 vs the G1 league 31 / 49 (fight1 33 / 59; xg3 21 / 71), standing G1 59 %; kim_xg4 31 / 68
+(fight1 33 / 63; xg3 15 / 76), standing G1 81 %, with one step back (stage 1 -> 0 at iteration 210). Both reach stage 2 of 4.
+First cross-body recipe that does not end below its start; not shipped.
+
+**Bodies.** Kim's foot geoms keep a 4 mm gap (`build_human.py FOOT_GAP`; were 3.6 mm into each other at rest), Trump's hold
+ctrl is mirror-averaged (`build_mjcf.symmetric_hold`). Collision audit: 0 overlapping enabled pairs at zero, rest and T-pose
+for all bodies (`SCREENSHOTS/collision-261020`). Shipped brains before -> after: Kim walker 98.9 -> 98.7 % impacts,
+fighter vs a standing Kim 98.8 -> 99.0 %, vs itself 46/43 -> 44/44; Trump walker 96.6 -> 96.7 %, fighter 96.4 -> 97.0 %,
+vs itself 46/42 -> 44/45. No retrain.
+
+**The G1 leaves the game** (user request): Demo_duel is built from `koth_game` (`python -m koth.build_mjcf game`: two Kim,
+two Trump, two Grandpa, no G1); roster = the human brains + Kim's walker as the puppet; the G1 agents return only in gate
+scenes with G1 bodies. G1 code, checkpoints, assets and ONNX stay. EditMode 58/58, PlayMode 7/7.

@@ -31,7 +31,9 @@ on it.
 - **The per-step zero clip hides penalties exactly when the policy is doing badly.** It was needed (r0_a: dying early
   beat the penalties; r0_b: the clipped sum was always 0 and only entropy trained), but on the fight rungs it binds on
   18-19 % of steps and erases 12-13 % of the penalty mass (walker and get-up: 0.1 %). Terminal terms and the potential sit
-  outside it. Follow-up run `noclip1` measures the fight rung without it.
+  outside it. Turning it off for a fine-tune did not help: `noclip1` (34 % of steps net negative once the penalties
+  reached PPO) lost to careful1 29 / 58 and to the control 38 / 54. Keep the clip; reconsider it only for a ladder from
+  scratch.
 - **Shaping that is not a potential difference can be farmed.** `ring_advantage` is flat while pushing from the inside
   (r4att_a learned only to stop falling); `push_out` needed a per-episode cap; in the four-way rung `opp_radius` can pay
   32 per round, more than a win (30). The potential version (`r4pbrs`) did not reach careful1 in 400 iterations
@@ -106,3 +108,4 @@ on it.
 | tactic1 | random tactics | 29 / 41 | 8 / 85 | 13 / 82 | rejected for Press play |
 | trump_xg4 | ladder vs the G1 league | 31 / 49 (fight1 33 / 59) | | | held level; standing G1 59 % |
 | kim_xg4 | ladder vs the G1 league | 31 / 68 (fight1 33 / 63) | | | held level; standing G1 81 % |
+| noclip1 | no zero clip on the shaped reward | 66 / 28 | 29 / 58 | 38 / 54 | rejected |
