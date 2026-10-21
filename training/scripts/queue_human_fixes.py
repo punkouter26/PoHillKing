@@ -107,12 +107,12 @@ def step1_grandpa_finetune():
     vs_f1 = run_eval_rows(["--rung", "r4league", "--ckpt", ckpt, "--opponent", f1, "--seeds", "3", "--num-envs", "256", "--seconds", "25", "--leg-contact-rule", "unity"], robot="grandpa")
     with open(os.path.join(LOG_DIR, "grandpa_fight2_eval.json"), "w", encoding="utf-8") as f:
         json.dump({"r4att": att_rows, "vs_fight1": vs_f1}, f, indent=2)
-    win_att = sum(r.get("win_rate", 0.0) for r in att_rows) / max(len(att_rows), 1)
-    win_f1 = sum(r.get("win_share_of_decided", 0.0) for r in vs_f1) / max(len(vs_f1), 1)
+    win_att = sum(r.get("attacker_ejects_defender", 0.0) for r in att_rows) / max(len(att_rows), 1)
+    win_f1 = sum(r.get("attacker_ejects_defender", 0.0) / max(r.get("attacker_ejects_defender", 0.0) + r.get("attacker_lost", 0.0), 1e-6) for r in vs_f1) / max(len(vs_f1), 1)
     note(f"Fix #6: grandpa_fight2 r4att win_rate={win_att:.3f} (fight1=0.790), vs fight1 decided share={win_f1:.3f}")
     if win_att >= 0.79 and win_f1 >= 0.48:
         run_cmd(["scripts/export_policy.py", "--ckpt", ckpt, "--name", "fighter", "--value"], robot="grandpa")
-        run_cmd(["scripts/export_mlp.py", "../Assets/PoKingHill/Models/grandpa/fighter_policy.onnx", "../Assets/PoKingHill/Models/grandpa/fighter_mlp.bytes"], robot="grandpa")
+        run_cmd(["scripts/export_mlp.py"], robot="grandpa")
         note("Fix #6: promoted grandpa_fight2 -> Assets/PoKingHill/Models/grandpa/fighter_policy.onnx + fighter_mlp.bytes")
     else:
         note("Fix #6: keeping grandpa_fight1 as shipped fighter (grandpa_fight2 kept in runs/r4league/grandpa_fight2)")
@@ -205,13 +205,14 @@ def step3_cross_human():
         with open(os.path.join(LOG_DIR, f"{final_name}_eval.json"), "w", encoding="utf-8") as f:
             json.dump(eval_summary, f, indent=2)
 
-        att_win = sum(r.get("win_rate", 0.0) for r in eval_summary["r4att_own"]) / max(len(eval_summary["r4att_own"]), 1)
-        xh_win = sum(sum(r.get("win_share_of_decided", 0.0) for r in eval_summary[f"vs_{o}"]) / max(len(eval_summary[f"vs_{o}"]), 1) for o in others) / len(others)
-        base_xh_win = sum(sum(r.get("win_share_of_decided", 0.0) for r in eval_summary[f"base_vs_{o}"]) / max(len(eval_summary[f"base_vs_{o}"]), 1) for o in others) / len(others)
+        att_win = sum(r.get("attacker_ejects_defender", 0.0) for r in eval_summary["r4att_own"]) / max(len(eval_summary["r4att_own"]), 1)
+        decided = lambda r: r.get("attacker_ejects_defender", 0.0) / max(r.get("attacker_ejects_defender", 0.0) + r.get("attacker_lost", 0.0), 1e-6)
+        xh_win = sum(sum(decided(r) for r in eval_summary[f"vs_{o}"]) / max(len(eval_summary[f"vs_{o}"]), 1) for o in others) / len(others)
+        base_xh_win = sum(sum(decided(r) for r in eval_summary[f"base_vs_{o}"]) / max(len(eval_summary[f"base_vs_{o}"]), 1) for o in others) / len(others)
         note(f"Fix #3: {final_name} r4att_own={att_win:.3f}, cross-human decided share={xh_win:.3f} (baseline={base_xh_win:.3f})")
         if att_win >= 0.75 and xh_win > base_xh_win:
             run_cmd(["scripts/export_policy.py", "--ckpt", final_ckpt, "--name", "fighter", "--value"], robot=me)
-            run_cmd(["scripts/export_mlp.py", f"../Assets/PoKingHill/Models/{me}/fighter_policy.onnx", f"../Assets/PoKingHill/Models/{me}/fighter_mlp.bytes"], robot=me)
+            run_cmd(["scripts/export_mlp.py"], robot=me)
             note(f"Fix #3: promoted {final_name} -> Assets/PoKingHill/Models/{me}/fighter_policy.onnx + fighter_mlp.bytes")
         else:
             note(f"Fix #3: {final_name} evaluated and saved; keeping baseline fighter_policy.onnx for {me}")
@@ -229,3 +230,4 @@ def main():
 
 if __name__ == "__main__":
     main()
+

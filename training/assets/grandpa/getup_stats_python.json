@@ -1,0 +1,10 @@
+{
+ "drops": 200,
+ "success": 1.0,
+ "stood_within_seconds": 1.0,
+ "count_s": 5.0,
+ "seconds": 8.0,
+ "median_time_s": 2.88,
+ "p25_time_s": 2.74,
+ "p75_time_s": 3.22
+}
