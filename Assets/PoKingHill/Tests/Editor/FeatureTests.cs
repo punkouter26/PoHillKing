@@ -15,6 +15,7 @@ namespace PoKingHill.Tests
         [TestCase("Assets/PoKingHill/Models/ffa_policy.onnx", "Assets/PoKingHill/Models/ffa_mlp.bytes")]
         [TestCase("Assets/PoKingHill/Models/ffa_value.onnx", "Assets/PoKingHill/Models/ffa_value_mlp.bytes")]
         [TestCase("Assets/PoKingHill/Models/trump/fighter_policy.onnx", "Assets/PoKingHill/Models/trump/fighter_mlp.bytes")]
+        [TestCase("Assets/PoKingHill/Models/grandpa/fighter_policy.onnx", "Assets/PoKingHill/Models/grandpa/fighter_mlp.bytes")]
         public void MlpNetMatchesSentis(string onnx, string bytes)
         {
             var model = AssetDatabase.LoadAssetAtPath<ModelAsset>(onnx); var weights = AssetDatabase.LoadAssetAtPath<TextAsset>(bytes);

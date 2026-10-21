@@ -496,3 +496,28 @@ vs itself 46/42 -> 44/45. No retrain.
 **The G1 leaves the game** (user request): Demo_duel is built from `koth_game` (`python -m koth.build_mjcf game`: two Kim,
 two Trump, two Grandpa, no G1); roster = the human brains + Kim's walker as the puppet; the G1 agents return only in gate
 scenes with G1 bodies. G1 code, checkpoints, assets and ONNX stay. EditMode 58/58, PlayMode 7/7.
+
+## 2026-10-20 (night) — Grandpa, a fourth body kind
+
+**Body** (`Assets/Art/Raw/Grandpa/Grandpa.glb`: one textured mesh, no armature, right arm out to the side, left arm
+forward). `tools/make_grandpa.py` in headless Blender: merge seam duplicates (non-manifold edges 14 420 -> 0), face +X,
+1.74 m, joints from adult proportions (hip 0.53 H, knee 0.285 H, shoulder 0.80 H) placed horizontally on the mesh, each
+arm along its sleeve's centre line; Kim's 21 bone names; bone heat (0 unweighted vertices; weight smoothing bled across
+the touching thighs, walk stretch x4 -> x23, dropped). T-pose with a walk cycle exported as
+`Assets/Art/Exports/FBX/Grandpa/Character_TPose.fbx`; the game rest pose has the arms 20 deg out (they clear his belly)
+and legs straightened and re-grounded (+23 mm), the physics zero pose. `koth/build_grandpa.py`: 86 kg, Trump's torques and
+gains x0.77 (gravity torque, mass x height). Hold: up 0.9999, drift 6.8 mm, symmetric; self-collision clean.
+
+| Run | Iterations, worlds, time | Result | Bar | Verdict |
+|---|---|---|---|---|
+| `grandpa_r0b` (stand) | 600, 4096, 109 min | 84.6 % impacts survived (Trump 93.6 %) | >= 90 % | fail (the checkpoint only; the walker below passes this rung) |
+| `grandpa_r1b` (walk, from r0b, tracking 1.5) | 1000, 4096, 166 min | tracking 0.104 m/s / 0.071 rad/s, impacts 97.1 %; on r0b's bars 98.0 %; R3 meet 100 %, self-ejection 2.3-3.9 % | 0.15 m/s; R3 no self-ejection | r1b / r0b pass, r3 fail; shipped as `Models/grandpa/walker_policy.onnx` |
+| `grandpa_att1` -> `grandpa_fight1` (Kim's recipe: r4att, then r4league pool) | 400 + 300, 2048, 90 min | vs standing Grandpa 79 % ejections, median 3.8 s; vs itself 49 / 48 %, decided 96 % | r4att >= 70 % | pass, shipped (`Models/grandpa/fighter_policy.onnx`) |
+
+No NaN gradient updates in any run. **Unity gates:** duel statistics (`RunGrandpaDuelStats`, fighter vs itself, 200
+rounds) decided 98 %, median 6.13 s (4.76 / 8.19); Python `duel_stats.py --policy fighter` 97 %, 5.69 s (4.43 / 7.98): pass
+(median 1.3 standard errors apart, Unity a little slower this time). ModelDumpCheck PASS, skin on the bodies within 0.1 mm.
+Demo_duel rebuilt (koth_game: Grandpa available with his fighter). EditMode 59/59 (new: Grandpa's MlpNet vs Sentis),
+PlayMode 7/7; HudLayoutTests failed once while training held the GPU (18 FPS: the telemetry pill's tier word grew from
+High to Medium and overflowed by 12 units), passes on an idle GPU. Report: `SCREENSHOTS/grandpa-261020/report.html`.
+Open: his self-ejection on r3 and the weaker attack (79 % vs Trump 97.5 %): more r4att iterations; no get-up brain yet.
