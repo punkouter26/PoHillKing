@@ -30,7 +30,6 @@ namespace PoKingHill.Tests
             if (!ReplaySystem.Active) Assert.IsTrue(MjScene.Instance.enabled, "physics runs whenever no replay does" + ctx);
             if (hud.SheetShown) Assert.IsTrue(d.State == MatchState.Menu || d.State == MatchState.Result, "a sheet only shows in Menu or Result" + ctx);
             if (d.State == MatchState.Fight) Assert.AreEqual(d.Playing, hud.BadgeCount, "every seated fighter has a badge" + ctx);
-            if (d.State != MatchState.Fight) Assert.AreEqual(Vector2.zero, PuppetControl.Stick, "the stick is centred outside a round" + ctx);
         }
 
         [UnityTest, Timeout(900000)]
@@ -42,7 +41,7 @@ namespace PoKingHill.Tests
             yield return Until(() => MatchDirector.Instance != null && MatchDirector.Instance.State == MatchState.Menu, 60, "the menu");
             var d = MatchDirector.Instance; var hud = Object.FindAnyObjectByType<HudView>(); var replay = Object.FindAnyObjectByType<ReplaySystem>();
             var rng = new System.Random(20261019);
-            string[] names = { "quick", "launch all", "skip intro", "menu", "continue", "replay", "stop replay", "debug", "hide sheet", "peek", "restart", "tab", "puppet" };
+            string[] names = { "quick", "launch all", "skip intro", "menu", "continue", "replay", "stop replay", "debug", "hide sheet", "peek", "restart", "tab", "debug tab" };
             int menus = 0, steps = 0; var last = d.State; float since = Time.realtimeSinceStartup;
             try
             {
@@ -66,7 +65,7 @@ namespace PoKingHill.Tests
                         case 9: hud.SetCollapsed(false); break;
                         case 10: if (d.State == MatchState.Fight) d.NewRound(); break;
                         case 11: hud.Tab = rng.Next(HudView.TabCount); hud.Section = rng.Next(HudView.SectionCount); break;
-                        case 12: d.PuppetRequested = !d.PuppetRequested; break;
+                        case 12: hud.SetDebugTab(rng.Next(3)); break;
                     }
                     Invariants(d, hud, names[a]);
                     // wait a random moment, checking every frame; a state that never changes is a dead end
@@ -90,7 +89,7 @@ namespace PoKingHill.Tests
             }
             finally
             {
-                Time.timeScale = 1f; d.PuppetRequested = false; GameSettings.Intro = intro; GameSettings.Replays = replays;
+                Time.timeScale = 1f; GameSettings.Intro = intro; GameSettings.Replays = replays;
                 if (hud.DebugShown) hud.ToggleDebug();
             }
             guard.AssertClean("the soak");
@@ -109,7 +108,7 @@ namespace PoKingHill.Tests
             Assert.NotNull(replay, "the game scene has a ReplaySystem");
             try
             {
-                GameSettings.Intro = false; d.PuppetRequested = false; replay.autoDelay = 999f; d.pauseBetweenRounds = 600f;
+                GameSettings.Intro = false; replay.autoDelay = 999f; d.pauseBetweenRounds = 600f;
                 for (int attempt = 0; attempt < 4 && !replay.Available; attempt++)
                 {
                     d.QuickMatch(); Time.timeScale = 6f;

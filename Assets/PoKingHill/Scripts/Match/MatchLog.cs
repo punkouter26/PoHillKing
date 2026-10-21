@@ -166,8 +166,7 @@ namespace PoKingHill
                 sb.Append("{\"agent\":\"").Append(name).Append("\",\"body\":\"").Append(f.robotPrefix).Append("\",\"result\":\"")
                   .Append(r.Winner < 0 ? "tie" : r.Winner == i ? "win" : "loss").Append("\",\"rating\":").Append(F(Ladder.Rating(name)))
                   .Append(",\"ko_s\":").Append(F(_koAt[i])).Append(",\"path_m\":").Append(F(_path[i])).Append(",\"top_speed\":").Append(F(_topSpeed[i]))
-                  .Append(",\"effort\":").Append(F(_effort[i] / Math.Max(1, _effortTicks))).Append(",\"final_r\":").Append(F(Math.Sqrt(q[0] * q[0] + q[1] * q[1])))
-                  .Append(",\"puppet\":").Append(director.PuppetBody == i ? "true" : "false");
+                  .Append(",\"effort\":").Append(F(_effort[i] / Math.Max(1, _effortTicks))).Append(",\"final_r\":").Append(F(Math.Sqrt(q[0] * q[0] + q[1] * q[1])));
                 if (ledger != null)
                     sb.Append(",\"kos\":").Append(ledger.Knockouts(f)).Append(",\"assists\":").Append(ledger.Assists(f)).Append(",\"pushed_ns\":").Append(F(ledger.Pushed(f)));
                 sb.Append(",\"kin\":[");

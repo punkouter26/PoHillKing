@@ -66,6 +66,20 @@ Win odds and Captions moved to the developer panel.</p>
     <figcaption>Match is unchanged: Rounds, Sea, Map, Tale of the tape, Instant replays.</figcaption></figure>
 </div>
 
+<h2>Follow-up: CPU only, the hill rule</h2>
+<p>Following your direction: every agent is a brain (the player-steered walker, its stick and the "You play" switch are gone),
+and every fighter gets up after a fall. There is no count and no limit, and a fighter is out only when it leaves the
+mountain top; the sea still ends a round that nobody wins by a push. The "Get back up" switch is gone because the rule is
+always on. Kim's hill-rule gate (200 rounds): Python decided 100 %, median 6.88 s (5.48 / 8.11); Unity decided 100 %,
+median 6.77 s (5.55 / 8.37): pass. EditMode 46/46, PlayMode 7/7.</p>
+<div class="grid">
+  <figure><div class="shot"><img src="hill_play.png" alt="Play tab">
+    <div class="box ok" style="left:5%;top:76.8%;width:89.5%;height:3.6%"><span class="tag">the new rule</span></div></div>
+    <figcaption>Play: no player switch under the buttons; the line under the title states the rule.</figcaption></figure>
+  <figure><div class="shot"><img src="hill_advanced.png" alt="Advanced settings"></div>
+    <figcaption>Advanced: free-for-all targets and developer tools only.</figcaption></figure>
+</div>
+
 <h2>What was done</h2>
 <table>
 <tr><th>#</th><th>Option</th><th>Result</th></tr>

@@ -22,7 +22,6 @@ namespace PoKingHill
         public float stopDist = 0f, vmax = 1f;
         [Tooltip("Trained in a styled action path (rest pose + action smoothing)")] public bool shove;
         [Tooltip("Which styled rest pose with shove: shove (arms forward) or bull (Trump's charge)")] public string stylePose = "shove";
-        [Tooltip("A walking brain that follows velocity commands: the player can steer it")] public bool steerable;
         [Tooltip("Ticked in the menu: this agent takes part in matches")] public bool inGame = true;
         [Tooltip("False = listed in the menu but cannot be ticked yet; note says why")] public bool available = true;
         public string note = "";
@@ -37,9 +36,10 @@ namespace PoKingHill
     /// <summary>
     /// Match flow for king of the hill, as an explicit state machine: Menu -> Fight -> Result (-> Replay) -> Fight or
     /// Menu. Every seated agent gets one of the scene's fighter bodies of its own kind (unused bodies are parked in the
-    /// sky) and all start on top of the hill. A fighter is out when it leaves the plateau (radius &gt; OutRadiusNow) or
-    /// falls; the round ends when one is left (it wins), none is left, or the sea reaches the summit (the one nearest
-    /// the centre wins). The brains were trained one against one: in a larger fight each one is pointed at one
+    /// sky) and all start on top of the hill. A fighter is out only when it leaves the mountain top (radius &gt;
+    /// OutRadiusNow); one that falls on it gets up again with its body's get-up brain (see OutWithGetUp). The round ends
+    /// when one is left (it wins), none is left, or the sea reaches the summit (the one nearest the centre wins). Every
+    /// agent is a brain: there is no human player. The brains were trained one against one: in a larger fight each one is pointed at one
     /// opponent (nearest, or the easiest to push off). Everything is done by writing mjData (no scene reload, no
     /// Instantiate/Destroy). Presentation listens to <see cref="MatchEvents"/>; the HUD is HudView.
     /// </summary>
@@ -68,10 +68,12 @@ namespace PoKingHill
         [Tooltip("Free-for-all statistics gate: the candidate (roster index) on seat A against three opponents drawn from this pool every round (roster indices). Empty = the two-fighter gate.")]
         public int[] statsPool = Array.Empty<int>();
         public int statsCandidate = -1;
-        [Tooltip("Get-up brain per body kind (training rung getup): a fighter that falls on the plateau gets getupSeconds to stand again (GameSettings.GetUp)")]
+        [Tooltip("Get-up brain per body kind (training rung getup): a fighter that falls gets up again with it")]
         public BodyBrain[] getupBrains = Array.Empty<BodyBrain>();
-        public float getupSeconds = 5f; public int maxGetups = 2;
-        [Tooltip("The statistics gate plays with the get-up rule (duel_stats.py --getup)")] public bool getupInStats;
+        [Tooltip("Seconds a fallen fighter has to stand up before it is out; 0 = no count (the game's hill rule)")] public float getupSeconds;
+        [Tooltip("Get-ups per fighter per round; 0 = no limit (the game's hill rule)")] public int maxGetups;
+        [Tooltip("Only a fall inside the plateau (plateau_r) may be got up from; off = anywhere on the mountain top (the game's hill rule)")] public bool getupOnPlateauOnly;
+        [Tooltip("The statistics gate plays with the get-up rule (duel_stats.py --getup, or --hill-rule with the game's values)")] public bool getupInStats;
         [Tooltip("Tale of the tape: crane shot length, then this many seconds per fighter (clamped to fit about 7 s)")] public float introCrane = 1.6f, introPerFighter = 1.6f;
 
         /// <summary>Colour of each body's badge and team trim, in bodies[] order after seating.</summary>
@@ -96,10 +98,10 @@ namespace PoKingHill
         public bool AgentSeatedTwice(int agent) { int n = 0; for (int i = 0; i < _playing; i++) if (_agentAt[i] == agent) n++; return n > 1; }
         public int Draws => _draws;
         public bool IsOut(int body) => body >= 0 && body < _out.Length && _out[body];
-        /// <summary>Fallen on the plateau, the get-up brain driving and the count running (still in the round).</summary>
+        /// <summary>Fallen, the get-up brain driving (still in the round).</summary>
         public bool IsDown(int body) => body >= 0 && body < _playing && body < _downAt.Length && _downAt[body] >= 0 && !_out[body];
-        /// <summary>Seconds left on a down fighter's count.</summary>
-        public float DownLeft(int body) => IsDown(body) ? Mathf.Max(0f, (float)(_downAt[body] + getupSeconds - MjScene.Instance.Data->time)) : 0f;
+        /// <summary>Seconds left on a down fighter's count (-1 without a count).</summary>
+        public float DownLeft(int body) => !IsDown(body) ? 0f : getupSeconds <= 0 ? -1f : Mathf.Max(0f, (float)(_downAt[body] + getupSeconds - MjScene.Instance.Data->time));
         /// <summary>During the intro: the seat being presented (-1 during the crane shot), and how far into its card (0..1).</summary>
         public int IntroFeatured => State == MatchState.Intro ? (int)Mathf.Floor((Time.unscaledTime - _introStart - introCrane) / Mathf.Max(0.01f, _introPer)) : -1;
         public float IntroPhase => State == MatchState.Intro ? Mathf.Repeat((Time.unscaledTime - _introStart - introCrane) / Mathf.Max(0.01f, _introPer), 1f) : 0f;
@@ -112,10 +114,6 @@ namespace PoKingHill
         public double StepMs => _stepMs;
         /// <summary>Plateau radius that counts as "still in" this round.</summary>
         public float OutRadiusNow { get; private set; }
-        /// <summary>The player steers this body with the stick (walker brain, velocity commands), -1 = nobody.</summary>
-        public int PuppetBody { get; private set; } = -1;
-        /// <summary>Ticked in the menu: the next launch seats the player on the first body.</summary>
-        public bool PuppetRequested { get; set; }
         public bool LastRoundOfMatch => _bracket.Count == 0 && roundsPerMatch > 0 && _roundsThisMatch >= roundsPerMatch;
         public IReadOnlyList<BracketMatch> Bracket => _bracket;
         public bool InTournament => _bracket.Count > 0;
@@ -127,7 +125,7 @@ namespace PoKingHill
         readonly List<PolicyRunner> _alive = new(), _fallen = new();
         int[] _agentAt = Array.Empty<int>(), _bodyWins = Array.Empty<int>(), _agentWins = Array.Empty<int>();   // roster index per body (-1 = parked); wins per body; wins per agent
         bool[] _out = Array.Empty<bool>(); int _playing;
-        double[] _downAt = Array.Empty<double>(), _stoodAt = Array.Empty<double>(); int[] _getups = Array.Empty<int>(); bool[] _steered = Array.Empty<bool>();
+        double[] _downAt = Array.Empty<double>(), _stoodAt = Array.Empty<double>(); int[] _getups = Array.Empty<int>();
         float _introStart, _introPer, _introLength;
         PolicyRunner[] _target = Array.Empty<PolicyRunner>();
         readonly List<double> _times = new();
@@ -174,7 +172,6 @@ namespace PoKingHill
                 _pending = false;
                 _agentAt = new int[bodies.Length]; _bodyWins = new int[bodies.Length]; _out = new bool[bodies.Length]; _target = new PolicyRunner[bodies.Length];
                 _downAt = new double[bodies.Length]; _stoodAt = new double[bodies.Length]; _getups = new int[bodies.Length];
-                _steered = new bool[bodies.Length];
                 _agentWins = new int[Mathf.Max(1, roster.Length)];
                 _arena = bodies[0].Spec?.arena ?? new ArenaSpec();
                 if (autoLaunch) Launch(); else EnterMenu();
@@ -254,13 +251,13 @@ namespace PoKingHill
         public void EnterMenu()
         {
             ReplaySystem.StopActive();          // a replay restores its saved state when it ends: end it before placing anyone
-            _bracket.Clear(); PuppetBody = -1;
+            _bracket.Clear();
             _resultUntil = 0; _roundsThisMatch = 0;
             foreach (var f in bodies) f.SetBrain(null, ObsBuilder.ObsDim, GoalMode.None, 0.3f, 0.8f);      // passive stance while the menu is up
             Seat(2);
             for (int i = 0; i < 2 && i < bodies.Length; i++)
             {
-                int a = Array.FindIndex(roster, r => r.body == bodies[i].body && !r.steerable);
+                int a = Array.FindIndex(roster, r => r.body == bodies[i].body);
                 _agentAt[i] = a >= 0 ? a : 0;
             }
             Place(); ClearOut();
@@ -286,14 +283,14 @@ namespace PoKingHill
                 }
             }
             _bracket.Clear();
-            StartMatch(agents, statsRounds == 0 && PuppetRequested);
+            StartMatch(agents);
         }
 
         /// <summary>One tap from the menu: the champion against itself on the first map.</summary>
         public void QuickMatch()
         {
             _bracket.Clear(); selectedMap = 0;
-            StartMatch(PuppetRequested ? new List<int> { 0 } : new List<int> { 0, 0 }, PuppetRequested);     // with the player: you vs the champion
+            StartMatch(new List<int> { 0, 0 });
         }
 
         /// <summary>Single elimination between up to four available agents (the ticked ones, or all when fewer than two
@@ -318,18 +315,15 @@ namespace PoKingHill
         void PlayBracketMatch()
         {
             var m = _bracket[_bracketAt];
-            StartMatch(new List<int> { m.a, m.b }, false);
+            StartMatch(new List<int> { m.a, m.b });
             _status = m.label;
         }
 
-        void StartMatch(List<int> agents, bool puppet)
+        void StartMatch(List<int> agents)
         {
             ReplaySystem.StopActive();
-            PuppetBody = -1;
             if (roster.Length > 0)
             {
-                int steer = Array.FindIndex(roster, f => f.steerable && f.available && f.policy != null);
-                if (puppet && steer >= 0) agents.Insert(0, steer);
                 if (agents.Count == 1) agents.Add(agents[0]);
                 // Each agent takes a free body of its own kind; the bodies in use move to the front of bodies[].
                 var seats = new List<int>();
@@ -343,8 +337,7 @@ namespace PoKingHill
                 if (seats.Count < 2) { _status = "That selection has only one body to fight with: tick another agent"; return; }
                 selectedA = seats[0]; selectedB = seats[1];
                 Seat(seats.Count);
-                for (int i = 0; i < _playing; i++) { _agentAt[i] = seats[i]; _steered[i] = puppet && steer >= 0 && i == 0; }
-                if (puppet && steer >= 0) PuppetBody = 0;
+                for (int i = 0; i < _playing; i++) _agentAt[i] = seats[i];
             }
             else Seat(2);
             if (statsRounds == 0 && !autoLaunch) roundsPerMatch = _bracket.Count > 0 ? 1 : GameSettings.RoundsPerMatch;   // PerfProbe/auto runs keep theirs
@@ -362,7 +355,7 @@ namespace PoKingHill
             {
                 if (i >= _playing) { bodies[i].SetBrain(null, ObsBuilder.ObsDim, GoalMode.None, 0.3f, 0.8f); continue; }
                 var f = roster[_agentAt[i]];
-                bodies[i].SetBrain(f.policy, f.obsDim, _steered[i] ? GoalMode.None : f.goal, f.stopDist, f.vmax, f.shove, f.stylePose, f.action);
+                bodies[i].SetBrain(f.policy, f.obsDim, f.goal, f.stopDist, f.vmax, f.shove, f.stylePose, f.action);
                 bodies[i].getupPolicy = Array.Find(getupBrains, b => b != null && b.body == bodies[i].body)?.policy;
             }
         }
@@ -437,14 +430,14 @@ namespace PoKingHill
             return rad > OutRadiusNow || ObsBuilder.Up(q + 3) < _arena.fall_up || q[2] - _arena.Ground(rad) < _arena.fall_height;
         }
 
-        /// <summary>The get-up rule is on: in play with GameSettings.GetUp, or in a gate started with getupInStats.</summary>
-        public bool GetUpRule => statsRounds > 0 ? getupInStats : GameSettings.GetUp;
+        /// <summary>The get-up rule is on: always in play, in a statistics gate only when started with getupInStats.</summary>
+        public bool GetUpRule => statsRounds == 0 || getupInStats;
 
-        // Get-up rule: a ring-out is still out at once. A fall inside the plateau (radius < plateau_r) hands the body to
-        // its get-up brain and starts a count of getupSeconds; standing again (up > 0.9, pelvis above 85 % of the standing
-        // height, for 0.4 s) gives it back to the fight brain, the count running out is a knock-out. At most maxGetups
-        // per fighter per round; a fighter with no get-up brain is out on a fall as before. Mirrored by
-        // training/scripts/duel_stats.py --getup.
+        // Get-up rule: leaving the mountain top (radius > OutRadiusNow) is out at once. A fall hands the body to its get-up
+        // brain; standing again (up > 0.9, pelvis above 85 % of the standing height, for 0.4 s) gives it back to the fight
+        // brain. The game's hill rule (the defaults) has no count, no limit and works anywhere on the top; the older gate rule
+        // (ParityBatch.RunGetupDuelStats) counts getupSeconds, allows maxGetups and only falls inside plateau_r. A fighter
+        // with no get-up brain is out on a fall. Mirrored by training/scripts/duel_stats.py --getup [--hill-rule].
         bool OutWithGetUp(MujocoLib.mjData_* d, int i, double t)
         {
             var r = bodies[i]; double* q = d->qpos + r.Map.RootQposAdr;
@@ -458,11 +451,11 @@ namespace PoKingHill
                     if (t - _stoodAt[i] >= 0.4) { _downAt[i] = -1; _stoodAt[i] = -1; r.SetGetUp(false); MatchEvents.RaiseRecovered(r); }
                 }
                 else _stoodAt[i] = -1;
-                return _downAt[i] >= 0 && t - _downAt[i] > getupSeconds;
+                return _downAt[i] >= 0 && getupSeconds > 0 && t - _downAt[i] > getupSeconds;
             }
             bool fallen = up < _arena.fall_up || h < _arena.fall_height;
             if (!fallen) return false;
-            if (rad < _arena.plateau_r && _getups[i] < maxGetups && r.SetGetUp(true))
+            if ((!getupOnPlateauOnly || rad < _arena.plateau_r) && (maxGetups <= 0 || _getups[i] < maxGetups) && r.SetGetUp(true))
             {
                 _downAt[i] = t; _stoodAt[i] = -1; _getups[i]++; MatchEvents.RaiseDown(r);
                 return false;
@@ -593,7 +586,7 @@ namespace PoKingHill
             int alive = 0; for (int i = 0; i < _playing; i++) if (!_out[i]) alive++;
             if (_out[0]) _ffaLoss++; else if (alive == 1) { _ffaWin++; _ffaTimes.Add(t); } else _ffaTie++;
             int n = _ffaWin + _ffaLoss + _ffaTie;
-            if (n < statsRounds) { StartMatch(FfaDraw(), false); return; }
+            if (n < statsRounds) { StartMatch(FfaDraw()); return; }
             _ffaTimes.Sort(); double median = _ffaTimes.Count > 0 ? _ffaTimes[_ffaTimes.Count / 2] : -1;
             string F(double v) => v.ToString("0.####", System.Globalization.CultureInfo.InvariantCulture);
             string json = $"{{\n \"candidate\": \"{NameOf(statsCandidate, "?")}\", \"rounds\": {n}, \"last_one_in\": {F((double)_ffaWin / n)}, \"out\": {F((double)_ffaLoss / n)}, " +

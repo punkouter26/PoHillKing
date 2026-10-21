@@ -137,19 +137,6 @@ namespace PoKingHill.EditorTools
             roster.Add(Human("kim", "Kim", "Kim", 1f));
             roster.Add(Human("trump", "Trump (Bulldozer: 102 kg, slow, shoves with his body)", "Trump", 0.7f, "bull"));
             roster.Add(Human("grandpa", "Grandpa (86 kg, in his eighties, leans in and shoves)", "Grandpa", 1f));
-            // the puppet: a walking brain that follows the stick (velocity commands) on a body this scene has; the G1 Walker
-            // when there are G1 bodies, else the first human walker (Kim's), which takes one of her two bodies
-            if (!roster.Any(f => f.steerable))
-                foreach (var body in new[] { "kim", "trump", "grandpa" })
-                {
-                    string dir = ParityBatch.ModelsOf(body);
-                    var w = Onnx(dir, "walker_policy");
-                    if (w == null || !runners.Any(r => r.body == body)) continue;
-                    string Name = $"{char.ToUpperInvariant(body[0])}{body.Substring(1)}";
-                    roster.Add(new Agent { name = $"{Name} (you steer)", shortName = $"{Name} walker", body = body, policy = w, obsDim = 103, goal = GoalMode.None, vmax = 0.8f,
-                                           steerable = true, inGame = false, value = Onnx(dir, "walker_value") });
-                    break;
-                }
             director.roster = roster.ToArray();
             if (director.roster.Any(f => f.available && f.policy == null)) throw new Exception("a roster policy is missing in " + ModelDir);
             // get-up brains (training rung getup, exported as Models[/<body>]/getup_policy.onnx) for the bodies that have one
@@ -165,7 +152,7 @@ namespace PoKingHill.EditorTools
 
         /// <summary>The G1 agents, for the gate scenes that still hold G1 bodies: All-rounder (champion careful1),
         /// Free-for-all when exported, Duelist (gen7) and Rammer (gen1), which the free-for-all gate's opponent pool
-        /// needs (eval.py --rung r5ffa), and the Walker (the puppet).</summary>
+        /// needs (eval.py --rung r5ffa), and the standing Walker (the same pool).</summary>
         static IEnumerable<Agent> G1Roster()
         {
             Agent A(string name, string badge, string file, int dim, GoalMode goal) => new Agent { name = name, shortName = badge, obsDim = dim, goal = goal,
@@ -175,8 +162,7 @@ namespace PoKingHill.EditorTools
             if (ffa != null) yield return A("G1 Free-for-all (trained 4-way)", "Free-for-all", "ffa", ParityBatch.InputsOf(ffa), GoalMode.Opponent);
             yield return A("G1 Duelist (generation 7)", "Duelist", "duelist", 112, GoalMode.Opponent);
             yield return A("G1 Rammer (generation 1)", "Rammer", "rammer", 112, GoalMode.Opponent);
-            var walker = A("G1 Walker (stands its ground)", "Walker", "r1", 103, GoalMode.None); walker.steerable = true;
-            yield return walker;
+            yield return A("G1 Walker (stands its ground)", "Walker", "r1", 103, GoalMode.None);
         }
     }
 }

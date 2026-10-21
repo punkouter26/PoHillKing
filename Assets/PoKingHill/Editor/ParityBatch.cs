@@ -295,11 +295,18 @@ namespace PoKingHill.EditorTools
 
         /// <summary>The duel statistics gate with the get-up rule (MatchDirector.getupInStats): compare with
         /// scripts/duel_stats.py --getup on the same pair.</summary>
-        public static void RunGetupDuelStats()
+        public static void RunGetupDuelStats() => RunGetupDuelStats("g1", int.Parse(Cli.Arg("-kothRounds", "200")), int.Parse(Cli.Arg("-kothA", "0")), int.Parse(Cli.Arg("-kothB", "0")), Cli.Flag("-kothHill"));
+
+        /// <summary>The get-up duel gate for a robot's two-body testbed (agent -1 = its own roster entry). hill = the game's
+        /// rule (no count, no limit, anywhere on the top; duel_stats.py --getup --hill-rule), else the older 5 s count,
+        /// 2 get-ups, plateau only (duel_stats.py --getup).</summary>
+        public static void RunGetupDuelStats(string robot, int rounds, int a, int b, bool hill)
         {
-            RunDuelStats("g1", int.Parse(Cli.Arg("-kothRounds", "200")), int.Parse(Cli.Arg("-kothA", "0")), int.Parse(Cli.Arg("-kothB", "0")), play: false);
+            RunDuelStats(robot, rounds, a, b, play: false);
             var dd = UnityEngine.Object.FindAnyObjectByType<MatchDirector>(); dd.getupInStats = true;
-            if (dd.getupBrains.Length == 0) { Debug.LogError("[ParityBatch] no getup_policy.onnx for the G1"); if (Cli.Exit) EditorApplication.Exit(3); return; }
+            if (hill) { dd.getupSeconds = 0f; dd.maxGetups = 0; dd.getupOnPlateauOnly = false; dd.statsFile = "duel_stats_hill_unity.json"; }
+            else { dd.getupSeconds = 5f; dd.maxGetups = 2; dd.getupOnPlateauOnly = true; dd.statsFile = "duel_stats_getup_unity.json"; }
+            if (dd.getupBrains.Length == 0) { Debug.LogError($"[ParityBatch] no getup_policy.onnx for {robot}"); if (Cli.Exit) EditorApplication.Exit(3); return; }
             EditorApplication.EnterPlaymode();
         }
 

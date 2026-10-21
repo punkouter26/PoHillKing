@@ -563,3 +563,14 @@ tools; win odds and captions moved to the developer panel's View tab.
 61 files / 8,535 lines → 55 / 7,194. `GameSceneTests.EveryComponentLivesInAFileOfItsOwnName` now reads the script
 subfolders (it had checked nothing since they were split). EditMode 46/46, PlayMode 7/7; a played quick match logged
 no errors and wrote telemetry (59 FPS, p95 22 ms). Report: `SCREENSHOTS/clean-261021/report.html`.
+
+**Same day, direction from the user:** (1) everyone gets up, a fighter is out only when it falls off the mountain;
+(2) CPU only, no human player yet; (3) retire the G1 gates once the humans have gated free-for-all brains (noted in
+`training/STAGED_TRAINING.md` §3). Done: the get-up rule is always on in the game as the **hill rule**
+(`MatchDirector.getupSeconds = 0` no count, `maxGetups = 0` no limit, `getupOnPlateauOnly = false`; out only past the
+out radius; the sea still ends a round), mirrored by `duel_stats.py --getup --hill-rule` and gated with
+`ParityBatch.RunGetupDuelStats(robot, rounds, a, b, hill: true)`. Kim, 200 rounds: Python decided 100 %, median 6.88 s
+(5.48 / 8.11); Unity 100 %, 6.77 s (5.55 / 8.37): pass. The older get-up gate (5 s count, 2 get-ups, plateau) is the
+same method with hill false and now writes `duel_stats_getup_unity.json` (it used to overwrite `duel_stats_unity.json`).
+The player-steered walker (`PuppetControl`, the stick, `Agent.steerable`, the walker roster entry) moved to
+`archive/clean-261021`. EditMode 46/46, PlayMode 7/7.

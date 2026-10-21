@@ -8,7 +8,7 @@ namespace PoKingHill.Tests
 {
     /// <summary>
     /// The HUD fits every portrait phone from 16:9 to 21:9 without scrolling or clipping: every menu tab, the intro
-    /// card, a six-way fight (one row of badges), the puppet with the debug panel, and the results sheet. HudView lays
+    /// card, a six-way fight (one row of badges), the debug panel on each tab during a fight, and the results sheet. HudView lays
     /// itself out for a simulated screen (SimulateScreen) and lists what does not fit (LayoutProblems): elements outside
     /// the column, text wider than its box, a sheet reaching the top bar or the bottom corners, badges on two rows, the
     /// top bar on a cutout. The console stays clean throughout (ConsoleGuard).
@@ -55,7 +55,7 @@ namespace PoKingHill.Tests
 
                 // six-way: intro card, fight, results
                 foreach (var f in d.roster) f.inGame = f.available;
-                d.PuppetRequested = false; GameSettings.Intro = true;
+                GameSettings.Intro = true;
                 d.Launch();
                 Assert.AreEqual(MatchState.Intro, d.State);
                 yield return Until(() => d.IntroFeatured >= 0, 10, "a fighter's card");
@@ -71,17 +71,16 @@ namespace PoKingHill.Tests
                 Time.timeScale = 1f;
                 yield return FitsEveryPhone(hud, "results sheet");
 
-                // the player's walker: stick and side steps, with the debug panel open on each tab
-                d.PuppetRequested = true; GameSettings.Intro = false;
+                // a quick match with the debug panel open on each tab
+                GameSettings.Intro = false;
                 d.QuickMatch(); yield return Frames(3);
-                Assert.IsTrue(hud.PuppetShown, "the stick shows for the player's walker");
                 hud.ToggleDebug();
-                for (int t = 0; t < 3; t++) { hud.SetDebugTab(t); yield return FitsEveryPhone(hud, $"puppet + debug tab {t}"); }
+                for (int t = 0; t < 3; t++) { hud.SetDebugTab(t); yield return FitsEveryPhone(hud, $"fight + debug tab {t}"); }
                 hud.ToggleDebug();
             }
             finally
             {
-                hud.ClearSimulation(); Time.timeScale = 1f; d.PuppetRequested = false;
+                hud.ClearSimulation(); Time.timeScale = 1f;
                 GameSettings.Intro = intro; GameSettings.Replays = replays; GameSettings.TelemetryHud = telemetry; GameSettings.DevTools = dev;
             }
             guard.AssertClean("the layout pass");

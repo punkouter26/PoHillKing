@@ -65,7 +65,6 @@ Button { font-size: var(--fs-m); }
 .scoreboard { flex-direction: row; justify-content: center; margin-top: 6px; flex-shrink: 0; }
 .badge { flex-grow: 1; flex-basis: 0; min-width: 0; max-width: 220px; align-items: center; background-color: var(--glass); border-radius: 24px; padding: 8px 8px 6px 8px; margin: 0 4px; border-width: 2px; border-color: var(--line); }
 .badge.out { opacity: 0.45; }
-.badge.you { border-color: var(--accent); }
 .badge.down { border-color: var(--bad); }
 .badge.edge { border-color: var(--bad); background-color: rgba(120, 24, 20, 0.72); }
 .avatar-wrap { width: 60px; height: 60px; }
@@ -88,7 +87,6 @@ Button { font-size: var(--fs-m); }
 .odds-seg { height: 100%; }
 .odds-label { font-size: var(--fs-xs); -unity-text-align: middle-center; margin-top: 4px; }
 
-
 .spacer { flex-grow: 1; }
 .caption { align-self: stretch; font-size: var(--fs-l); -unity-font-style: bold; background-color: var(--glass); border-radius: 18px; padding: 10px 26px; margin: 0 4% 14px 4%; white-space: normal; -unity-text-align: middle-center; transition-property: opacity; transition-duration: 0.35s; }
 .status { font-size: var(--fs-s); color: var(--ink-dim); flex-grow: 1; flex-shrink: 1; flex-basis: 0; min-width: 0; -unity-text-align: lower-center; margin: 0 16px 12px 16px; white-space: normal; }
@@ -101,15 +99,6 @@ Button { font-size: var(--fs-m); }
 .scrub-fill { height: 100%; width: 0%; border-radius: 7px; background-color: var(--accent); }
 .scrub-head { position: absolute; width: 34px; height: 34px; border-radius: 17px; background-color: var(--ink); left: 0%; top: -10px; translate: -17px 0; }
 .replay-skip { width: 130px; height: var(--h-m); margin: 0 0 0 16px; border-radius: 24px; background-color: var(--fill-strong); color: var(--ink); font-size: var(--fs-m); border-width: 0; }
-
-/* ---- puppet: a stick that appears under the thumb, side steps on the right ------------------------------------ */
-.puppet { flex-direction: row; align-items: flex-end; height: 420px; margin-bottom: 8px; flex-shrink: 0; }
-.stick-zone { flex-grow: 1; height: 100%; }
-.stick { position: absolute; left: 0; bottom: 0; width: 300px; height: 300px; border-radius: 150px; background-color: rgba(255, 255, 255, 0.10); border-width: 3px; border-color: var(--line); opacity: 0.55; }
-.stick.held { opacity: 1; border-color: var(--accent); }
-.stick-knob { position: absolute; width: 120px; height: 120px; border-radius: 60px; background-color: rgba(255, 196, 64, 0.85); left: 87px; top: 87px; }
-.side-btns { flex-direction: column; margin-left: 16px; }
-.side-btn { width: 130px; height: 130px; border-radius: 65px; background-color: rgba(255, 255, 255, 0.12); border-width: 3px; border-color: var(--line); margin: 16px 0 0 0; font-size: var(--fs-m); color: var(--ink); }
 
 /* ---- debug panel ------------------------------------------------------------------------------------------ */
 .debug-panel { position: absolute; left: 16px; right: 16px; bottom: 128px; background-color: var(--glass-strong); border-radius: var(--radius); padding: 18px; border-width: 2px; border-color: var(--line); }
@@ -169,7 +158,6 @@ Button { font-size: var(--fs-m); }
 .agent .meta { font-size: var(--fs-s); color: var(--ink-dim); white-space: normal; }
 .agent-top { flex-direction: row; align-items: center; }
 .agent .avatar { width: 54px; height: 54px; border-radius: 27px; margin-right: 14px; flex-shrink: 0; }
-
 
 /* results: one table, the replay strip under the winner, one button */
 .winner-stripe { height: 12px; border-radius: 6px; margin: 12px 0 18px 0; }

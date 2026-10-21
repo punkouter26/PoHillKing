@@ -41,7 +41,7 @@ namespace PoKingHill
         /// <summary>Who knocked a fighter out (ContactLedger): victim, the fighter that pushed it most recently (null = it
         /// fell on its own), and the one before that (assist, may be null).</summary>
         public static event Action<PolicyRunner, PolicyRunner, PolicyRunner> KnockoutCredited;
-        /// <summary>A fighter fell inside the plateau and its get-up brain took over (GameSettings.GetUp).</summary>
+        /// <summary>A fighter fell and its get-up brain took over (MatchDirector.OutWithGetUp).</summary>
         public static event Action<PolicyRunner> Down;
         /// <summary>A fighter that was down stands again and fights on.</summary>
         public static event Action<PolicyRunner> Recovered;

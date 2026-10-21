@@ -1,0 +1,4 @@
+{
+ "rounds": 200, "wins_a": 99, "wins_b": 101, "ties": 0, "decided": 1,
+ "median_time_s": 6.77, "mean_time_s": 7.23, "p25_time_s": 5.55, "p75_time_s": 8.37
+}

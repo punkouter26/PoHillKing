@@ -5,11 +5,13 @@ radius > 1.7 m, fallen, or the 25 s bell). Used for the statistical Unity parity
   uv run python scripts/duel_stats.py --policy attacker --rounds 200 [--getup]
 Writes training/assets/<robot>/duel_stats_python.json (policies from Assets/PoKingHill/Models[/<robot>]).
 
---getup plays the game's get-up rule (MatchDirector.OutWithGetUp, ParityBatch.RunGetupDuelStats): a ring-out is out at
+--getup plays the get-up rule (MatchDirector.OutWithGetUp, ParityBatch.RunGetupDuelStats): a ring-out is out at
 once; a fall inside the plateau (radius < 1.5 m) hands the robot to the get-up brain (getup_policy.onnx, zero command)
 and starts a 5 s count; standing (up > 0.9, pelvis above 85 % of the standing height) for 0.4 s gives it back to the
 fight brain, the count running out is a knock-out; at most 2 get-ups per robot per round. Writes
 duel_stats_getup_python.json.
+--getup --hill-rule plays the game's rule since 2026-10-21 (RunGetupDuelStats with hill): every fall anywhere inside
+the out radius gets up, no count, no limit; only a ring-out is out. Writes duel_stats_hill_python.json.
 
 A brain exported with <name>_action.json (koth/action_map.py: tanh map, per-joint scale, torque window) is run through
 that action path, as Unity's PolicyRunner does."""
@@ -28,7 +30,10 @@ ap.add_argument("--shove", action="store_true", help="both robots use the shove 
 ap.add_argument("--style-pose", default="shove", choices=list(STYLE_POSES), help="the styled rest pose with --shove (bull: Trump's charge)")
 ap.add_argument("--vmax", type=float, default=1.0, help="goal-law walking speed, as the roster entry (Trump: 0.7)")
 ap.add_argument("--getup", action="store_true", help="the game's get-up rule with getup_policy.onnx (see the docstring)")
-ap.add_argument("--getup-seconds", type=float, default=5.0); ap.add_argument("--max-getups", type=int, default=2); a = ap.parse_args()
+ap.add_argument("--getup-seconds", type=float, default=5.0); ap.add_argument("--max-getups", type=int, default=2)
+ap.add_argument("--hill-rule", action="store_true", help="with --getup: the game's rule (no count, no limit, anywhere inside the out radius)")
+a = ap.parse_args()
+if a.hill_rule: a.getup = True; a.getup_seconds = 0.0; a.max_getups = 0
 spec = cpu_sim.joint_map()
 policy_path = os.path.join(UNITY_MODELS, f"{a.policy}_policy.onnx")
 sess = cpu_sim.session(policy_path)
@@ -54,9 +59,9 @@ def out_with_getup(s, t):
             s["stood"] = t if s["stood"] is None else s["stood"]
             if t - s["stood"] >= 0.4: s["down"] = s["stood"] = None
         else: s["stood"] = None
-        return s["down"] is not None and t - s["down"] > a.getup_seconds
+        return s["down"] is not None and a.getup_seconds > 0 and t - s["down"] > a.getup_seconds
     if not (up < FALL_UP or h < FALL_HEIGHT): return False
-    if rad < PLATEAU_R and s["getups"] < a.max_getups:
+    if (a.hill_rule or rad < PLATEAU_R) and (a.max_getups <= 0 or s["getups"] < a.max_getups):
         s["down"] = t; s["stood"] = None; s["getups"] += 1; return False
     return True
 wins = [0, 0]; ties = 0; times = []
@@ -102,5 +107,6 @@ for rnd in range(a.rounds):
 res = dict(rounds=a.rounds, wins_a=wins[0], wins_b=wins[1], ties=ties, decided=round((wins[0] + wins[1]) / a.rounds, 4),
            median_time_s=round(float(np.median(times)), 2) if times else -1, mean_time_s=round(float(np.mean(times)), 2) if times else -1,
            p25_time_s=round(float(np.percentile(times, 25)), 2) if times else -1, p75_time_s=round(float(np.percentile(times, 75)), 2) if times else -1)
-res["getup_rule"] = a.getup
-json.dump(res, open(os.path.join(ASSETS, "duel_stats_getup_python.json" if a.getup else "duel_stats_python.json"), "w"), indent=1); print(json.dumps(res))
+res["getup_rule"] = "hill" if a.hill_rule else a.getup
+out_name = "duel_stats_hill_python.json" if a.hill_rule else "duel_stats_getup_python.json" if a.getup else "duel_stats_python.json"
+json.dump(res, open(os.path.join(ASSETS, out_name), "w"), indent=1); print(json.dumps(res))

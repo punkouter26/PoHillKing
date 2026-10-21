@@ -68,6 +68,11 @@ after `record_reference.py` with `KOTH_ROBOT=kim`.
 
 ## 3. Free-for-all brain `r5ffa`
 
+> **Decision 2026-10-21:** the G1 is out of the game, so once the humans have free-for-all brains of their own
+> (`Models/<body>/ffa_policy.onnx`, gated), retire the G1 gates: the G1 testbeds and `Gate_ffa_4p`, the G1 roster in
+> `GameScene.G1Roster`, `RunFfaStats`' G1 opponent pool and the G1 ONNX brains (checkpoints in `runs/league` stay).
+> Until then the G1 pool is what the human free-for-all gate fights.
+
 Four G1 on `scene_koth_4p_train.xml` (already generated, unchanged). Learner `a_`, frozen opponents on `b_ c_ d_`,
 each opponent drawn per world slot from the pool. "The opponent" of every robot is its nearest opponent still in
 the round (eliminated robots are skipped; they stay in the world limp, ctrl 0, like Unity's paused runner).
@@ -140,8 +145,9 @@ One brain per body kind that takes over while a fighter is down (`MatchDirector.
 | disturbances | no kicks, no boxes; DR as every rung | |
 
 Gates: `scripts/getup_stats.py` (CPU, 200 drops: success within the game's 5 s count, time-to-stand quartiles) vs
-`ParityBatch.RunGetupStats` (Unity, Testbed_flat_1p, `GetupProbe`); then the game rule: `duel_stats.py --getup` vs
-`ParityBatch.RunGetupDuelStats`. Runs and numbers: DOCS/rl_optimization_log.md (2026-10-19).
+`ParityBatch.RunGetupStats` (Unity, Testbed_flat_1p, `GetupProbe`); then the game rule (since 2026-10-21 the hill rule,
+always on: no count, no limit, out only off the top): `duel_stats.py --getup --hill-rule` vs
+`ParityBatch.RunGetupDuelStats(robot, 200, -1, -1, true)`. Runs and numbers: DOCS/rl_optimization_log.md (2026-10-19).
 
 ## 8. Calibration, action path, rewards and curriculum (added 2026-10-20)
 

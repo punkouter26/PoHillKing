@@ -31,7 +31,10 @@ namespace PoKingHill.Tests
                 var d = One<MatchDirector>(scene); Assert.NotNull(d, "MatchDirector");
                 Assert.GreaterOrEqual(d.bodies.Length, 2); Assert.NotNull(d.sea); Assert.NotNull(d.synth);
                 foreach (var f in d.roster.Where(f => f.available)) Assert.NotNull(f.policy, f.name + " has no policy");
-                Assert.AreEqual(1, d.roster.Count(f => f.steerable), "exactly one steerable (puppet) brain");
+                // the hill rule: every fall gets up again, no count, no limit; out only off the mountain top
+                Assert.AreEqual(0f, d.getupSeconds, "no get-up count"); Assert.AreEqual(0, d.maxGetups, "no get-up limit"); Assert.IsFalse(d.getupOnPlateauOnly);
+                foreach (var body in d.bodies.Select(b => b.body).Distinct())
+                    Assert.IsTrue(d.getupBrains.Any(b => b.body == body && b.policy != null), body + " has no get-up brain");
                 Assert.IsEmpty(d.sea.robotPrefixes, "the sea must float every fighter (empty list = all PolicyRunners)");
 
                 var hud = One<HudView>(scene); Assert.NotNull(hud, "HudView");
@@ -71,7 +74,7 @@ namespace PoKingHill.Tests
                 Assert.NotNull(hud.quality); Assert.NotNull(hud.synth); Assert.NotNull(hud.warp);
                 Assert.NotNull(One<MatchLog>(scene).perf, "MatchLog.perf");
 
-                foreach (var c in new System.Type[] { typeof(MatchLog), typeof(ReplaySystem), typeof(PuppetControl), typeof(WinOdds), typeof(Commentator), typeof(BodyLook),
+                foreach (var c in new System.Type[] { typeof(MatchLog), typeof(ReplaySystem), typeof(WinOdds), typeof(Commentator), typeof(BodyLook),
                                                       typeof(ContactLedger), typeof(Biometrics) })
                     Assert.IsTrue(scene.GetRootGameObjects().Any(r => r.GetComponentInChildren(c, true) != null), c.Name + " missing");
             }

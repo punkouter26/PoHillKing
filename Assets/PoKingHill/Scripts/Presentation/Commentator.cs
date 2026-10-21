@@ -30,13 +30,13 @@ namespace PoKingHill
         void OnDown(PolicyRunner r)
         {
             if (!On) return; string who = Who(r);
-            Say(Pick($"{who} is down! Can they get up?", $"{who} hits the deck, the count is on.", $"Down goes {who}, but it's not over."));
+            Say(Pick($"{who} is down! Can they get up?", $"{who} hits the deck.", $"Down goes {who}, but it's not over."));
         }
 
         void OnUp(PolicyRunner r)
         {
             if (!On) return; string who = Who(r);
-            Say(Pick($"{who} is back up!", $"{who} beats the count!", $"Up again: {who} fights on."));
+            Say(Pick($"{who} is back up!", $"{who} is on their feet again!", $"Up again: {who} fights on."));
         }
 
         bool On => GameSettings.Commentary && director != null && director.statsRounds == 0;

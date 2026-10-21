@@ -13,8 +13,8 @@ namespace PoKingHill
     ///   corners   TL title · TR menu · BR version; with GameSettings.DevTools also TC FPS (hold it for the debug
     ///             panel; it steps aside from a punch-hole camera, Screen.cutouts) and BL debug
     ///   live      one row of fighter badges (seat-coloured initials, wins pip, status tag, vitals strip), round
-    ///             clock, sea bar and ties, knock-out feed, replay bar with a draggable playhead, puppet stick that
-    ///             appears under the thumb; with developer tools also the win-odds bar and the caption line
+    ///             clock, sea bar and ties, knock-out feed, replay bar with a draggable playhead; with developer
+    ///             tools also the win-odds bar and the caption line
     ///   intro     tale of the tape: one card per fighter (mass, strongest joint, Elo, record, knock-outs, brain)
     ///   sheets    Menu (tabs Play | Agents | Settings) and Results (winner, replay strip, per-fighter telemetry,
     ///             next). A sheet swipes down (or its grabber is tapped) to a peek pill; a swipe up from the bottom
@@ -42,8 +42,8 @@ namespace PoKingHill
         const float EdgeBand = 220f, SwipeDistance = 180f, DismissDistance = 140f, HoldSeconds = 0.5f;
 
         UIDocument _doc;
-        VisualElement _root, _column, _safe, _topBar, _bottomBar, _menuBtn, _scoreboard, _roundInfo, _seaFill, _odds, _puppet, _debug, _debugTabs, _debugBody,
-                      _sheet, _sheetBody, _knob, _stick, _stickZone, _feed, _intro, _replayBar, _replayFill, _replayHead, _peekRow, _resFill, _resHead;
+        VisualElement _root, _column, _safe, _topBar, _bottomBar, _menuBtn, _scoreboard, _roundInfo, _seaFill, _odds, _debug, _debugTabs, _debugBody,
+                      _sheet, _sheetBody, _feed, _intro, _replayBar, _replayFill, _replayHead, _peekRow, _resFill, _resHead;
         Label _title, _fps, _clock, _ties, _caption, _status, _oddsLabel, _debugText;
         Button _next, _peek, _debugBtn;
         readonly List<VisualElement> _badges = new(); readonly List<VisualElement> _oddsSegs = new();
@@ -52,7 +52,6 @@ namespace PoKingHill
         enum SheetKind { None, Menu, Result }
         SheetKind _sheetKind; int _tab, _section, _debugTab; bool _collapsed;
         float _fpsAvg = 60, _nextSlow, _captionUntil, _pressAt = -1; string _lastStatus = ""; float _statusUntil;
-        Vector2 _stickCenter;
         Rect _safeArea; Vector2 _screen; float _bottomInset;
         // SimulateScreen: a virtual screen in pixels (safe area and cutouts with the origin bottom-left, like Screen's)
         bool _sim; Vector2 _simSize; Rect _simSafe; Rect[] _simCutouts = Array.Empty<Rect>();
@@ -71,7 +70,6 @@ namespace PoKingHill
             MatchEvents.StateChanged -= OnState; MatchEvents.RoundStarted -= OnRoundStarted; MatchEvents.RoundEnded -= OnRoundEnded; MatchEvents.Caption -= OnCaption;
             MatchEvents.KnockoutCredited -= OnCredited;
             GameSettings.Changed -= OnSettings;
-            PuppetControl.Stick = Vector2.zero; PuppetControl.Side = 0;
         }
         void OnRoundStarted() { RebuildScoreboard(); foreach (var (row, _) in _feedRows) row.RemoveFromHierarchy(); _feedRows.Clear(); }
 
@@ -84,7 +82,6 @@ namespace PoKingHill
         public bool SheetShown => _sheet != null && _sheet.style.display == DisplayStyle.Flex;
         public bool SheetCollapsed => _collapsed;
         public bool DebugShown => _debug != null && _debug.style.display == DisplayStyle.Flex;
-        public bool PuppetShown => _puppet != null && _puppet.style.display == DisplayStyle.Flex;
         public bool ReplayBarShown => _replayBar != null && _replayBar.style.display == DisplayStyle.Flex;
         public int BadgeCount => _badges.Count;
         public void SetCollapsed(bool collapsed) { _collapsed = collapsed && _sheetKind != SheetKind.None; ApplyVisibility(); }
@@ -143,7 +140,6 @@ namespace PoKingHill
             _intro = El("intro", _safe); _intro.style.display = DisplayStyle.None;
             _caption = Text("", "caption", _safe); _caption.style.opacity = 0;
             _replayBar = El("replay-bar", _safe); BuildReplayBar();
-            _puppet = El("puppet", _safe); BuildPuppet();
 
             _bottomBar = El("bottom-bar", _safe);
             _debugBtn = Btn("", "icon-btn", ToggleDebug, _bottomBar); _debugBtn.Add(new Icon(Icon.Kind.Sliders)); _debugBtn.tooltip = "Debug (or tap with two fingers, or hold the FPS pill)";
@@ -276,7 +272,7 @@ namespace PoKingHill
             });
         }
 
-        /// <summary>A swipe up that starts on the bottom edge (not on a control, the stick or a sheet): brings a hidden
+        /// <summary>A swipe up that starts on the bottom edge (not on a control or a sheet): brings a hidden
         /// sheet back, or opens the menu during the intro or a round (as the menu button does).</summary>
         void EdgeSwipe()
         {
@@ -284,7 +280,7 @@ namespace PoKingHill
             _root.RegisterCallback<PointerDownEvent>(e =>
             {
                 id = -1;
-                if (e.target is Button || Inside(e.target as VisualElement, _puppet) || Inside(e.target as VisualElement, _sheet) || Inside(e.target as VisualElement, _debug)) return;
+                if (e.target is Button || Inside(e.target as VisualElement, _sheet) || Inside(e.target as VisualElement, _debug)) return;
                 if (e.position.y < _column.worldBound.yMax - EdgeBand) return;
                 id = e.pointerId; startY = e.position.y;
             });
@@ -326,50 +322,6 @@ namespace PoKingHill
             fill = f; head = h; return scrub;
         }
 
-        void BuildPuppet()
-        {
-            // the stick rests bottom-left and jumps to wherever a thumb lands in the zone
-            _stickZone = El("stick-zone", _puppet);
-            _stick = El("stick", _stickZone); _knob = El("stick-knob", _stick); _stick.pickingMode = PickingMode.Ignore; _knob.pickingMode = PickingMode.Ignore;
-            _stickZone.RegisterCallback<PointerDownEvent>(e => { _stickZone.CapturePointer(e.pointerId); PlaceStick(e.localPosition); MoveStick(e.localPosition); });
-            _stickZone.RegisterCallback<PointerMoveEvent>(e => { if (_stickZone.HasPointerCapture(e.pointerId)) MoveStick(e.localPosition); });
-            _stickZone.RegisterCallback<PointerUpEvent>(e => { _stickZone.ReleasePointer(e.pointerId); RestStick(); });
-            _stickZone.RegisterCallback<PointerCaptureOutEvent>(_ => RestStick());
-            var side = El("side-btns", _puppet);
-            foreach (var (label, dir) in new[] { ("Step L", 1f), ("Step R", -1f) })
-            {
-                var b = Btn(label, "side-btn", null, side);
-                b.RegisterCallback<PointerDownEvent>(_ => PuppetControl.Side = dir, TrickleDown.TrickleDown);
-                b.RegisterCallback<PointerUpEvent>(_ => PuppetControl.Side = 0, TrickleDown.TrickleDown);
-                b.RegisterCallback<PointerLeaveEvent>(_ => PuppetControl.Side = 0);
-            }
-            _puppet.style.display = DisplayStyle.None;
-        }
-
-        void PlaceStick(Vector2 local)
-        {
-            var z = _stickZone.contentRect;
-            float x = Mathf.Clamp(local.x, 150, Mathf.Max(150, z.width - 150)), y = Mathf.Clamp(local.y, 150, Mathf.Max(150, z.height - 150));
-            _stickCenter = new Vector2(x, y);
-            _stick.style.left = x - 150; _stick.style.top = y - 150; _stick.style.bottom = StyleKeyword.Auto;
-            _stick.AddToClassList("held");
-        }
-
-        void MoveStick(Vector2 local)
-        {
-            Vector2 v = Vector2.ClampMagnitude(local - _stickCenter, 110f);
-            _knob.style.left = 87 + v.x; _knob.style.top = 87 + v.y;
-            PuppetControl.Stick = new Vector2(v.x / 110f, -v.y / 110f);
-        }
-
-        void RestStick()
-        {
-            PuppetControl.Stick = Vector2.zero;
-            _stick.style.left = StyleKeyword.Null; _stick.style.top = StyleKeyword.Null; _stick.style.bottom = StyleKeyword.Null;
-            _knob.style.left = StyleKeyword.Null; _knob.style.top = StyleKeyword.Null;
-            _stick.RemoveFromClassList("held");
-        }
-
         // ------------------------------------------------------------------ events
         void OnState(MatchState s)
         {
@@ -377,9 +329,6 @@ namespace PoKingHill
             else if (s == MatchState.Result) ShowSheet(SheetKind.Result);
             else if (s != MatchState.Replay) ShowSheet(SheetKind.None);          // a replay keeps the result sheet behind it
             RebuildScoreboard();
-            // a finger on the stick when the round ends must not steer the next one
-            if (_stickZone != null) RestStick();
-            PuppetControl.Side = 0;
             ApplyVisibility();
         }
         void OnRoundEnded(RoundResult r) { }      // the Result state change rebuilds the sheet
@@ -429,13 +378,13 @@ namespace PoKingHill
             for (int i = 0; i < director.Playing; i++)
             {
                 int agent = director.AgentOf(i);
-                var b = El("badge", _scoreboard); if (director.PuppetBody == i) b.AddToClassList("you");
+                var b = El("badge", _scoreboard);
                 var wrap = El("avatar-wrap", b);
                 var av = El("avatar", wrap); av.style.backgroundColor = MatchDirector.SeatColors[i % MatchDirector.SeatColors.Length];
                 Text(Initials(director.BadgeOf(agent)), "", av);
                 _pips.Add(Text((director.AgentSeatedTwice(agent) ? director.BodyWins(i) : director.Wins(agent)).ToString(), "wins-pip", wrap));
                 var tag = Text("", "badge-tag", wrap); tag.style.display = DisplayStyle.None; _tags.Add(tag);
-                Text(director.BadgeOf(agent) + (director.PuppetBody == i ? " (you)" : ""), "badge-name ellipsis", b);
+                Text(director.BadgeOf(agent), "badge-name ellipsis", b);
                 var vit = new VitalsBar(); vit.style.display = bio != null ? DisplayStyle.Flex : DisplayStyle.None; b.Add(vit); _vitals.Add(vit);
                 b.tooltip = director.NameOf(agent, "Robot");
                 _badges.Add(b);
@@ -484,11 +433,7 @@ namespace PoKingHill
             if (_captionUntil > 0 && Time.unscaledTime > _captionUntil) { _captionUntil = 0; _caption.style.opacity = 0; }
             if (director.Status != _lastStatus) { _lastStatus = director.Status; _statusUntil = Time.unscaledTime + 4f; }
             _status.text = Time.unscaledTime < _statusUntil ? _lastStatus : "";
-            bool puppet = fight && director.PuppetBody >= 0;
-            if (puppet != PuppetShown) { _puppet.style.display = puppet ? DisplayStyle.Flex : DisplayStyle.None; if (!puppet) RestStick(); }
-            // with the stick on screen the panel hangs under the live strip (badges, clock, odds) instead of standing on the bottom corners
-            if (puppet) { _debug.style.top = _feed.worldBound.yMin - _column.worldBound.yMin + 8; _debug.style.bottom = StyleKeyword.Auto; }
-            else { _debug.style.top = StyleKeyword.Null; _debug.style.bottom = 128 + _bottomInset; }
+            _debug.style.bottom = 128 + _bottomInset;
             ApplyVisibility();
             if (_devTools) TwoFingerTap();
         }
@@ -509,7 +454,8 @@ namespace PoKingHill
                 if (v != null && i < _vitals.Count) _vitals[i].Set(v, outNow);
                 bool down = director.IsDown(i), edge = v != null && v.doomed && !outNow;
                 _badges[i].EnableInClassList("down", down); _badges[i].EnableInClassList("edge", edge && !down);
-                string tag = down ? $"DOWN {director.DownLeft(i):0}" : edge ? "EDGE" : "";
+                float left = director.DownLeft(i);
+                string tag = down ? (left >= 0 ? $"DOWN {left:0}" : "DOWN") : edge ? "EDGE" : "";
                 var t = _tags[i]; if (t.text != tag) t.text = tag; t.style.display = tag.Length > 0 ? DisplayStyle.Flex : DisplayStyle.None;
             }
         }

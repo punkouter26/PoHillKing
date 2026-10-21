@@ -14,7 +14,7 @@ namespace PoKingHill
     /// <summary>
     /// Every optional setting, saved in PlayerPrefs. The defaults are the plain game, with the least on screen: one
     /// round per launch, the sea at its normal pace, the fight starts at once (no tale of the tape, no automatic
-    /// replay), no get-up rule, no developer tools (so no captions, win-odds bar or debug panel either). Read anywhere;
+    /// replay), no developer tools (so no captions, win-odds bar or debug panel either). Read anywhere;
     /// the Settings page of the menu writes them, the debug panel the developer ones.
     /// </summary>
     public static class GameSettings
@@ -44,8 +44,6 @@ namespace PoKingHill
         // Advanced: extra rules, developer tools
         /// <summary>Who free-for-all brains go for (no effect with two fighters).</summary>
         public static Targeting Targeting { get => (Targeting)Mathf.Clamp(I("targeting", (int)Targeting.Opportunist), 0, 1); set => Set("targeting", (int)value); }
-        /// <summary>A fighter that falls on the plateau gets a count to stand up again with its get-up brain.</summary>
-        public static bool GetUp { get => B("getup", false); set => Set("getup", value); }
         /// <summary>The FPS pill, the debug button and the two-finger tap that open the debug panel; the options below
         /// apply only while it is on.</summary>
         public static bool DevTools { get => B("devTools", false); set => Set("devTools", value); }
@@ -59,10 +57,10 @@ namespace PoKingHill
         /// <summary>Caption lines from the Commentator.</summary>
         public static bool Commentary { get => DevTools && B("commentary", false); set => Set("commentary", value); }
 
-        static readonly string[] Keys = { "rounds", "seaPace", "intro", "replays", "getup", "targeting", "quality", "cinematic",
+        static readonly string[] Keys = { "rounds", "seaPace", "intro", "replays", "targeting", "quality", "cinematic",
                                           "volume", "sfxVolume", "ambVolume", "devTools", "telemetryHud", "overlay", "intent", "winOdds", "commentary",
                                           // settings that were cut (2026-10-21): cleared by a reset too
-                                          "camera", "effects", "slowmo", "cutaways", "hazards", "stamina", "tactician" };
+                                          "camera", "effects", "slowmo", "cutaways", "hazards", "stamina", "tactician", "getup" };
         /// <summary>Back to the defaults: deletes only this game's keys, never other PlayerPrefs.</summary>
         public static void ResetAll() { foreach (var k in Keys) PlayerPrefs.DeleteKey("koth." + k); PlayerPrefs.Save(); Changed?.Invoke(); }
 

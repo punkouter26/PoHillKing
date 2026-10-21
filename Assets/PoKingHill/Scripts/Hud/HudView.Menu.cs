@@ -18,18 +18,12 @@ namespace PoKingHill
         void BuildPlay()
         {
             Text("King of the hill", "h1", _sheetBody);
-            Text("Stay on the summit while the sea rises. Last one standing wins.", "body", _sheetBody);
+            Text("Fallen fighters get back up: only the sea or a push off the mountain ends them. Last one on top wins.", "body", _sheetBody);
             Btn("Quick match", "primary", () => director.QuickMatch(), _sheetBody);
             var row = El("row", _sheetBody);
             int ticked = director.TickedCount;
             Btn(ticked == 0 ? "Custom (pick in Agents)" : $"Custom · {ticked} agents", "secondary", () => director.Launch(), row).SetEnabled(ticked > 0);
             Btn("Tournament", "secondary", () => director.StartTournament(), row);
-            bool canSteer = Array.Exists(director.roster, f => f.steerable && f.available && f.policy != null);
-            if (canSteer)
-            {
-                var grid = El("grid", _sheetBody);
-                Chip(grid, "You play: steer a walker (stick or WASD)", director.PuppetRequested, v => { director.PuppetRequested = v; RebuildSheet(); }).AddToClassList("wide");
-            }
             if (director.Status.Length > 0) Text(director.Status, "body", _sheetBody);
         }
 
@@ -108,8 +102,6 @@ namespace PoKingHill
             // who free-for-all brains go for (brains were trained 1v1)
             Labeled("3+ fighters", new[] { "Nearest", "Weakest" }, (int)GameSettings.Targeting, i => GameSettings.Targeting = (Targeting)i);
             var grid = El("grid", _sheetBody);
-            bool getupBrain = director.getupBrains != null && Array.Exists(director.getupBrains, b => b != null && b.policy != null);
-            Chip(grid, getupBrain ? "Get back up" : "Get back up (no brain yet)", GameSettings.GetUp, v => GameSettings.GetUp = v, getupBrain);
             Chip(grid, "Developer tools", GameSettings.DevTools, v => GameSettings.DevTools = v);
             Btn("Reset all settings", "secondary compact", () => { GameSettings.ResetAll(); RebuildSheet(); }, _sheetBody);
         }
@@ -171,7 +163,7 @@ namespace PoKingHill
                 var row = El("res-row", _sheetBody);
                 var nameBox = El("res-name grow clip", row);
                 var dot = El("dot", nameBox); dot.style.backgroundColor = MatchDirector.SeatColors[i % MatchDirector.SeatColors.Length];
-                Text(director.BadgeOf(r.Agents[i]) + (director.PuppetBody == i ? " (you)" : ""), "ellipsis", nameBox);
+                Text(director.BadgeOf(r.Agents[i]), "ellipsis", nameBox);
                 string res = r.Winner < 0 ? "T" : r.Winner == i ? "W" : "L";
                 Text(res, "res-cell narrow " + (res == "W" ? "win" : res == "L" ? "loss" : ""), row).tooltip = res == "W" ? "win" : res == "L" ? "loss" : "tie";
                 float ko = log != null ? log.KnockedOutAt(i) : -1;

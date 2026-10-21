@@ -85,8 +85,6 @@ namespace PoKingHill
                 var g = _debug.worldBound;
                 if (g.yMax > _bottomBar.worldBound.yMin + 1) list.Add("debug panel covers the bottom corners");
                 if (g.yMin < _topBar.worldBound.yMax - 1) list.Add("debug panel reaches the top bar");
-                if (PuppetShown && g.Overlaps(_stickZone.worldBound)) list.Add("debug panel covers the stick");
-                if (PuppetShown && _roundInfo.resolvedStyle.display == DisplayStyle.Flex && g.Overlaps(_roundInfo.worldBound)) list.Add("debug panel covers the round clock");
             }
             if (_peekRow.resolvedStyle.display == DisplayStyle.Flex && _peek.worldBound.yMax > _bottomBar.worldBound.yMin + 1) list.Add("peek pill covers the bottom corners");
             if (_badges.Count > 1)
