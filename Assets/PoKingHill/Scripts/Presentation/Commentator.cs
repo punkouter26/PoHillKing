@@ -10,22 +10,22 @@ namespace PoKingHill
     /// </summary>
     public class Commentator : MonoBehaviour
     {
-        public DemoDirector director;
+        public MatchDirector director;
         int _bigHits;
         static readonly System.Random Rng = new();
 
         void OnEnable()
         {
             MatchEvents.RoundStarted += OnStart; MatchEvents.KnockoutCredited += OnKo; MatchEvents.RoundEnded += OnEnd; MatchEvents.Impact += OnImpact;
-            MatchEvents.Down += OnDown; MatchEvents.Recovered += OnUp; MatchEvents.Hyped += OnHype;
+            MatchEvents.Down += OnDown; MatchEvents.Recovered += OnUp;
         }
         void OnDisable()
         {
             MatchEvents.RoundStarted -= OnStart; MatchEvents.KnockoutCredited -= OnKo; MatchEvents.RoundEnded -= OnEnd; MatchEvents.Impact -= OnImpact;
-            MatchEvents.Down -= OnDown; MatchEvents.Recovered -= OnUp; MatchEvents.Hyped -= OnHype;
+            MatchEvents.Down -= OnDown; MatchEvents.Recovered -= OnUp;
         }
 
-        string Who(PolicyRunner r) => director.BadgeOf(director.AgentOf(Array.IndexOf(director.fighters, r)));
+        string Who(PolicyRunner r) => director.BadgeOf(director.AgentOf(Array.IndexOf(director.bodies, r)));
 
         void OnDown(PolicyRunner r)
         {
@@ -38,8 +38,6 @@ namespace PoKingHill
             if (!On) return; string who = Who(r);
             Say(Pick($"{who} is back up!", $"{who} beats the count!", $"Up again: {who} fights on."));
         }
-
-        void OnHype(PolicyRunner r) { if (On) Say(Pick($"The crowd lifts {Who(r)}!", $"Adrenaline for {Who(r)}!")); }
 
         bool On => GameSettings.Commentary && director != null && director.statsRounds == 0;
 
@@ -63,7 +61,7 @@ namespace PoKingHill
         void OnImpact(Vector3 p, float strength, PolicyRunner r)
         {
             if (!On || strength < 0.8f || ++_bigHits > 3 || director.State != MatchState.Fight) return;
-            int body = Array.IndexOf(director.fighters, r);
+            int body = Array.IndexOf(director.bodies, r);
             Say(Pick($"Huge hit on {director.BadgeOf(director.AgentOf(body))}!", "What a collision!", "That one shook the mountain."));
         }
 

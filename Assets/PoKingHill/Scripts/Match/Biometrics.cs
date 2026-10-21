@@ -12,11 +12,10 @@ namespace PoKingHill
     ///   rim        distance from the capture point to the "out" radius: below 0 while heading out, the fighter is
     ///              going over unless something stops it (Doomed).
     ///   strain     mean |actuator force| / force limit over its joints, with a 3 s history for the HUD sparkline.
-    /// Vulture targeting reads stability to pick the weakest fighter.
     /// </summary>
     public unsafe class Biometrics : MonoBehaviour
     {
-        public DemoDirector director;
+        public MatchDirector director;
         public float hz = 10f;
         [Tooltip("Capture-point distance from the support that one step can still catch (m): counts as full balance")] public float stepReach = 0.25f;
         public const int History = 30;
@@ -37,7 +36,7 @@ namespace PoKingHill
 
         void Init()
         {
-            var m = MjScene.Instance.Model; _runners = (PolicyRunner[])director.fighters.Clone(); int n = _runners.Length;
+            var m = MjScene.Instance.Model; _runners = (PolicyRunner[])director.bodies.Clone(); int n = _runners.Length;
             _v = new Vitals[n]; _acts = new int[n][]; _left = new int[n]; _right = new int[n]; _lDown = new bool[n]; _rDown = new bool[n];
             for (int k = 0; k < n; k++)
             {
@@ -53,7 +52,7 @@ namespace PoKingHill
         void Update()
         {
             if (director == null || !MjScene.InstanceExists || MjScene.Instance.Data == null) return;
-            if (!_ready) { if (director.State >= MatchState.Menu && director.fighters.Length > 0 && director.fighters[0].Map != null) Init(); return; }
+            if (!_ready) { if (director.State >= MatchState.Menu && director.bodies.Length > 0 && director.bodies[0].Map != null) Init(); return; }
             if ((director.State != MatchState.Fight && director.State != MatchState.Intro) || Time.unscaledTime < _next) return;
             _next = Time.unscaledTime + 1f / hz;
             var m = MjScene.Instance.Model; var d = MjScene.Instance.Data; double g = -m->opt.gravity[2];
@@ -64,7 +63,7 @@ namespace PoKingHill
                 // a foot touching the world body (hill, floor) is planted
                 if (b2 == 0 && _robotOfBody[b1] >= 0) Mark(b1); else if (b1 == 0 && _robotOfBody[b2] >= 0) Mark(b2);
             }
-            var arena = director.fighters.Length > 0 ? director.fighters[0].Spec?.arena ?? new ArenaSpec() : new ArenaSpec();
+            var arena = director.bodies.Length > 0 ? director.bodies[0].Spec?.arena ?? new ArenaSpec() : new ArenaSpec();
             for (int k = 0; k < _runners.Length; k++)
             {
                 var r = _runners[k]; var v = _v[k]; if (r.Map == null) continue;
@@ -83,7 +82,7 @@ namespace PoKingHill
                 v.stability = Mathf.Lerp(v.stability, stab, 0.5f);
                 double cr = Math.Sqrt(cx * cx + cy * cy), outward = rad > 1e-3 ? (com[0] * qv[0] + com[1] * qv[1]) / rad : 0;
                 v.rim = (float)(director.OutRadiusNow - cr);
-                v.doomed = v.rim < 0 && outward > 0.15 && !director.IsOut(Array.IndexOf(director.fighters, r));
+                v.doomed = v.rim < 0 && outward > 0.15 && !director.IsOut(Array.IndexOf(director.bodies, r));
                 v.upright = (float)ObsBuilder.Up(d->qpos + r.Map.RootQposAdr + 3);
                 double load = 0; int[] acts = _acts[k];
                 for (int i = 0; i < acts.Length; i++)

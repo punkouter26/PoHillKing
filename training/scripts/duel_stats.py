@@ -1,11 +1,11 @@
 """Outcome statistics for attacker-vs-attacker rounds in CPU MuJoCo, with the same rules and spawn recipe as Unity's
-DemoDirector (both on the summit at radius 0.5-1.2 m on opposite bearings, random yaw; out = koth.rules.is_out:
+MatchDirector (both on the summit at radius 0.5-1.2 m on opposite bearings, random yaw; out = koth.rules.is_out:
 radius > 1.7 m, fallen, or the 25 s bell). Used for the statistical Unity parity gate of the combat rungs.
 
   uv run python scripts/duel_stats.py --policy attacker --rounds 200 [--getup]
 Writes training/assets/<robot>/duel_stats_python.json (policies from Assets/PoKingHill/Models[/<robot>]).
 
---getup plays the game's get-up rule (DemoDirector.OutWithGetUp, ParityBatch.RunGetupDuelStats): a ring-out is out at
+--getup plays the game's get-up rule (MatchDirector.OutWithGetUp, ParityBatch.RunGetupDuelStats): a ring-out is out at
 once; a fall inside the plateau (radius < 1.5 m) hands the robot to the get-up brain (getup_policy.onnx, zero command)
 and starts a 5 s count; standing (up > 0.9, pelvis above 85 % of the standing height) for 0.4 s gives it back to the
 fight brain, the count running out is a knock-out; at most 2 get-ups per robot per round. Writes
@@ -45,7 +45,7 @@ key_z = spec["key_root_z"]
 
 
 def out_with_getup(s, t):
-    """DemoDirector.OutWithGetUp for robot s at round time t (s["down"], s["stood"], s["getups"] carry the state)."""
+    """MatchDirector.OutWithGetUp for robot s at round time t (s["down"], s["stood"], s["getups"] carry the state)."""
     pos, quat = d.qpos[s["rq"]:s["rq"] + 3], d.qpos[s["rq"] + 3:s["rq"] + 7]
     rad = np.hypot(pos[0], pos[1]); h = pos[2] - ground_z(rad); up = cpu_sim.upright(quat)
     if rad > OUT_RADIUS: return True

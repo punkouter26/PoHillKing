@@ -5,20 +5,19 @@ namespace PoKingHill
 {
     /// <summary>
     /// A badge's vitals strip, drawn with Painter2D: balance bar (Biometrics stability; green, amber, red), the last 3 s
-    /// of joint strain as a sparkline (white, red above 60 % of the force limits), and stamina as a thin gold bar when
-    /// stamina is on. Repainted only when a value changed.
+    /// of joint strain as a sparkline (white, red above 60 % of the force limits). Repainted only when a value changed.
     /// </summary>
     public class VitalsBar : VisualElement
     {
-        float _stab = 1f, _stamina = -1f; bool _out; int _head = -1; Biometrics.Vitals _v;
+        float _stab = 1f; bool _out; int _head = -1; Biometrics.Vitals _v;
         static readonly Color Good = new(0.43f, 0.84f, 0.47f), Warn = new(1f, 0.77f, 0.25f), Bad = new(0.94f, 0.38f, 0.34f), Track = new(1f, 1f, 1f, 0.14f);
 
         public VitalsBar() { AddToClassList("vitals"); pickingMode = PickingMode.Ignore; generateVisualContent += Draw; }
 
-        public void Set(Biometrics.Vitals v, float stamina, bool isOut)
+        public void Set(Biometrics.Vitals v, bool isOut)
         {
-            if (v == _v && v.head == _head && Mathf.Abs(v.stability - _stab) < 0.01f && Mathf.Abs(stamina - _stamina) < 0.01f && isOut == _out) return;
-            _v = v; _head = v.head; _stab = v.stability; _stamina = stamina; _out = isOut; MarkDirtyRepaint();
+            if (v == _v && v.head == _head && Mathf.Abs(v.stability - _stab) < 0.01f && isOut == _out) return;
+            _v = v; _head = v.head; _stab = v.stability; _out = isOut; MarkDirtyRepaint();
         }
 
         void Draw(MeshGenerationContext ctx)
@@ -27,7 +26,7 @@ namespace PoKingHill
             float w = r.width, barH = r.height * 0.32f;
             Bar(p, 0, w, barH, Track); if (!_out) Bar(p, 0, w * Mathf.Clamp01(_stab), barH, _stab > 0.6f ? Good : _stab > 0.3f ? Warn : Bad);
             // strain sparkline, oldest sample on the left
-            float y0 = barH + r.height * 0.08f, sh = r.height * (_stamina >= 0 ? 0.42f : 0.6f);
+            float y0 = barH + r.height * 0.08f, sh = r.height * 0.6f;
             p.lineWidth = 2f; p.lineJoin = LineJoin.Round; p.strokeColor = _out ? Track : new Color(1f, 1f, 1f, 0.8f);
             p.BeginPath(); float peak = 0;
             for (int k = 0; k < Biometrics.History; k++)
@@ -38,13 +37,12 @@ namespace PoKingHill
             }
             if (peak > 0.75f && !_out) p.strokeColor = Bad;
             p.Stroke();
-            if (_stamina >= 0) { float y = r.height - 4; Bar(p, 0, w, 4, Track, y); Bar(p, 0, w * Mathf.Clamp01(_stamina), 4, Warn, y); }
         }
 
-        static void Bar(Painter2D p, float x, float w, float h, Color c, float y = 0)
+        static void Bar(Painter2D p, float x, float w, float h, Color c)
         {
             if (w <= 0) return;
-            p.fillColor = c; p.BeginPath(); p.MoveTo(new Vector2(x, y)); p.LineTo(new Vector2(x + w, y)); p.LineTo(new Vector2(x + w, y + h)); p.LineTo(new Vector2(x, y + h)); p.ClosePath(); p.Fill();
+            p.fillColor = c; p.BeginPath(); p.MoveTo(new Vector2(x, 0)); p.LineTo(new Vector2(x + w, 0)); p.LineTo(new Vector2(x + w, h)); p.LineTo(new Vector2(x, h)); p.ClosePath(); p.Fill();
         }
     }
 

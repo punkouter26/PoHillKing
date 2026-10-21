@@ -5,7 +5,7 @@ Unity reads the same numbers from joint_map.json "arena" (written by koth/build_
 
   ground      z = -SLOPE_K * max(r - PLATEAU_R, 0)^2   (flat summit of radius PLATEAU_R, then the dome slope)
   out         radius > OUT_RADIUS, or pelvis up-axis z < FALL_UP, or pelvis height above the ground < FALL_HEIGHT
-              (Unity DemoDirector, duel_stats.py, play.py).
+              (Unity MatchDirector, duel_stats.py, play.py).
   training    KothEnv ends an episode on tipped (up-axis z < TRAIN_TIP_UP, i.e. upside-down past horizontal),
               low (height < FALL_HEIGHT), radius > cfg["max_radius"] (OUT_RADIUS for the combat rungs) and, while
               cfg["terminate_on_leg_contact"], own foot-foot / foot-shin contact. The tipped threshold is looser

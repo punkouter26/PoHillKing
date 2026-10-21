@@ -45,7 +45,7 @@ namespace PoKingHill
                 var topRow = El("agent-top", card);
                 // the seat palette while it is long enough; with more agents than colours (seven since Trump) evenly spaced hues, so none repeat
                 int n = director.roster.Length;
-                var av = El("avatar", topRow); av.style.backgroundColor = n <= DemoDirector.SeatColors.Length ? DemoDirector.SeatColors[i] : Color.HSVToRGB((float)i / n, 0.62f, 0.95f);
+                var av = El("avatar", topRow); av.style.backgroundColor = n <= MatchDirector.SeatColors.Length ? MatchDirector.SeatColors[i] : Color.HSVToRGB((float)i / n, 0.62f, 0.95f);
                 Text(Initials(f.Badge), "", av);
                 Text(f.Badge, "name", topRow);
                 string meta = f.available ? $"Elo {Ladder.Rating(f.name):0} · {Ladder.Wins(f.name)}-{Ladder.Losses(f.name)} · {Ladder.Knockouts(f.name)} KOs" : "Locked: " + f.note;
@@ -58,7 +58,7 @@ namespace PoKingHill
 
         string TickHint()
         {
-            int n = director.TickedCount, bodies = director.fighters.Length;
+            int n = director.TickedCount, bodies = director.bodies.Length;
             return n == 0 ? "Tap agents to tick them for a custom match." : n == 1 ? "One ticked: it fights itself." : n == 2 ? "These two fight." :
                    n <= bodies ? $"All {n} fight at once: the last one on the summit wins." : $"{bodies} of them are drawn for each match.";
         }
@@ -87,15 +87,11 @@ namespace PoKingHill
 
         void BuildPictureSettings()
         {
-            Labeled("Camera", new[] { "Broadcast", "Classic" }, (int)GameSettings.CameraStyle, i => GameSettings.CameraStyle = (CameraStyle)i);
             // the tier Auto resolved to is on the telemetry line and in the debug panel (a longer label overflows the segment)
             Labeled("Quality", new[] { "Auto", "Low", "Medium", "High" }, (int)GameSettings.Quality, i => GameSettings.Quality = (Quality)i);
+            Text("Cinematic: effects, camera cuts and slow motion at the rim.", "hint", _sheetBody);
             var grid = El("grid", _sheetBody);
-            Chip(grid, "Effects", GameSettings.Effects, v => GameSettings.Effects = v);
-            Chip(grid, "Slow motion", GameSettings.SlowMotion, v => GameSettings.SlowMotion = v);
-            Chip(grid, "Cut-aways", GameSettings.CutAways, v => GameSettings.CutAways = v);
-            Chip(grid, "Win odds", GameSettings.WinOdds, v => GameSettings.WinOdds = v);
-            Chip(grid, "Captions", GameSettings.Commentary, v => GameSettings.Commentary = v);
+            Chip(grid, "Cinematic", GameSettings.Cinematic, v => GameSettings.Cinematic = v);
         }
 
         void BuildSoundSettings()
@@ -107,26 +103,13 @@ namespace PoKingHill
             Labeled("Ambience", levels, Nearest(mix, GameSettings.AmbienceVolume), i => GameSettings.AmbienceVolume = mix[i]);
         }
 
-        // Who free-for-all brains go for (brains were trained 1v1).
-        static readonly string[] TargetingLabels = { "Nearest", "Weakest", "Dogpile", "Grudge", "Vulture" };
-        static readonly string[] TargetingHints =
-        {
-            "each brain pushes the nearest fighter", "each brain goes for the fighter easiest to push off", "everyone goes for the king of the hill",
-            "brains go back for whoever pushed them last", "brains wait out a scrap, then pick off the weakest",
-        };
-
         void BuildAdvancedSettings()
         {
-            int target = (int)GameSettings.Targeting;
-            Text("Free-for-all targets: " + TargetingHints[Mathf.Clamp(target, 0, TargetingHints.Length - 1)], "hint", _sheetBody);
-            Seg(TargetingLabels, target, i => GameSettings.Targeting = (Targeting)i).AddToClassList("seg-tight");
+            // who free-for-all brains go for (brains were trained 1v1)
+            Labeled("3+ fighters", new[] { "Nearest", "Weakest" }, (int)GameSettings.Targeting, i => GameSettings.Targeting = (Targeting)i);
             var grid = El("grid", _sheetBody);
-            Chip(grid, "Stamina + hype", GameSettings.Stamina, v => GameSettings.Stamina = v);
             bool getupBrain = director.getupBrains != null && Array.Exists(director.getupBrains, b => b != null && b.policy != null);
             Chip(grid, getupBrain ? "Get back up" : "Get back up (no brain yet)", GameSettings.GetUp, v => GameSettings.GetUp = v, getupBrain);
-            Chip(grid, "Hazards", GameSettings.Hazards, v => GameSettings.Hazards = v);
-            bool planner = Array.Exists(director.roster, f => f.mlp != null);
-            Chip(grid, planner ? "Tactician (beta)" : "Tactician (no weights)", GameSettings.Tactician, v => GameSettings.Tactician = v, planner);
             Chip(grid, "Developer tools", GameSettings.DevTools, v => GameSettings.DevTools = v);
             Btn("Reset all settings", "secondary compact", () => { GameSettings.ResetAll(); RebuildSheet(); }, _sheetBody);
         }
@@ -164,7 +147,7 @@ namespace PoKingHill
                 Text("Tournament champion: " + director.TournamentChampion, "h1", _sheetBody);
             Text(r.Winner >= 0 ? "Winner: " + r.WinnerName : "No winner", "h1", _sheetBody);
             var stripe = El("winner-stripe", _sheetBody);
-            stripe.style.backgroundColor = r.Winner >= 0 ? DemoDirector.SeatColors[r.Winner % DemoDirector.SeatColors.Length] : new Color(1, 1, 1, 0.2f);
+            stripe.style.backgroundColor = r.Winner >= 0 ? MatchDirector.SeatColors[r.Winner % MatchDirector.SeatColors.Length] : new Color(1, 1, 1, 0.2f);
             Text(char.ToUpper(r.How[0]) + r.How.Substring(1), "body", _sheetBody);
 
             // the knock-out replay, merged into the sheet: tap anywhere on the strip to play from there, drag to scrub
@@ -187,7 +170,7 @@ namespace PoKingHill
             {
                 var row = El("res-row", _sheetBody);
                 var nameBox = El("res-name grow clip", row);
-                var dot = El("dot", nameBox); dot.style.backgroundColor = DemoDirector.SeatColors[i % DemoDirector.SeatColors.Length];
+                var dot = El("dot", nameBox); dot.style.backgroundColor = MatchDirector.SeatColors[i % MatchDirector.SeatColors.Length];
                 Text(director.BadgeOf(r.Agents[i]) + (director.PuppetBody == i ? " (you)" : ""), "ellipsis", nameBox);
                 string res = r.Winner < 0 ? "T" : r.Winner == i ? "W" : "L";
                 Text(res, "res-cell narrow " + (res == "W" ? "win" : res == "L" ? "loss" : ""), row).tooltip = res == "W" ? "win" : res == "L" ? "loss" : "tie";
@@ -195,7 +178,7 @@ namespace PoKingHill
                 Text(ko >= 0 ? $"{ko:0.0}" : "-", "res-cell", row);
                 if (ledger != null)
                 {
-                    int kos = ledger.Knockouts(director.fighters[i]), ast = ledger.Assists(director.fighters[i]);
+                    int kos = ledger.Knockouts(director.bodies[i]), ast = ledger.Assists(director.bodies[i]);
                     Text(kos + ast == 0 ? "-" : ast == 0 ? kos.ToString() : $"{kos}+{ast}", "res-cell narrow", row).tooltip = "knock-outs + assists";
                 }
                 else Text(log != null ? $"{log.PathMetres(i):0.0}" : "", "res-cell narrow", row);

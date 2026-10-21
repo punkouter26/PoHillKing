@@ -12,31 +12,28 @@ namespace PoKingHill
     /// (debug panel, layout audit), HudWidgets.cs (vitals strip, icons).
     ///   corners   TL title · TR menu · BR version; with GameSettings.DevTools also TC FPS (hold it for the debug
     ///             panel; it steps aside from a punch-hole camera, Screen.cutouts) and BL debug
-    ///   live      one row of fighter badges (seat-coloured initials, wins pip, status tag, vitals strip; tap =
-    ///             adrenaline), round clock, sea bar and ties, win-odds bar, hazard chip, knock-out feed, caption line,
-    ///             replay bar with a draggable playhead, puppet stick that appears under the thumb
+    ///   live      one row of fighter badges (seat-coloured initials, wins pip, status tag, vitals strip), round
+    ///             clock, sea bar and ties, knock-out feed, replay bar with a draggable playhead, puppet stick that
+    ///             appears under the thumb; with developer tools also the win-odds bar and the caption line
     ///   intro     tale of the tape: one card per fighter (mass, strongest joint, Elo, record, knock-outs, brain)
     ///   sheets    Menu (tabs Play | Agents | Settings) and Results (winner, replay strip, per-fighter telemetry,
     ///             next). A sheet swipes down (or its grabber is tapped) to a peek pill; a swipe up from the bottom
     ///             edge brings it back, or opens the menu during a round. A sheet taller than the room between the
     ///             corners turns dense.
-    ///   debug     developer tools only: two-finger tap, holding the FPS pill or the BL button: tabs Perf | View | Hazards
-    /// Safe-area padding follows Screen.safeArea. State comes from DemoDirector and MatchEvents; nothing here touches
+    ///   debug     developer tools only: two-finger tap, holding the FPS pill or the BL button: tabs Perf | View | Tools
+    /// Safe-area padding follows Screen.safeArea. State comes from MatchDirector and MatchEvents; nothing here touches
     /// the simulation except through the director's and the replay's public methods. Tests and captures can lay the HUD
     /// out for another screen (SimulateScreen) and list what does not fit (LayoutProblems).
     /// </summary>
     [RequireComponent(typeof(UIDocument))]
     public partial class HudView : MonoBehaviour
     {
-        public DemoDirector director;
+        public MatchDirector director;
         public WinOdds odds;
         public ReplaySystem replay;
         public MatchLog log;
-        public Hazards hazards;
         public Biometrics bio;
         public ContactLedger ledger;
-        public Stamina stamina;
-        public Tactician tactician;
         public QualityTier quality;               // optional: the telemetry line and the debug panel's frame times
         public ImpactSynth synth;                 // optional: audio levels in the debug panel
         public TimeWarp warp;                     // optional: slow-motion counts in the debug panel
@@ -47,7 +44,7 @@ namespace PoKingHill
         UIDocument _doc;
         VisualElement _root, _column, _safe, _topBar, _bottomBar, _menuBtn, _scoreboard, _roundInfo, _seaFill, _odds, _puppet, _debug, _debugTabs, _debugBody,
                       _sheet, _sheetBody, _knob, _stick, _stickZone, _feed, _intro, _replayBar, _replayFill, _replayHead, _peekRow, _resFill, _resHead;
-        Label _title, _fps, _clock, _ties, _hazard, _caption, _status, _oddsLabel, _debugText;
+        Label _title, _fps, _clock, _ties, _caption, _status, _oddsLabel, _debugText;
         Button _next, _peek, _debugBtn;
         readonly List<VisualElement> _badges = new(); readonly List<VisualElement> _oddsSegs = new();
         readonly List<VitalsBar> _vitals = new(); readonly List<Label> _tags = new(); readonly List<Label> _pips = new();
@@ -141,7 +138,6 @@ namespace PoKingHill
             _ties = Text("", "ties", _roundInfo);
             _odds = El("odds clip", _safe);
             _oddsLabel = Text("", "odds-label dim shadow", _safe);
-            _hazard = Text("", "hazard-chip", _safe);
             _feed = El("feed", _safe); _feed.pickingMode = PickingMode.Ignore;
             El("spacer", _safe);
             _intro = El("intro", _safe); _intro.style.display = DisplayStyle.None;
@@ -188,7 +184,7 @@ namespace PoKingHill
             _fps.text = !GameSettings.TelemetryHud ? $"{_fpsAvg:0} FPS" : quality != null
                 // a second, smaller line: one long line spread over the title (physics and brain times are in the debug panel)
                 ? $"{quality.Fps:0} FPS\n<size=20>p95 {quality.FrameP95Ms:0} ms · {tier}</size>"
-                : $"{_fpsAvg:0} FPS · phys {director.StepMs:0.00} · brain {(director.fighters.Length > 0 ? director.fighters[0].LastInferenceMs : 0):0.00} ms";
+                : $"{_fpsAvg:0} FPS · phys {director.StepMs:0.00} · brain {(director.bodies.Length > 0 ? director.bodies[0].LastInferenceMs : 0):0.00} ms";
         }
 
         void FitColumn()
@@ -432,19 +428,18 @@ namespace PoKingHill
             if (director.InMenu) return;
             for (int i = 0; i < director.Playing; i++)
             {
-                int agent = director.AgentOf(i), seat = i;
+                int agent = director.AgentOf(i);
                 var b = El("badge", _scoreboard); if (director.PuppetBody == i) b.AddToClassList("you");
                 var wrap = El("avatar-wrap", b);
-                var av = El("avatar", wrap); av.style.backgroundColor = DemoDirector.SeatColors[i % DemoDirector.SeatColors.Length];
+                var av = El("avatar", wrap); av.style.backgroundColor = MatchDirector.SeatColors[i % MatchDirector.SeatColors.Length];
                 Text(Initials(director.BadgeOf(agent)), "", av);
                 _pips.Add(Text((director.AgentSeatedTwice(agent) ? director.BodyWins(i) : director.Wins(agent)).ToString(), "wins-pip", wrap));
                 var tag = Text("", "badge-tag", wrap); tag.style.display = DisplayStyle.None; _tags.Add(tag);
                 Text(director.BadgeOf(agent) + (director.PuppetBody == i ? " (you)" : ""), "badge-name ellipsis", b);
                 var vit = new VitalsBar(); vit.style.display = bio != null ? DisplayStyle.Flex : DisplayStyle.None; b.Add(vit); _vitals.Add(vit);
                 b.tooltip = director.NameOf(agent, "Robot");
-                b.RegisterCallback<ClickEvent>(_ => Hype(seat));         // a tap on a badge cheers that fighter on (Stamina + hype)
                 _badges.Add(b);
-                var seg = El("odds-seg", _odds); seg.style.backgroundColor = DemoDirector.SeatColors[i % DemoDirector.SeatColors.Length]; seg.style.width = Length.Percent(100f / director.Playing);
+                var seg = El("odds-seg", _odds); seg.style.backgroundColor = MatchDirector.SeatColors[i % MatchDirector.SeatColors.Length]; seg.style.width = Length.Percent(100f / director.Playing);
                 _oddsSegs.Add(seg);
             }
             if (director.Draws > 0) { _ties.text = "Ties " + director.Draws; _ties.style.display = DisplayStyle.Flex; }
@@ -486,14 +481,12 @@ namespace PoKingHill
                 for (int i = 0; i < _oddsSegs.Count; i++) _oddsSegs[i].style.width = Length.Percent(odds.Odds[i] * 100f);
                 _oddsLabel.text = odds.FromCritic ? "Win odds · critic" : "Win odds · estimate";
             }
-            string hz = hazards != null && fight ? hazards.Active : "";
-            _hazard.text = hz; _hazard.style.display = hz.Length > 0 ? DisplayStyle.Flex : DisplayStyle.None;
             if (_captionUntil > 0 && Time.unscaledTime > _captionUntil) { _captionUntil = 0; _caption.style.opacity = 0; }
             if (director.Status != _lastStatus) { _lastStatus = director.Status; _statusUntil = Time.unscaledTime + 4f; }
             _status.text = Time.unscaledTime < _statusUntil ? _lastStatus : "";
             bool puppet = fight && director.PuppetBody >= 0;
             if (puppet != PuppetShown) { _puppet.style.display = puppet ? DisplayStyle.Flex : DisplayStyle.None; if (!puppet) RestStick(); }
-            // with the stick on screen the panel hangs under the live strip (badges, clock, odds, hazard) instead of standing on the bottom corners
+            // with the stick on screen the panel hangs under the live strip (badges, clock, odds) instead of standing on the bottom corners
             if (puppet) { _debug.style.top = _feed.worldBound.yMin - _column.worldBound.yMin + 8; _debug.style.bottom = StyleKeyword.Auto; }
             else { _debug.style.top = StyleKeyword.Null; _debug.style.bottom = 128 + _bottomInset; }
             ApplyVisibility();
@@ -512,30 +505,22 @@ namespace PoKingHill
         {
             for (int i = 0; i < _badges.Count && i < director.Playing; i++)
             {
-                var r = director.fighters[i]; var v = bio != null ? bio.Of(r) : null; bool outNow = director.IsOut(i);
-                if (v != null && i < _vitals.Count) _vitals[i].Set(v, stamina != null && GameSettings.Stamina ? stamina.Level(r) : -1f, outNow);
-                bool down = director.IsDown(i), hyped = stamina != null && stamina.IsHyped(r) && !outNow, edge = v != null && v.doomed && !outNow;
-                _badges[i].EnableInClassList("down", down); _badges[i].EnableInClassList("edge", edge && !down); _badges[i].EnableInClassList("hyped", hyped && !down);
-                string tag = down ? $"DOWN {director.DownLeft(i):0}" : edge ? "EDGE" : hyped ? "HYPE" : !outNow && r.tactic != Tactic.Press && director.State == MatchState.Fight ? TacticLabel(r.tactic) : "";
+                var r = director.bodies[i]; var v = bio != null ? bio.Of(r) : null; bool outNow = director.IsOut(i);
+                if (v != null && i < _vitals.Count) _vitals[i].Set(v, outNow);
+                bool down = director.IsDown(i), edge = v != null && v.doomed && !outNow;
+                _badges[i].EnableInClassList("down", down); _badges[i].EnableInClassList("edge", edge && !down);
+                string tag = down ? $"DOWN {director.DownLeft(i):0}" : edge ? "EDGE" : "";
                 var t = _tags[i]; if (t.text != tag) t.text = tag; t.style.display = tag.Length > 0 ? DisplayStyle.Flex : DisplayStyle.None;
             }
-        }
-
-        static string TacticLabel(Tactic t) => t switch { Tactic.FlankLeft => "flank L", Tactic.FlankRight => "flank R", Tactic.Regroup => "regroup", Tactic.Lurk => "lurk", _ => "" };
-
-        void Hype(int seat)
-        {
-            if (stamina == null || director.State != MatchState.Fight || seat >= director.Playing) return;
-            if (stamina.TryHype(director.fighters[seat])) MatchEvents.RaiseCaption($"The crowd fires up {director.BadgeOf(director.AgentOf(seat))}!");
         }
 
         void OnCredited(PolicyRunner victim, PolicyRunner by, PolicyRunner assist)
         {
             if (director == null || director.statsRounds > 0) return;
-            int v = Array.IndexOf(director.fighters, victim), b = Array.IndexOf(director.fighters, by), a = Array.IndexOf(director.fighters, assist);
+            int v = Array.IndexOf(director.bodies, victim), b = Array.IndexOf(director.bodies, by), a = Array.IndexOf(director.bodies, assist);
             if (v < 0) return;
             var row = El("feed-row", _feed); row.pickingMode = PickingMode.Ignore;
-            void Who(int seat) { var d = El("dot", row); d.style.backgroundColor = DemoDirector.SeatColors[seat % DemoDirector.SeatColors.Length]; Text(director.BadgeOf(director.AgentOf(seat)), "", row); }
+            void Who(int seat) { var d = El("dot", row); d.style.backgroundColor = MatchDirector.SeatColors[seat % MatchDirector.SeatColors.Length]; Text(director.BadgeOf(director.AgentOf(seat)), "", row); }
             if (b >= 0) { Who(b); Text("pushes off", "feed-verb", row); }
             Who(v); if (b < 0) Text("falls off", "feed-verb", row);
             if (a >= 0) { Text("+", "feed-verb", row); Who(a); }
@@ -561,8 +546,8 @@ namespace PoKingHill
             }
             else
             {
-                var r = director.fighters[f]; int agent = director.AgentOf(f); var entry = agent >= 0 && agent < director.roster.Length ? director.roster[agent] : null;
-                var stripe = El("intro-stripe", _intro); stripe.style.backgroundColor = DemoDirector.SeatColors[f % DemoDirector.SeatColors.Length];
+                var r = director.bodies[f]; int agent = director.AgentOf(f); var entry = agent >= 0 && agent < director.roster.Length ? director.roster[agent] : null;
+                var stripe = El("intro-stripe", _intro); stripe.style.backgroundColor = MatchDirector.SeatColors[f % MatchDirector.SeatColors.Length];
                 Text($"Fighter {f + 1} of {director.Playing}", "intro-kicker", _intro);
                 Text(director.BadgeOf(agent), "intro-name", _intro);
                 if (entry != null && entry.name != entry.Badge) Text(entry.name, "body", _intro);

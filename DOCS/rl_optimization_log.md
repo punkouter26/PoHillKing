@@ -540,3 +540,26 @@ result and status line used the roster's full description ("Winner: Grandpa (86 
 shoves)", "C (Grandpa (86 kg, ...)) wins"); they now use the badge name (`BadgeOf`); the Elo ladder still keys on the full
 name. EditMode 54/54 (fewer per-scene cases than 59 after the cleanup), PlayMode 7/7. Report:
 `SCREENSHOTS/playtest-261021/report.html`. Open: Trump's get-up share in Unity; the get-up rule stays off by default.
+
+## 2026-10-21 — cleanup: hand-composed game scene, fewer settings and features, names
+
+**Game scene.** `Demo_duel.unity` is now `Scenes/Game.unity` (same GUID), composed and saved in the editor; the
+code that rebuilt it (`ParityBatch.BuildDuelDemo`, `GameSceneBuilder`, 365 lines) is gone. `Editor/GameScene.cs` only
+refreshes what training produces: `RefreshBrains` (roster, get-up brains), `RefreshBodies` (MuJoCo tree, runners and
+skins from `Testbed_koth_game`), `Compose(tag, robot, path)` (gate scenes as copies of the game scene with another
+testbed's bodies). Kim's duel gate through `Compose` (200 rounds): Unity decided 100 %, median 6.72 s (5.43 / 7.93),
+Python 100 %, 6.67 s (5.54 / 7.92): pass.
+
+**Cut** (sources in `archive/clean-261021/`, deleted by `tools/cleanup_unused.sh --apply`): Tactician + `Tactics` +
+`MlpNet` + `_mlp.bytes` + `export_mlp.py` (training's `r4tactic` rung stays), Stamina + hype, Hazards, the Classic camera,
+Dogpile/Grudge/Vulture targeting, the Fatigue overlay; duplicate `<body>_getup1_policy.onnx`, Kim's old gate brains,
+the `koth_5p`/`koth_6p` testbeds, dumps and imports. Kept on purpose: the G1 Duelist and Rammer (the free-for-all
+gate's opponent pool), `koth_4p`/`koth_7p` (free-for-all gates), `ProjectilePool` (MJCF boxes, hold-parity gate).
+Settings: Picture = Quality + one Cinematic switch; Advanced = targeting (Nearest / Weakest), get-up rule, developer
+tools; win odds and captions moved to the developer panel's View tab.
+
+**Names.** `DemoDirector` → `MatchDirector`, roster class `Fighter` → `Agent`, `fighters` → `bodies`
+(`FormerlySerializedAs`); `tasks.md`, this log and `training_report.html` moved to `DOCS/`. C# in Assets/PoKingHill:
+61 files / 8,535 lines → 55 / 7,194. `GameSceneTests.EveryComponentLivesInAFileOfItsOwnName` now reads the script
+subfolders (it had checked nothing since they were split). EditMode 46/46, PlayMode 7/7; a played quick match logged
+no errors and wrote telemetry (59 FPS, p95 22 ms). Report: `SCREENSHOTS/clean-261021/report.html`.

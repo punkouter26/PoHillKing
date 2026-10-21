@@ -7,24 +7,24 @@ namespace PoKingHill
 {
     public partial class HudView
     {
-        // ------------------------------------------------------------------ debug panel: Perf | View | Hazards
+        // ------------------------------------------------------------------ debug panel: Perf | View | Tools
         void BuildDebugRows()
         {
             _debugTabs.Clear(); _debugBody.Clear();
-            string[] names = { "Perf", "View", "Hazards" };
+            string[] names = { "Perf", "View", "Tools" };
             for (int i = 0; i < names.Length; i++) { int t = i; var b = Btn(names[i], "tab", () => { _debugTab = t; BuildDebugRows(); }, _debugTabs); if (i == _debugTab) b.AddToClassList("selected"); }
             if (_debugTab == 0) { _debugBody.Add(_debugText); _debugText.text = DebugText(); return; }
             if (_debugTab == 1)
             {
-                var seg = El("seg", _debugBody); string[] modes = { "None", "Strain", "Fatigue", "Colliders" };
+                var seg = El("seg", _debugBody); string[] modes = { "None", "Strain", "Colliders" };
                 for (int i = 0; i < modes.Length; i++) { int k = i; var b = Btn(modes[i], "seg-btn", () => { GameSettings.Overlay = (Overlay)k; BuildDebugRows(); }, seg); if ((int)GameSettings.Overlay == i) b.AddToClassList("selected"); }
                 var grid = El("grid", _debugBody);
                 Chip(grid, "Intent arrows", GameSettings.IntentArrows, v => GameSettings.IntentArrows = v);
                 Chip(grid, "Telemetry HUD", GameSettings.TelemetryHud, v => GameSettings.TelemetryHud = v);
+                Chip(grid, "Win odds", GameSettings.WinOdds, v => GameSettings.WinOdds = v);
+                Chip(grid, "Captions", GameSettings.Commentary, v => GameSettings.Commentary = v);
                 return;
             }
-            var hz = El("seg wrap", _debugBody);
-            foreach (Hazard h in Enum.GetValues(typeof(Hazard))) { var hh = h; Btn(h.ToString(), "seg-btn", () => hazards?.Trigger(hh), hz); }
             var r = El("seg", _debugBody);
             Btn("Replay", "seg-btn", () => replay?.Play(), r);
             Btn("Restart round", "seg-btn", () => { if (director.State == MatchState.Fight) director.NewRound(); }, r);
@@ -35,12 +35,11 @@ namespace PoKingHill
             var sb = new System.Text.StringBuilder();
             sb.Append($"state {director.State} · round {director.RoundTime:0.0} s · out radius {director.OutRadiusNow:0.00} m\n");
             sb.Append($"physics tick {director.StepMs:0.000} ms · ");
-            for (int i = 0; i < director.Playing && i < director.fighters.Length; i++) sb.Append($"{director.fighters[i].robotPrefix} {director.fighters[i].LastInferenceMs:0.00} ms  ");
+            for (int i = 0; i < director.Playing && i < director.bodies.Length; i++) sb.Append($"{director.bodies[i].robotPrefix} {director.bodies[i].LastInferenceMs:0.00} ms  ");
             sb.Append($"\nGC {GC.CollectionCount(0)} gen0 · telemetry {MatchLog.Folder}");
             if (quality != null) sb.Append($"\nframe {quality.FrameMs:0.0} ms (p95 {quality.FrameP95Ms:0.0}) · {quality.GcKbPerFrame:0.00} KB/frame · quality {quality.Label}, {quality.Downgrades} auto steps");
             if (synth != null) sb.Append($"\naudio: wind {synth.WindRms:0.000} surf {synth.SurfRms:0.000} crowd {synth.CrowdRms:0.000} · slide {synth.Slide:0.00} grind {synth.Grind:0.00} · {synth.Clanks} clanks {synth.Smacks} smacks {synth.Grunts} grunts");
             if (warp != null) sb.Append($" · {warp.SlowMos} slow-mos {warp.HitStops} hit stops");
-            if (tactician != null && GameSettings.Tactician) sb.Append($"\ntactician: {tactician.Decisions} decisions, last batch {tactician.LastBatchMs:0} ms");
             return sb.ToString();
         }
 

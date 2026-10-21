@@ -15,9 +15,8 @@ namespace PoKingHill
     ///                 noise, louder with the slip speed), two fighters rubbing grind (metal for G1 pairs, a duller rub
     ///                 when a human is in it), sustained for as long as the sliding lasts
     ///   splash        a pelvis crosses the water surface going down; then a quiet bubbling hum while submerged
-    ///   ambience      wind over the summit (gusts from Hazards), surf that grows as the
-    ///                 sea rises and the storm builds, a crowd that murmurs and swells on hype, knock-outs, the end of a
-    ///                 round and a fighter teetering on the rim (Biometrics), a low rumble during a quake
+    ///   ambience      wind over the summit, surf that grows as the sea rises and the storm builds, a crowd that
+    ///                 murmurs and swells on knock-outs, the end of a round and a fighter teetering on the rim (Biometrics)
     /// Mix: MasterVolume x SfxVolume for hits and footsteps, MasterVolume x AmbienceVolume for the beds;
     /// everything is low-passed while the camera is under water or time is slowed.
     /// The stereo voices are panned and attenuated from the camera's point of view. The same triggers are announced
@@ -30,8 +29,7 @@ namespace PoKingHill
         public PolicyRunner[] robots;
         public Sea sea;
         public SoundPool pool;                    // optional: 3D one-shots
-        public DemoDirector director;             // optional: ambience follows the match state
-        public Hazards hazards;                   // optional: gusts and quakes in the ambience
+        public MatchDirector director;             // optional: ambience follows the match state
         public Biometrics bio;                    // optional: the crowd gasps at a fighter on the rim
         [Range(0f, 1f)] public float volume = 0.6f;
         public float impactThreshold = 0.45f;     // m/s of pelvis velocity change within 20 ms
@@ -42,14 +40,14 @@ namespace PoKingHill
         // audio thread, which the editor only runs while it has focus.
         public int Thuds, Clicks, Splashes, Clanks, Smacks, Grunts, Blocks; public float Peak, Slide, Grind;
         /// <summary>RMS of each ambience bed over the last audio block, after the mix (verification and tuning).</summary>
-        public float WindRms, SurfRms, CrowdRms, RumbleRms;
+        public float WindRms, SurfRms, CrowdRms;
         double[][] _prevVel; double[] _prevFootVz; bool[] _wasUnder; int[] _footBody; int[] _robotOfBody; bool[] _isFoot; double[] _gruntAt;
         // triggers written by the physics callback, consumed by the audio thread (strength, pan -1..1)
         volatile float _thud, _thudPitch = 70f, _thudPan, _click, _clickPan, _clank, _clankPan, _splash, _splashPan, _under;
         // sustained levels (targets) and ambience, written by the main thread
-        volatile float _slide, _slidePan, _grind, _grindMetal, _wind, _surf, _crowd, _rumble, _muffle, _sfxGain = 1f, _ambGain = 1f;
+        volatile float _slide, _slidePan, _grind, _grindMetal, _wind, _surf, _crowd, _muffle, _sfxGain = 1f, _ambGain = 1f;
         float _eThud, _eClick, _eClank, _eSplash, _pThud, _pClick, _pClank, _pSplash, _phase, _lp, _bp1, _bp2, _c1, _c2, _c3;
-        float _sSlide, _sGrind, _sWind, _sSurf, _sCrowd, _sRumble, _sMuffle, _wl, _wr, _brown, _rl, _mL, _mR, _gb1, _gb2, _surfPh, _lfo1, _lfo2, _lfo3;
+        float _sSlide, _sGrind, _sWind, _sSurf, _sCrowd, _sMuffle, _wl, _wr, _brown, _mL, _mR, _gb1, _gb2, _surfPh, _lfo1, _lfo2, _lfo3;
         float _swell, _gasp; bool[] _gasped = System.Array.Empty<bool>();
         Reson _crowdA, _crowdB, _crowdC;
         int _rate = 48000; uint _rng = 12345u; Transform _listener;
@@ -62,11 +60,11 @@ namespace PoKingHill
             if (src.clip == null) src.clip = AudioClip.Create("silence", _rate, 1, _rate, false);   // carrier so OnAudioFilterRead runs
             src.Play();
             MjScene.Instance.postInitEvent += OnInit; MjScene.Instance.postUpdateEvent += Post;
-            MatchEvents.Knockout += OnKo; MatchEvents.Hyped += OnHype; MatchEvents.RoundEnded += OnEnd; MatchEvents.RoundStarted += OnRound;
+            MatchEvents.Knockout += OnKo; MatchEvents.RoundEnded += OnEnd; MatchEvents.RoundStarted += OnRound;
         }
         void OnDisable()
         {
-            MatchEvents.Knockout -= OnKo; MatchEvents.Hyped -= OnHype; MatchEvents.RoundEnded -= OnEnd; MatchEvents.RoundStarted -= OnRound;
+            MatchEvents.Knockout -= OnKo; MatchEvents.RoundEnded -= OnEnd; MatchEvents.RoundStarted -= OnRound;
             if (!MjScene.InstanceExists) return;
             MjScene.Instance.postInitEvent -= OnInit; MjScene.Instance.postUpdateEvent -= Post;
         }
@@ -74,7 +72,6 @@ namespace PoKingHill
         void OnInit(object s, MjStepArgs a) { _prevVel = null; }
         bool Gate => director != null && director.statsRounds > 0;
         void OnKo(PolicyRunner r) { if (!Gate) _swell = Mathf.Max(_swell, 1f); }
-        void OnHype(PolicyRunner r) { if (!Gate) _swell = Mathf.Max(_swell, 0.7f); }
         void OnEnd(RoundResult r) { if (!Gate && r.Winner >= 0) _swell = Mathf.Max(_swell, 0.9f); }
         void OnRound() { if (_gasped.Length > 0) System.Array.Clear(_gasped, 0, _gasped.Length); }
 
@@ -98,20 +95,19 @@ namespace PoKingHill
             // ambience targets
             bool gate = Gate, live = director != null && (director.State == MatchState.Fight || director.State == MatchState.Intro || director.RoundOver);
             float level = sea != null ? Mathf.Clamp01((sea.Level + sea.startDepth) / Mathf.Max(0.1f, sea.startDepth)) : 0f;
-            float wind = 0.1375f + (hazards != null && hazards.Gusting ? 0.55f : 0f);
+            const float wind = 0.1375f;
             float surf = 0.08f + 0.45f * level * level;
             if (bio != null && director != null && director.State == MatchState.Fight)
             {
-                if (_gasped.Length != director.fighters.Length) _gasped = new bool[director.fighters.Length];
+                if (_gasped.Length != director.bodies.Length) _gasped = new bool[director.bodies.Length];
                 for (int i = 0; i < director.Playing; i++)
                 {
-                    var v = bio.Of(director.fighters[i]);
+                    var v = bio.Of(director.bodies[i]);
                     if (v != null && v.rim < 0.25f && !director.IsOut(i) && !_gasped[i]) { _gasped[i] = true; _gasp = 1f; }
                 }
             }
             float crowd = live ? 0.10f + 0.55f * _swell + 0.3f * _gasp : director != null && director.State == MatchState.Menu ? 0.04f : 0f;
             _wind = gate ? 0f : wind; _surf = gate ? 0f : surf; _crowd = gate ? 0f : crowd;
-            _rumble = gate || hazards == null || !hazards.Quaking ? 0f : 0.9f;
 
             // under water (the camera below the surface) or slowed time: close the low-pass
             float under = sea != null && _listener != null && _listener.position.y < sea.Level ? 1f : 0f;
@@ -293,10 +289,10 @@ namespace PoKingHill
             float w1 = 2f * Mathf.PI * 330f / _rate, w2 = w1 * 2.76f, w3 = w1 * 5.40f;
             // sustained voices glide to their targets (about 60 ms); ambience over about 0.5 s
             float glide = 1f - Mathf.Exp(-1f / (0.06f * _rate)), drift = 1f - Mathf.Exp(-1f / (0.5f * _rate));
-            float slideT = _slide, slidePan = _slidePan, grindT = _grind, metal = _grindMetal, windT = _wind, surfT = _surf, crowdT = _crowd, rumbleT = _rumble;
+            float slideT = _slide, slidePan = _slidePan, grindT = _grind, metal = _grindMetal, windT = _wind, surfT = _surf, crowdT = _crowd;
             float sfx = volume * _sfxGain, amb = volume * _ambGain, muffleT = _muffle;
             float surfW = 2f * Mathf.PI / (6.5f * _rate), lfoW1 = 2f * Mathf.PI * 0.23f / _rate, lfoW2 = 2f * Mathf.PI * 0.071f / _rate, lfoW3 = 2f * Mathf.PI * 1.7f / _rate;
-            float wg = 2f * Mathf.PI * 1900f / _rate; double eW = 0, eS = 0, eC = 0, eR = 0;
+            float wg = 2f * Mathf.PI * 1900f / _rate; double eW = 0, eS = 0, eC = 0;
             for (int i = 0; i < data.Length; i += channels)
             {
                 float nz = Noise(), nz2 = Noise();
@@ -306,7 +302,7 @@ namespace PoKingHill
                 _phase += w; if (_phase > 2f * Mathf.PI) _phase -= 2f * Mathf.PI;
                 _c1 += w1; _c2 += w2; _c3 += w3; if (_c1 > 6.2831853f) _c1 -= 6.2831853f; if (_c2 > 6.2831853f) _c2 -= 6.2831853f; if (_c3 > 6.2831853f) _c3 -= 6.2831853f;
                 _sSlide += glide * (slideT - _sSlide); _sGrind += glide * (grindT - _sGrind);
-                _sWind += drift * (windT - _sWind); _sSurf += drift * (surfT - _sSurf); _sCrowd += drift * (crowdT - _sCrowd); _sRumble += drift * (rumbleT - _sRumble);
+                _sWind += drift * (windT - _sWind); _sSurf += drift * (surfT - _sSurf); _sCrowd += drift * (crowdT - _sCrowd);
                 _sMuffle += drift * (muffleT - _sMuffle);
                 _surfPh += surfW; if (_surfPh > 6.2831853f) _surfPh -= 6.2831853f;
                 _lfo1 += lfoW1; _lfo2 += lfoW2; _lfo3 += lfoW3; if (_lfo1 > 6.2831853f) _lfo1 -= 6.2831853f; if (_lfo2 > 6.2831853f) _lfo2 -= 6.2831853f; if (_lfo3 > 6.2831853f) _lfo3 -= 6.2831853f;
@@ -321,15 +317,13 @@ namespace PoKingHill
                 _gb1 += 0.5f * (nz2 - _gb1); _gb2 += 0.5f * (_gb1 - _gb2);
                 float sGrind = _sGrind * (metal > 0.5f ? 0.35f * (_gb1 - _gb2) * (1f + 0.8f * Mathf.Sin(_c2 * 2.3f)) : 0.5f * _lp);
                 // ambience: wind (two decorrelated low-passed noises, gusting), surf (brown noise swelling every ~6.5 s),
-                // crowd (noise through three vowel-ish formants, murmuring), quake rumble
+                // crowd (noise through three vowel-ish formants, murmuring)
                 float gust = 0.65f + 0.35f * Mathf.Sin(_lfo1) * Mathf.Sin(_lfo2 * 3f);
                 float cut = 0.015f + 0.05f * gust * Mathf.Clamp01(_sWind * 1.5f);
                 _wl += cut * (nz - _wl); _wr += cut * (nz2 - _wr);
                 _brown = Mathf.Clamp(_brown + 0.015f * nz, -1f, 1f) * 0.9993f;
                 float wave = 0.35f + 0.65f * Mathf.Pow(0.5f + 0.5f * Mathf.Sin(_surfPh), 3f);
                 float sSurf = _sSurf * 1.4f * _brown * wave;
-                _rl += 0.004f * (nz - _rl);
-                float sRumble = _sRumble * 9f * _rl * (0.7f + 0.3f * Mathf.Sin(_lfo3));
                 float murmur = 0.6f + 0.4f * Mathf.Sin(_lfo3 * 1.3f + Mathf.Sin(_lfo1 * 7f) * 2f);
                 float sCrowd = _sCrowd * 0.5f * murmur * (_crowdA.Step(nz) + 0.7f * _crowdB.Step(nz2) + 0.35f * _crowdC.Step(nz) * Mathf.Clamp01(_sCrowd * 2f));
                 float windL = _sWind * 6f * _wl * gust, windR = _sWind * 6f * _wr * gust;
@@ -337,8 +331,8 @@ namespace PoKingHill
                 // equal-power-ish pan per voice: g = 0.5 (1 ± pan) + 0.5
                 float L = sThud * (1 - 0.5f * _pThud) + sClick * (1 - 0.5f * _pClick) + sSlide * (1 - 0.5f * slidePan) + sClank * (1 - 0.5f * _pClank) + sSplash * (1 - 0.5f * _pSplash) + sUnder + sGrind;
                 float R = sThud * (1 + 0.5f * _pThud) + sClick * (1 + 0.5f * _pClick) + sSlide * (1 + 0.5f * slidePan) + sClank * (1 + 0.5f * _pClank) + sSplash * (1 + 0.5f * _pSplash) + sUnder + sGrind;
-                eW += windL * windL * amb * amb; eS += sSurf * sSurf * amb * amb; eC += sCrowd * sCrowd * amb * amb; eR += sRumble * sRumble * amb * amb;
-                L = L * sfx + (windL + sSurf + sCrowd + sRumble) * amb; R = R * sfx + (windR + sSurf * 0.9f + sCrowd * 0.95f + sRumble) * amb;
+                eW += windL * windL * amb * amb; eS += sSurf * sSurf * amb * amb; eC += sCrowd * sCrowd * amb * amb;
+                L = L * sfx + (windL + sSurf + sCrowd) * amb; R = R * sfx + (windR + sSurf * 0.9f + sCrowd * 0.95f) * amb;
                 // muffle: a one-pole low-pass from 20 kHz down to ~650 Hz under water or in slowed time
                 float a = 1f - Mathf.Exp(-wg * Mathf.Lerp(10f, 0.34f, Mathf.Sqrt(Mathf.Clamp01(_sMuffle))));
                 _mL += a * (L - _mL); _mR += a * (R - _mR); L = _mL; R = _mR;
@@ -348,7 +342,7 @@ namespace PoKingHill
                 else data[i] = 0.5f * (L + R);
             }
             int frames = Mathf.Max(1, data.Length / Mathf.Max(1, channels));
-            WindRms = Mathf.Sqrt((float)(eW / frames)); SurfRms = Mathf.Sqrt((float)(eS / frames)); CrowdRms = Mathf.Sqrt((float)(eC / frames)); RumbleRms = Mathf.Sqrt((float)(eR / frames));
+            WindRms = Mathf.Sqrt((float)(eW / frames)); SurfRms = Mathf.Sqrt((float)(eS / frames)); CrowdRms = Mathf.Sqrt((float)(eC / frames));
         }
 
         /// <summary>Two-pole resonator (a formant): centre frequency and bandwidth in Hz.</summary>

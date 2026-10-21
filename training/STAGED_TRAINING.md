@@ -1,4 +1,4 @@
-# Staged training (prepared 2026-10-17; stages 2, 3 and 6 trained 2026-10-18, see rl_optimization_log.md)
+# Staged training (prepared 2026-10-17; stages 2, 3 and 6 trained 2026-10-18, see DOCS/rl_optimization_log.md)
 
 Everything below is opt-in. Existing rungs (r0 r1 r2 r3 r4 r4att r4sp r4league r4shove r4probe) produce the same
 configuration as before and, verified bit for bit, the same environment trajectories (see "Throughput" below).
@@ -90,7 +90,7 @@ regression it should keep allround4's bar (share of decided > 55 %, ties < 15 %)
 
 Unity mirror (C# side, not done here):
 - `ObsBuilder.FillCombat` a second time at offset 112 with the second-nearest fighter still in (nearest again if
-  only one is left), same 9 formulas; the first block stays the nearest fighter still in (as `DemoDirector` does).
+  only one is left), same 9 formulas; the first block stays the nearest fighter still in (as `MatchDirector` does).
 - `PolicyRunner` obs dim 121 (read it from the ONNX input shape) and fill both blocks for 121-input brains; in a
   two-fighter round both blocks describe the one opponent.
 - Rules: eliminated fighters paused (already), no leg-contact ending (already).
@@ -128,7 +128,7 @@ error 2.2e-6 (policy 2.9e-6), opset 17, batch 1.
 
 ## 7. Get-up brain (rung `getup`, added 2026-10-19 for the game's get-up rule)
 
-One brain per body kind that takes over while a fighter is down (`DemoDirector.OutWithGetUp`, `PolicyRunner.SetGetUp`):
+One brain per body kind that takes over while a fighter is down (`MatchDirector.OutWithGetUp`, `PolicyRunner.SetGetUp`):
 103 inputs, zero command, `ctrl = default + 0.5 action`, no style path. Flat floor, one robot.
 
 | setting | value | reason |
@@ -141,7 +141,7 @@ One brain per body kind that takes over while a fighter is down (`DemoDirector.O
 
 Gates: `scripts/getup_stats.py` (CPU, 200 drops: success within the game's 5 s count, time-to-stand quartiles) vs
 `ParityBatch.RunGetupStats` (Unity, Testbed_flat_1p, `GetupProbe`); then the game rule: `duel_stats.py --getup` vs
-`ParityBatch.RunGetupDuelStats`. Runs and numbers: rl_optimization_log.md (2026-10-19).
+`ParityBatch.RunGetupDuelStats`. Runs and numbers: DOCS/rl_optimization_log.md (2026-10-19).
 
 ## 8. Calibration, action path, rewards and curriculum (added 2026-10-20)
 
@@ -160,7 +160,7 @@ All opt-in; every existing rung is bitwise unchanged (`check_determinism.py`, r0
 Every finished run writes `graduation.json`; `export_policy.py` refuses a run with NaN updates or a missed
 `--graduate-reward` target unless `--force`, and writes or removes `<name>_action.json`. The CPU reference
 (`duel_stats.py`) reads the sidecar too. Queue: `scripts/queue_options.sh` (G1 runs repeat duel_u1's recipe and change
-one thing), then `scripts/queue_bodies.sh` (Kim's feet, Trump's hold). Results: rl_optimization_log.md 2026-10-20.
+one thing), then `scripts/queue_bodies.sh` (Kim's feet, Trump's hold). Results: DOCS/rl_optimization_log.md 2026-10-20.
 
 ## New JSON keys for the Unity side (read with fallbacks)
 

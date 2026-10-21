@@ -9,7 +9,7 @@ Rungs:
   r5ffa  arena, 4 robots, learner a_ vs three frozen opponents (free-for-all, staged; see STAGED_TRAINING.md)
 Observation layout is koth/obs.py (103 dims), mirrored by Unity's ObsBuilder.cs. For r2+ the command slots are
 filled by obs.goal_command(), a fixed geometric law that Unity mirrors too, so the network input never changes.
-With more than two robots "the opponent" of a row is its nearest opponent still in the round (as DemoDirector
+With more than two robots "the opponent" of a row is its nearest opponent still in the round (as MatchDirector
 retargets brains); cfg["combat2"] appends a second combat block for the second-nearest one.
 """
 from __future__ import annotations
@@ -84,7 +84,7 @@ def default_cfg(rung: str = "r0") -> dict:
         action=None,               # koth/action_map.py: dict(map "clip"|"tanh", scale None|[29], window bool); None = the original path
         reward_clip=True,          # clip each step's shaped sum at zero (terminal terms and the potential are outside the clip)
         potential_gamma=0.99,      # reward["potential"]: F = gamma * phi(s') - phi(s), phi = (opponent radius - my radius) / OUT_RADIUS
-        tactics=None,              # dict(probs=[5], hold_s=[lo, hi]): learner goal points from obs.TACTICS (Unity Tactics.Goal), held per segment
+        tactics=None,              # dict(probs=[5], hold_s=[lo, hi]): learner goal points from obs.TACTICS (training only), held per segment
         fatigue=dict(enabled=False, tau_s=10.0, min_scale=0.6, gain=2.0, omega_ref=10.0, obs=False),
         getup=None,                # dict (rung "getup"): episodes start from drops in random orientations and never end on a fall
     )
@@ -173,7 +173,7 @@ def default_cfg(rung: str = "r0") -> dict:
         # Unity's Tactician lost to plain Press in every variant (log 2026-10-19): the brains only ever walked straight at the
         # opponent, so a rollout that moves the goal point asks for behaviour they never practised. Here half the segments
         # are Press and the rest Flank left/right, Regroup or Lurk (Tactics.Goal), held 1-3 s; the command still comes from
-        # the same goal law and the network inputs are unchanged (112), so the brain drops into the Tactician as it is.
+        # the same goal law and the network inputs are unchanged (112), so the brain needed no Unity change (the Tactician was cut on 2026-10-21).
         # Tracking pays more than in r4league so that the commanded goal point matters.
         cfg.update(default_cfg("r4league"))
         cfg.update(tactics=dict(probs=[0.5, 0.125, 0.125, 0.125, 0.125], hold_s=[1.0, 3.0]))

@@ -21,12 +21,11 @@ namespace PoKingHill.EditorTools
     {
         const string SceneDir = "Assets/PoKingHill/Scenes";
         const string ModelDir = "Assets/PoKingHill/Models";
-        const string DemoScene = SceneDir + "/Demo_duel.unity";
 
         // Which fighter's body a testbed scene holds: -kothRobot g1 (default), kim, trump or grandpa. Human bodies' files sit in subfolders.
         static string Robot => Cli.Arg("-kothRobot", "g1");
-        static string ModelsOf(string robot) => robot == "g1" ? ModelDir : $"{ModelDir}/{robot}";
-        static string SceneOf(string robot, string tag) => $"{SceneDir}/Testbed_{(robot == "g1" ? "" : robot + "_")}{tag}.unity";
+        internal static string ModelsOf(string robot) => robot == "g1" ? ModelDir : $"{ModelDir}/{robot}";
+        internal static string SceneOf(string robot, string tag) => $"{SceneDir}/Testbed_{(robot == "g1" ? "" : robot + "_")}{tag}.unity";
 
         [MenuItem("PoKingHill/Import testbed scenes (flat_1p, koth_1p, koth_2p, koth_4p)")]
         public static void ImportAll() => ImportOrExit(() => { Import("flat_1p", Robot); Import("koth_1p", Robot); Import("koth_2p", Robot); if (Robot == "g1") Import("koth_4p", Robot); });
@@ -42,7 +41,7 @@ namespace PoKingHill.EditorTools
         }
 
         // Gate B.2 at authoring time: MuJoCo is the only simulator, so a scene must never hold a PhysX component.
-        static void AssertNoPhysX(string where)
+        internal static void AssertNoPhysX(string where)
         {
             int colliders = UnityEngine.Object.FindObjectsByType<Collider>(FindObjectsInactive.Include).Length;
             int bodies = UnityEngine.Object.FindObjectsByType<Rigidbody>(FindObjectsInactive.Include).Length;
@@ -124,7 +123,7 @@ namespace PoKingHill.EditorTools
         }
 
         /// <summary>Observation width a policy was exported with (103, 112 or 121).</summary>
-        static int InputsOf(Unity.InferenceEngine.ModelAsset policy) => Unity.InferenceEngine.ModelLoader.Load(policy).inputs[0].shape.Get(1);
+        internal static int InputsOf(Unity.InferenceEngine.ModelAsset policy) => Unity.InferenceEngine.ModelLoader.Load(policy).inputs[0].shape.Get(1);
 
         [Serializable] public class RobotEntry { public string prefix, body; }
         [Serializable] class DumpRobots { public RobotEntry[] robots; }
@@ -199,135 +198,11 @@ namespace PoKingHill.EditorTools
             EditorApplication.EnterPlaymode();
         }
 
-        [MenuItem("PoKingHill/Build duel demo scene")]
-        public static void BuildDuelDemo() => BuildDuelDemo("koth_game");
-
-        /// <summary>The two-fighter gates' scene (git-ignored), so a gate run never overwrites the game scene.</summary>
+        /// <summary>The two-fighter gates' scene (git-ignored): the game scene with the koth_2p bodies, so a gate run never
+        /// changes the game scene.</summary>
         const string GateScene = SceneDir + "/Gate_duel_2p.unity";
 
-        /// <summary>Builds the game scene from an imported arena scene and saves it to <paramref name="savePath"/>
-        /// (Demo_duel.unity by default): the game uses koth_game (two bodies of every human kind and no G1, which left the game
-        /// on 2026-10-20; python -m koth.build_mjcf game), the two-fighter parity gates the scene the brains were trained in
-        /// (koth_2p, saved as Gate_duel_2p.unity). The G1 brains stay in Models/ for those gates but are not in the game roster. The menu seats the
-        /// ticked agents on the bodies, everyone starts on the summit and the sea rises as the round clock. Presentation
-        /// (HUD, cameras, effects) comes from GameSceneBuilder. No PhysX components are created.</summary>
-        public static void BuildDuelDemo(string tag, string savePath = DemoScene, string robot = "g1")
-        {
-            AssetDatabase.Refresh();
-            var scene = EditorSceneManager.OpenScene(SceneOf(robot, tag), OpenSceneMode.Single);
-            var runners = UnityEngine.Object.FindObjectsByType<PolicyRunner>(FindObjectsInactive.Include).OrderBy(r => r.robotPrefix).ToArray();
-            // Body kinds from the model dump: testbeds imported before PolicyRunner had a body field say "g1" for Kim too.
-            var dumpAsset = AssetDatabase.LoadAssetAtPath<TextAsset>($"{ModelsOf(robot)}/model_dump_{tag}.json");
-            if (dumpAsset != null)
-                foreach (var entry in RobotsOf(dumpAsset, tag, robot)) { var r = runners.FirstOrDefault(x => x.robotPrefix == entry.prefix); if (r != null) r.body = entry.body; }
-            var a = runners[0]; var b = runners[1];
-            foreach (var r in runners) r.opponent = r == a ? b : a;      // brains and opponents are assigned at launch by DemoDirector
-            foreach (var probe in UnityEngine.Object.FindObjectsByType<ParityProbe>(FindObjectsInactive.Include)) UnityEngine.Object.DestroyImmediate(probe);
-            var rig = a.transform.parent.gameObject;
-
-            var water = GameObject.CreatePrimitive(PrimitiveType.Cylinder); water.name = "Sea (render only)";
-            UnityEngine.Object.DestroyImmediate(water.GetComponent<Collider>());                 // PhysX stays out of the scene
-            water.transform.localScale = new Vector3(900f, 0.01f, 900f);         // reaches past the distant peaks
-            var mat = AssetDatabase.LoadAssetAtPath<Material>("Assets/PoKingHill/FX/SeaMaterial.mat");          // fallback look if the water shader is missing
-            if (mat == null) { mat = new Material(MjcfImporter.GetLitShader()) { color = new Color(0.10f, 0.35f, 0.55f, 1f) }; AssetDatabase.CreateAsset(mat, "Assets/PoKingHill/FX/SeaMaterial.mat"); }
-            water.GetComponent<MeshRenderer>().sharedMaterial = mat;
-            var sea = rig.AddComponent<Sea>(); sea.waterVisual = water.transform;     // robotPrefixes left empty: every fighter body floats
-
-            var director = rig.AddComponent<DemoDirector>(); director.fighters = runners; director.sea = sea;
-            Unity.InferenceEngine.ModelAsset Onnx(string file) => AssetDatabase.LoadAssetAtPath<Unity.InferenceEngine.ModelAsset>($"{ModelDir}/{file}.onnx");
-            // value = the critic exported next to the policy by export_policy.py --value, when present (drives the win-odds bar)
-            // mlp / valueMlp = the same weights for the Tactician's rollouts (scripts/export_mlp.py), when exported
-            TextAsset Mlp(string dir, string file) => AssetDatabase.LoadAssetAtPath<TextAsset>($"{dir}/{file}.bytes");
-            // action = <file>_action.json (export_policy.py), when the brain was trained with a changed action path
-            TextAsset Action(string dir, string file) => AssetDatabase.LoadAssetAtPath<TextAsset>($"{dir}/{file}_action.json");
-            Fighter F(string name, string badge, string file, int dim, GoalMode goal) => new Fighter { name = name, shortName = badge, obsDim = dim, goal = goal,
-                policy = Onnx(file + "_policy"), value = Onnx(file + "_value"), mlp = Mlp(ModelDir, file + "_mlp"), valueMlp = Mlp(ModelDir, file + "_value_mlp"), action = Action(ModelDir, file) };
-            var roster = new List<Fighter>();
-            // The G1 agents (All-rounder, Free-for-all, Duelist, Rammer, Walker) left the game on 2026-10-20: the roster holds
-            // human bodies only. A gate scene that still has G1 bodies (koth_2p, koth_4p, koth_7p) gets them back through G1Roster.
-            if (runners.Any(r => r.body == "g1")) roster.AddRange(G1Roster(F));
-            // A human is offered only when this scene has its body (koth_7p: Kim e_, Trump f_, Grandpa g_) and a brain of theirs exists:
-            // the fighting brain (Models/<body>/fighter_policy.onnx, 112 inputs) when exported, else the walker that
-            // walks at the nearest opponent. vmax: the walking speed the fighter was trained with (Trump's style: 0.7).
-            // The newest brain of a human that exists wins: ffa (four-way, 121 inputs, trained against G1), the styled
-            // brain (style), xg1 (duels against G1), fighter, walker. A brain trained with a styled action path
-            // (env.py style_pose) has <file>_style.txt beside it naming the pose; the style brain itself is styled.
-            Fighter Human(string body, string name, string badge, float fighterVmax, string style = null)
-            {
-                Unity.InferenceEngine.ModelAsset Own(string file) => AssetDatabase.LoadAssetAtPath<Unity.InferenceEngine.ModelAsset>($"{ModelsOf(body)}/{file}.onnx");
-                string file = new[] { "ffa", style, "xg1", "fighter", "walker" }.FirstOrDefault(f => f != null && Own(f + "_policy") != null) ?? "walker";
-                var sidecar = AssetDatabase.LoadAssetAtPath<TextAsset>($"{ModelsOf(body)}/{file}_style.txt");
-                string pose = sidecar != null ? sidecar.text.Trim() : file == style ? style : null;
-                var policy = Own(file + "_policy"); bool fights = file != "walker", hasBody = runners.Any(r => r.body == body);
-                return new Fighter { name = name, shortName = badge, body = body, policy = policy, obsDim = policy != null ? InputsOf(policy) : 103, goal = GoalMode.Opponent, stopDist = 0f,
-                                     vmax = fights ? fighterVmax : 0.8f, available = policy != null && hasBody, inGame = policy != null && hasBody,
-                                     shove = pose != null, stylePose = pose ?? "shove", value = Own(file + "_value"),
-                                     mlp = fights ? Mlp(ModelsOf(body), file + "_mlp") : null, valueMlp = fights ? Mlp(ModelsOf(body), file + "_value_mlp") : null, action = Action(ModelsOf(body), file),
-                                     note = !hasBody ? $"no {badge} body in this scene" : policy == null ? "no brain yet" : fights ? "" : "walks at you, never trained to fight" };
-            }
-            roster.Add(Human("kim", "Kim", "Kim", 1f));
-            roster.Add(Human("trump", "Trump (Bulldozer: 102 kg, slow, shoves with his body)", "Trump", 0.7f, "bull"));
-            roster.Add(Human("grandpa", "Grandpa (86 kg, in his eighties, leans in and shoves)", "Grandpa", 1f));
-            // the puppet: a walking brain that follows the stick (velocity commands) on a body this scene has; the G1 Walker
-            // when there are G1 bodies, else the first human walker (Kim's), which takes one of her two bodies
-            if (!roster.Any(f => f.steerable))
-                foreach (var body in new[] { "kim", "trump", "grandpa" })
-                {
-                    var w = AssetDatabase.LoadAssetAtPath<Unity.InferenceEngine.ModelAsset>($"{ModelsOf(body)}/walker_policy.onnx");
-                    if (w == null || !runners.Any(r => r.body == body)) continue;
-                    string Name = $"{char.ToUpperInvariant(body[0])}{body.Substring(1)}";
-                    roster.Add(new Fighter { name = $"{Name} (you steer)", shortName = $"{Name} walker", body = body, policy = w, obsDim = 103, goal = GoalMode.None, vmax = 0.8f,
-                                             steerable = true, inGame = false, value = AssetDatabase.LoadAssetAtPath<Unity.InferenceEngine.ModelAsset>($"{ModelsOf(body)}/walker_value.onnx") });
-                    break;
-                }
-            director.roster = roster.ToArray();
-            if (director.roster.Any(f => f.available && f.policy == null)) throw new Exception("a roster policy is missing in " + ModelDir);
-            // get-up brains (training rung getup, exported as Models[/<body>]/getup_policy.onnx) for the bodies that have one
-            director.getupBrains = new[] { "g1", "kim", "trump", "grandpa" }.Where(b => runners.Any(r => r.body == b))
-                .Select(b => new BodyBrain { body = b, policy = AssetDatabase.LoadAssetAtPath<Unity.InferenceEngine.ModelAsset>($"{ModelsOf(b)}/getup_policy.onnx") })
-                .Where(b => b.policy != null).ToArray();
-            director.maps = new[] { "Mountain top", "Summit (baseline)" };
-            director.mapVisuals = new[] { BuildMountainVisual(), GameObject.Find("ArenaVisual (render only)") };
-            RenderSettings.fog = true; RenderSettings.fogMode = FogMode.Exponential; RenderSettings.fogDensity = 0.0022f;      // haze gives the peaks distance
-            RenderSettings.fogColor = new Color(0.72f, 0.80f, 0.90f, 1f);
-            var cam = Camera.main;                      // 9:16 portrait framing of the summit
-            cam.transform.position = new Vector3(0f, 2.6f, -6.2f); cam.transform.LookAt(new Vector3(0f, 0.5f, 0f)); cam.fieldOfView = 38f;
-            var mc = cam.gameObject.AddComponent<MatchCamera>(); mc.director = director;
-            if (cam.GetComponent<AudioListener>() == null) cam.gameObject.AddComponent<AudioListener>();
-            var synth = rig.AddComponent<ImpactSynth>(); synth.robots = runners; synth.sea = sea;   // adds the AudioSource it requires
-            director.synth = synth;
-            rig.AddComponent<PerfProbe>();              // inert unless started with -kothPerf <seconds>
-            GameSceneBuilder.Dress(rig, director, sea, synth, cam, mc, rig.GetComponent<ProjectilePool>());
-            AssertNoPhysX("in the demo scene");
-            EditorSceneManager.SaveScene(scene, savePath);
-            Debug.Log("[ParityBatch] saved " + savePath);
-        }
-
-        /// <summary>The G1 agents, for the gate scenes that still hold G1 bodies (two-fighter, four-way and koth_7p gates):
-        /// All-rounder (champion careful1), Free-for-all when exported, Duelist (gen7), Rammer (gen1) and the Walker (the puppet).</summary>
-        static IEnumerable<Fighter> G1Roster(Func<string, string, string, int, GoalMode, Fighter> F)
-        {
-            var walker = F("G1 Walker (stands its ground)", "Walker", "r1", 103, GoalMode.None); walker.steerable = true;
-            yield return F("G1 All-rounder (champion)", "All-rounder", "attacker", 112, GoalMode.Opponent);
-            var ffa = AssetDatabase.LoadAssetAtPath<Unity.InferenceEngine.ModelAsset>($"{ModelDir}/ffa_policy.onnx");
-            if (ffa != null) { var f = F("G1 Free-for-all (trained 4-way)", "Free-for-all", "ffa", InputsOf(ffa), GoalMode.Opponent); yield return f; }
-            yield return F("G1 Duelist (generation 7)", "Duelist", "duelist", 112, GoalMode.Opponent);
-            yield return F("G1 Rammer (generation 1)", "Rammer", "rammer", 112, GoalMode.Opponent);
-            yield return walker;
-        }
-
-        const string MapDir = "Assets/PoKingHill/Maps/Mountain";
-
-        // Reuse the material asset when it exists (a new one every build gave the scene and the .mat a fresh internal id each time).
-        static Material MapMaterial(string name, Shader shader)
-        {
-            string path = $"{MapDir}/{name}.mat";
-            var m = AssetDatabase.LoadAssetAtPath<Material>(path);
-            if (m == null) { m = new Material(shader); AssetDatabase.CreateAsset(m, path); }
-            return m;
-        }
-
-        static Texture2D MapTexture(string name, bool normal, bool srgb, string dir = MapDir)
+        static Texture2D MapTexture(string name, bool normal, bool srgb, string dir)
         {
             string path = $"{dir}/{name}.png"; var imp = AssetImporter.GetAtPath(path) as TextureImporter;
             if (imp == null) throw new Exception(path + " missing (run tools/make_mountain_map.py in Blender)");
@@ -336,59 +211,14 @@ namespace PoKingHill.EditorTools
             return AssetDatabase.LoadAssetAtPath<Texture2D>(path);
         }
 
-        /// <summary>The "Mountain top" map: scenery exported from Blender by tools/make_mountain_map.py, shown instead of
-        /// the plain dome. Render only: no collider, the collision shape stays the MuJoCo arena mesh.</summary>
-        static GameObject BuildMountainVisual()
-        {
-            var prefab = AssetDatabase.LoadAssetAtPath<GameObject>($"{MapDir}/mountain.fbx");
-            if (prefab == null) throw new Exception($"{MapDir}/mountain.fbx missing (run tools/make_mountain_map.py in Blender)");
-            var root = (GameObject)PrefabUtility.InstantiatePrefab(prefab); root.name = "MountainVisual (render only)";
-            var lit = Shader.Find("Universal Render Pipeline/Lit");
-            var rock = MapMaterial("MountainRock", lit); var mask = MapTexture("mountain_mask", false, false);
-            rock.SetTexture("_BaseMap", MapTexture("mountain_albedo", false, true));
-            rock.SetTexture("_BumpMap", MapTexture("mountain_normal", true, false)); rock.EnableKeyword("_NORMALMAP");
-            rock.SetTexture("_MetallicGlossMap", mask); rock.EnableKeyword("_METALLICSPECGLOSSMAP"); rock.SetFloat("_Smoothness", 1f);   // smoothness = mask alpha
-            rock.SetTexture("_OcclusionMap", mask); rock.EnableKeyword("_OCCLUSIONMAP");
-            rock.SetTexture("_DetailAlbedoMap", MapTexture("rock_detail_albedo", false, false));
-            rock.SetTexture("_DetailNormalMap", MapTexture("rock_detail_normal", true, false));
-            rock.SetTextureScale("_DetailAlbedoMap", new Vector2(10.97f, 10.97f)); rock.EnableKeyword("_DETAIL_MULX2");  // value printed by make_mountain_map.py (2.7 m tile)
-            var far = MapMaterial("BackdropRock", lit); far.SetTexture("_BaseMap", MapTexture("backdrop_albedo", false, true)); far.SetFloat("_Smoothness", 0.1f);
-            var boulder = MapMaterial("BoulderRock", lit); boulder.SetTexture("_BaseMap", MapTexture("boulder_albedo", false, true)); boulder.SetFloat("_Smoothness", 0.15f);
-            boulder.SetTexture("_BumpMap", MapTexture("rock_detail_normal", true, false)); boulder.EnableKeyword("_NORMALMAP");
-            var ruin = MapMaterial("RuinStone", lit); ruin.SetTexture("_BaseMap", MapTexture("ruin_albedo", false, true)); ruin.SetFloat("_Smoothness", 0.2f);
-            ruin.SetTexture("_BumpMap", MapTexture("rock_detail_normal", true, false)); ruin.EnableKeyword("_NORMALMAP");
-            var pole = MapMaterial("PoleMetal", lit); pole.SetColor("_BaseColor", new Color(0.16f, 0.16f, 0.18f)); pole.SetFloat("_Metallic", 0.8f); pole.SetFloat("_Smoothness", 0.55f);
-            // the cloth sways in MatchFx's _KothWind (FX/Banner.shader); an asset material, so a player build keeps the shader
-            var bannerShader = Shader.Find("PoKingHill/Banner"); if (bannerShader == null) throw new Exception("shader PoKingHill/Banner missing");
-            var cloth = MapMaterial("BannerCloth", bannerShader); if (cloth.shader != bannerShader) cloth.shader = bannerShader;
-            cloth.SetTexture("_BaseMap", MapTexture("banner_albedo", false, true));
-            foreach (var m in new[] { rock, far, boulder, ruin, pole, cloth }) EditorUtility.SetDirty(m);
-            foreach (var r in root.GetComponentsInChildren<MeshRenderer>())
-                r.sharedMaterial = r.name.StartsWith("Backdrop") ? far : r.name.StartsWith("Rocks") || r.name.StartsWith("Crags") ? boulder : r.name.StartsWith("Ruins") ? ruin
-                                 : r.name.StartsWith("BannerPoles") ? pole : r.name.StartsWith("Banners") ? cloth : rock;
-            // Mountain_LOD0-2: the FBX importer makes them a LODGroup; build one if it did not (QualityTier Low forces LOD1)
-            if (root.GetComponentInChildren<LODGroup>() == null)
-            {
-                var levels = Enumerable.Range(0, 3).Select(i => root.GetComponentsInChildren<MeshRenderer>().FirstOrDefault(r => r.name == "Mountain_LOD" + i)).ToArray();
-                if (levels.All(r => r != null))
-                {
-                    var lg = levels[0].transform.parent.gameObject.AddComponent<LODGroup>();
-                    lg.SetLODs(new[] { new LOD(0.35f, new Renderer[] { levels[0] }), new LOD(0.12f, new Renderer[] { levels[1] }), new LOD(0.01f, new Renderer[] { levels[2] }) });
-                    lg.RecalculateBounds();
-                }
-            }
-            foreach (var c in root.GetComponentsInChildren<Collider>()) UnityEngine.Object.DestroyImmediate(c);
-            foreach (var f in root.GetComponentsInChildren<MeshFilter>()) Debug.Log($"[ParityBatch] map mesh {f.name}: {f.sharedMesh.vertexCount} verts, world bounds {f.GetComponent<Renderer>().bounds}");
-            return root;
-        }
-
         /// <summary>Still picture of the whole map from outside (the match camera only ever frames the summit):
-        /// renders Demo_duel in edit mode with the sea at its starting level to -kothOut (default map_overview.png).</summary>
+        /// renders the game scene in edit mode with the sea at its starting level to -kothOut (default map_overview.png).
+        /// Nothing is saved.</summary>
         public static void MapOverview()
         {
-            BuildDuelDemo();
+            EditorSceneManager.OpenScene(GameScene.Path, OpenSceneMode.Single);
             var water = GameObject.Find("Sea (render only)"); if (water != null) water.transform.position = new Vector3(0f, -6f, 0f);
-            var dd = UnityEngine.Object.FindAnyObjectByType<DemoDirector>();                 // in edit mode nothing has picked a map yet
+            var dd = UnityEngine.Object.FindAnyObjectByType<MatchDirector>();                 // in edit mode nothing has picked a map yet
             for (int i = 0; i < dd.mapVisuals.Length; i++) if (dd.mapVisuals[i] != null) dd.mapVisuals[i].SetActive(i == dd.selectedMap);
             var cam = new GameObject("OverviewCamera").AddComponent<Camera>(); cam.fieldOfView = 45f; cam.farClipPlane = 2000f;
             cam.transform.position = new Vector3(11f, 1.5f, -13f); cam.transform.LookAt(new Vector3(0f, -3f, 0f));
@@ -400,16 +230,15 @@ namespace PoKingHill.EditorTools
             if (Cli.Exit) EditorApplication.Exit(0);
         }
 
-        /// <summary>Parity gate for the combat policy: Demo_duel with the director replaced by one probe per robot,
+        /// <summary>Parity gate for the combat policy: the two-fighter gate scene with the director replaced by one probe per robot,
         /// compared against &lt;rung&gt;_reference_trajectory_a/_b.json (recorded with the same two ONNX files).</summary>
         public static void RunDuelParity()
         {
             string rung = Cli.Arg("-kothRung", "r4duel");
-            BuildDuelDemo("koth_2p", GateScene);
-            EditorSceneManager.OpenScene(GateScene, OpenSceneMode.Single);
+            GameScene.Compose("koth_2p", "g1", GateScene);
             var champion = AssetDatabase.LoadAssetAtPath<Unity.InferenceEngine.ModelAsset>($"{ModelDir}/attacker_policy.onnx");
             foreach (var r in UnityEngine.Object.FindObjectsByType<PolicyRunner>(FindObjectsInactive.Include)) { r.policy = champion; r.policyObsDim = 112; r.goal = GoalMode.Opponent; r.goalStopDist = 0f; r.goalVmax = 1f; }
-            foreach (var dd in UnityEngine.Object.FindObjectsByType<DemoDirector>(FindObjectsInactive.Include)) UnityEngine.Object.DestroyImmediate(dd);
+            foreach (var dd in UnityEngine.Object.FindObjectsByType<MatchDirector>(FindObjectsInactive.Include)) UnityEngine.Object.DestroyImmediate(dd);
             foreach (var sea in UnityEngine.Object.FindObjectsByType<Sea>(FindObjectsInactive.Include)) UnityEngine.Object.DestroyImmediate(sea);
             foreach (var runner in UnityEngine.Object.FindObjectsByType<PolicyRunner>(FindObjectsInactive.Include))
             {
@@ -422,7 +251,7 @@ namespace PoKingHill.EditorTools
             EditorApplication.EnterPlaymode();
         }
 
-        /// <summary>Statistical parity gate for the combat rungs: play N fast rounds of the duel demo without the sea
+        /// <summary>Statistical parity gate for the combat rungs: play N fast rounds of the two-fighter gate scene without the sea
         /// (fixed 25 s bell, as in training evaluation) and write duel_stats_unity.json.</summary>
         public static void RunDuelStats() => RunDuelStats("g1", int.Parse(Cli.Arg("-kothRounds", "200")), int.Parse(Cli.Arg("-kothA", "0")), int.Parse(Cli.Arg("-kothB", "0")));
 
@@ -438,33 +267,12 @@ namespace PoKingHill.EditorTools
         static void RunDuelStats(string robot, int rounds, int a, int b, bool play)
         {
             string gate = robot == "g1" ? GateScene : $"{SceneDir}/Gate_duel_{robot}_2p.unity";
-            BuildDuelDemo("koth_2p", gate, robot);
-            EditorSceneManager.OpenScene(gate, OpenSceneMode.Single);
+            GameScene.Compose("koth_2p", robot, gate);
             foreach (var sea in UnityEngine.Object.FindObjectsByType<Sea>(FindObjectsInactive.Include)) UnityEngine.Object.DestroyImmediate(sea);
-            var dd = UnityEngine.Object.FindAnyObjectByType<DemoDirector>(); dd.sea = null; dd.roundSeconds = 25f;
+            var dd = UnityEngine.Object.FindAnyObjectByType<MatchDirector>(); dd.sea = null; dd.roundSeconds = 25f;
             int own = Array.FindIndex(dd.roster, f => f.body == robot && f.available);
             dd.statsRounds = rounds; dd.selectedA = a < 0 ? own : a; dd.selectedB = b < 0 ? own : b;
             if (play) EditorApplication.EnterPlaymode();
-        }
-
-        /// <summary>Tactician A/B gate: the duel statistics gate (-kothA / -kothB roster indices, default the champion
-        /// against itself, -kothRounds N) with only seat A planning (Tactician.gateSeat = 0, rollouts waited for, so the
-        /// result does not depend on the time scale). Compare wins_a with wins_b; the plain gate on the same pair is the
-        /// baseline (about 50/50).</summary>
-        public static void RunTacticianStats()
-        {
-            // variants for tuning: -kothHorizon s, -kothPressBonus x, -kothCandidates n (1 = Press only: must match the plain gate)
-            float F(string k, float d) => float.TryParse(Cli.Arg(k, ""), System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out float v) ? v : d;
-            RunTacticianStats(int.Parse(Cli.Arg("-kothRounds", "200")), F("-kothHorizon", 0.6f), F("-kothPressBonus", 0f), (int)F("-kothCandidates", 4), int.Parse(Cli.Arg("-kothA", "0")), int.Parse(Cli.Arg("-kothB", "0")));
-        }
-
-        public static void RunTacticianStats(int rounds, float horizon, float pressBonus, int candidates, int a = 0, int b = 0, int samples = 1)
-        {
-            RunDuelStats("g1", rounds, a, b, play: false);
-            var t = UnityEngine.Object.FindAnyObjectByType<Tactician>();
-            if (t == null) { Debug.LogError("[ParityBatch] no Tactician in the gate scene"); if (Cli.Exit) EditorApplication.Exit(3); return; }
-            t.gateSeat = 0; t.horizon = horizon; t.pressBonus = pressBonus; t.candidateCount = candidates; t.samples = samples;
-            EditorApplication.EnterPlaymode();
         }
 
         /// <summary>Get-up gate: Testbed_flat_1p with the get-up brain (Models[/robot]/getup_policy.onnx, -kothRobot),
@@ -485,12 +293,12 @@ namespace PoKingHill.EditorTools
             EditorApplication.EnterPlaymode();
         }
 
-        /// <summary>The duel statistics gate with the get-up rule (DemoDirector.getupInStats): compare with
+        /// <summary>The duel statistics gate with the get-up rule (MatchDirector.getupInStats): compare with
         /// scripts/duel_stats.py --getup on the same pair.</summary>
         public static void RunGetupDuelStats()
         {
             RunDuelStats("g1", int.Parse(Cli.Arg("-kothRounds", "200")), int.Parse(Cli.Arg("-kothA", "0")), int.Parse(Cli.Arg("-kothB", "0")), play: false);
-            var dd = UnityEngine.Object.FindAnyObjectByType<DemoDirector>(); dd.getupInStats = true;
+            var dd = UnityEngine.Object.FindAnyObjectByType<MatchDirector>(); dd.getupInStats = true;
             if (dd.getupBrains.Length == 0) { Debug.LogError("[ParityBatch] no getup_policy.onnx for the G1"); if (Cli.Exit) EditorApplication.Exit(3); return; }
             EditorApplication.EnterPlaymode();
         }
@@ -514,10 +322,9 @@ namespace PoKingHill.EditorTools
         {
             bool human = candidate == "Kim" || candidate == "Trump" || candidate == "Grandpa";
             string gate = human ? GateFfaMixedScene : GateFfaScene;
-            BuildDuelDemo(human ? "koth_7p" : "koth_4p", gate);
-            EditorSceneManager.OpenScene(gate, OpenSceneMode.Single);
+            GameScene.Compose(human ? "koth_7p" : "koth_4p", "g1", gate);
             foreach (var sea in UnityEngine.Object.FindObjectsByType<Sea>(FindObjectsInactive.Include)) UnityEngine.Object.DestroyImmediate(sea);
-            var dd = UnityEngine.Object.FindAnyObjectByType<DemoDirector>(); dd.sea = null; dd.roundSeconds = 20f;
+            var dd = UnityEngine.Object.FindAnyObjectByType<MatchDirector>(); dd.sea = null; dd.roundSeconds = 20f;
             int Find(string badge) => Array.FindIndex(dd.roster, f => f.Badge == badge && f.available);
             string want = candidate != "" ? candidate : Find("Free-for-all") >= 0 ? "Free-for-all" : "All-rounder";
             dd.statsCandidate = Find(want);
@@ -538,23 +345,22 @@ namespace PoKingHill.EditorTools
         {
             if (ffaCandidate != null) { if (!RunFfaStatsScene(ffaCandidate)) return; }
             else RunDuelStats(robot, rounds, a, b, play: false);
-            var dd = UnityEngine.Object.FindAnyObjectByType<DemoDirector>(); dd.statsRounds = rounds;
+            var dd = UnityEngine.Object.FindAnyObjectByType<MatchDirector>(); dd.statsRounds = rounds;
             var rec = dd.gameObject.AddComponent<ObsRecorder>();
             rec.tag_ = tag ?? (ffaCandidate != null ? $"ffa_{ffaCandidate.ToLowerInvariant().Replace(' ', '_')}" : $"duel_{robot}_{a}_{b}"); rec.brainFilter = brainFilter ?? "";
             dd.statsFile = $"unity_obs_{rec.tag_}_stats.json";       // beside the dump: the gate's own reference files stay as they are
             EditorApplication.EnterPlaymode();
         }
 
-        /// <summary>Windows player of the duel demo in Builds/Win (release; add -kothDev for a development build).</summary>
+        /// <summary>Windows player of the game scene in Builds/Win (release; add -kothDev for a development build).</summary>
         [MenuItem("PoKingHill/Build Windows player")]
         public static void BuildPlayer()
         {
             try
             {
-                BuildDuelDemo();
                 var report = BuildPipeline.BuildPlayer(new BuildPlayerOptions
                 {
-                    scenes = new[] { DemoScene }, locationPathName = "Builds/Win/PoKingHill.exe",
+                    scenes = new[] { GameScene.Path }, locationPathName = "Builds/Win/PoKingHill.exe",
                     target = BuildTarget.StandaloneWindows64, options = Cli.Flag("-kothDev") ? BuildOptions.Development : BuildOptions.None,
                 });
                 Debug.Log($"[ParityBatch] build {report.summary.result}: {report.summary.totalErrors} errors, {report.summary.totalSize / (1024 * 1024)} MB -> {report.summary.outputPath}");
@@ -563,11 +369,10 @@ namespace PoKingHill.EditorTools
             catch (Exception e) { Debug.LogError("[ParityBatch] BUILD FAILED: " + e); if (Cli.Exit) EditorApplication.Exit(3); throw; }
         }
 
-        /// <summary>Build the duel demo, open it and press Play (used with a normal, visible editor launch).</summary>
-        public static void PlayDuelDemo()
+        /// <summary>Open the game scene and press Play (used with a normal, visible editor launch).</summary>
+        public static void PlayGame()
         {
-            BuildDuelDemo();
-            EditorSceneManager.OpenScene(DemoScene, OpenSceneMode.Single);
+            EditorSceneManager.OpenScene(GameScene.Path, OpenSceneMode.Single);
             EditorApplication.ExecuteMenuItem("Window/General/Game");      // the Simulator view turns clicks into touches, which the IMGUI menu ignores
             EditorApplication.EnterPlaymode();
         }

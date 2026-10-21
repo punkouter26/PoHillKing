@@ -7,7 +7,7 @@ using UnityEngine;
 namespace PoKingHill
 {
     /// <summary>
-    /// Performance pass (tasks.md D.6). Off unless the process was started with <c>-kothPerf &lt;seconds&gt;</c>: then the
+    /// Performance pass (DOCS/tasks.md D.6). Off unless the process was started with <c>-kothPerf &lt;seconds&gt;</c>: then the
     /// duel fights continuously, and after a 2 s warm-up every physics step and frame is timed for that long,
     /// perf_unity.json is written next to the project / player data folder, and the process exits.
     ///   tick   = first preUpdate listener -> first postUpdate listener (2 brains + ctrl + sea + mj_step + state sync)
@@ -34,7 +34,7 @@ namespace PoKingHill
             if (!float.TryParse(Cli.Arg("-kothPerf"), NumberStyles.Float, CultureInfo.InvariantCulture, out _seconds)) { enabled = false; return; }
             int cap = (int)((_seconds + 1) / Time.fixedDeltaTime);
             _tick = new float[cap]; _mj = new float[cap]; _brain = new float[cap]; _frame = new float[cap];
-            var dd = FindAnyObjectByType<DemoDirector>(); if (dd != null) { dd.autoLaunch = true; dd.roundsPerMatch = 0; dd.pauseBetweenRounds = 0f; }
+            var dd = FindAnyObjectByType<MatchDirector>(); if (dd != null) { dd.autoLaunch = true; dd.roundsPerMatch = 0; dd.pauseBetweenRounds = 0f; }
             _runners = FindObjectsByType<PolicyRunner>(FindObjectsInactive.Exclude);
             foreach (var r in _runners) r.OnPolicyStep += OnBrain;
             _frameGc = ProfilerRecorder.StartNew(ProfilerCategory.Memory, "GC Allocated In Frame");

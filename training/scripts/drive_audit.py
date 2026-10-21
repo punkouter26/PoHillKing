@@ -8,7 +8,7 @@
    peak torques (as in mujoco_menagerie's g1.xml actuatorfrcrange) and approximate motor speed limits, and the
    leg PD gains of unitree_rl_gym's G1 config; for a human its own design table (koth/build_<body>.py JOINT_CLASSES).
    kp here is the position-actuator gain (N m / rad of ctrl error). The project's leg gains are 2-3 x the
-   unitree_rl_gym ones on purpose: lower gains could not hold a static pose in this model (rl_optimization_log.md).
+   unitree_rl_gym ones on purpose: lower gains could not hold a static pose in this model (DOCS/rl_optimization_log.md).
 2. With --ckpt: a deterministic rollout on the rung's eval settings (eval.py), per joint: share of policy outputs at
    or beyond the +-1 clamp, mean |action|, share of physics ticks with the actuator force at its limit (>= 99 %),
    and peak |joint velocity| against the speed limit."""

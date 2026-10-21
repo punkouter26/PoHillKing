@@ -3,12 +3,10 @@ using UnityEngine;
 
 namespace PoKingHill
 {
-    public enum CameraStyle { Broadcast, Classic }
-    /// <summary>Who each brain is pointed at in a free-for-all (brains were trained 1v1): Nearest (as trained), Opportunist
-    /// (easiest to push off), Dogpile (everyone at the king, the one nearest the centre), Grudge (whoever pushed me last),
-    /// Vulture (hang back while two others fight, then go for the weakest).</summary>
-    public enum Targeting { Nearest, Opportunist, Dogpile, Grudge, Vulture }
-    public enum Overlay { Off, Strain, Fatigue, Colliders }
+    /// <summary>Who each brain is pointed at in a free-for-all (brains were trained 1v1): Nearest (as trained) or
+    /// Opportunist (shown as Weakest: the one easiest to push off).</summary>
+    public enum Targeting { Nearest, Opportunist }
+    public enum Overlay { Off, Strain, Colliders }
     /// <summary>Render budget (QualityTier): Auto starts High on desktop, Medium on phones, and steps down in a player
     /// build when the frame rate stays low.</summary>
     public enum Quality { Auto, Low, Medium, High }
@@ -16,8 +14,8 @@ namespace PoKingHill
     /// <summary>
     /// Every optional setting, saved in PlayerPrefs. The defaults are the plain game, with the least on screen: one
     /// round per launch, the sea at its normal pace, the fight starts at once (no tale of the tape, no automatic
-    /// replay), no captions, no win-odds bar, no hazards or extra rules, no developer tools. Read anywhere; the
-    /// Settings page of the menu writes them.
+    /// replay), no get-up rule, no developer tools (so no captions, win-odds bar or debug panel either). Read anywhere;
+    /// the Settings page of the menu writes them, the debug panel the developer ones.
     /// </summary>
     public static class GameSettings
     {
@@ -33,43 +31,38 @@ namespace PoKingHill
         public static bool Replays { get => B("replays", false); set => Set("replays", value); }
 
         // Picture
-        public static CameraStyle CameraStyle { get => (CameraStyle)I("camera", (int)CameraStyle.Broadcast); set => Set("camera", (int)value); }
         public static Quality Quality { get => (Quality)I("quality", (int)Quality.Auto); set => Set("quality", (int)value); }
-        public static bool Effects { get => B("effects", true); set => Set("effects", value); }
-        /// <summary>Slow motion when a fighter's balance point crosses the rim, a short freeze on the biggest hits (TimeWarp).</summary>
-        public static bool SlowMotion { get => B("slowmo", true); set => Set("slowmo", value); }
-        public static bool CutAways { get => B("cutaways", true); set => Set("cutaways", value); }
-        public static bool WinOdds { get => B("winOdds", false); set => Set("winOdds", value); }
-        /// <summary>Caption lines from the Commentator.</summary>
-        public static bool Commentary { get => B("commentary", false); set => Set("commentary", value); }
+        /// <summary>Particles, decals, post punch, shockwave, camera shake and cuts to a faller at the water, slow motion
+        /// at the rim and hit stop (TimeWarp). Off = the plain picture.</summary>
+        public static bool Cinematic { get => B("cinematic", true); set => Set("cinematic", value); }
 
         // Sound: mix channels are multipliers on MasterVolume (hits and footsteps; the wind, surf, crowd and thunder bed)
         public static float MasterVolume { get => F("volume", 0.6f); set => Set("volume", Mathf.Clamp01(value)); }
         public static float SfxVolume { get => F("sfxVolume", 1f); set => Set("sfxVolume", Mathf.Clamp01(value)); }
         public static float AmbienceVolume { get => F("ambVolume", 0.7f); set => Set("ambVolume", Mathf.Clamp01(value)); }
 
-        // Advanced: extra rules and experiments
-        public static Targeting Targeting { get => (Targeting)I("targeting", (int)Targeting.Opportunist); set => Set("targeting", (int)value); }
-        public static bool Hazards { get => B("hazards", false); set => Set("hazards", value); }
-        /// <summary>Fighters tire with the work their joints do (PD stiffness down to 85 %, inside the 80-120 % the
-        /// brains were randomised over); a badge tap gives a short adrenaline boost.</summary>
-        public static bool Stamina { get => B("stamina", false); set => Set("stamina", value); }
+        // Advanced: extra rules, developer tools
+        /// <summary>Who free-for-all brains go for (no effect with two fighters).</summary>
+        public static Targeting Targeting { get => (Targeting)Mathf.Clamp(I("targeting", (int)Targeting.Opportunist), 0, 1); set => Set("targeting", (int)value); }
         /// <summary>A fighter that falls on the plateau gets a count to stand up again with its get-up brain.</summary>
         public static bool GetUp { get => B("getup", false); set => Set("getup", value); }
-        /// <summary>Fighters with a lookahead planner choose press / flank / regroup from simulated futures.</summary>
-        public static bool Tactician { get => B("tactician", false); set => Set("tactician", value); }
-        /// <summary>The FPS pill, the debug button and the two-finger tap that open the debug panel.</summary>
+        /// <summary>The FPS pill, the debug button and the two-finger tap that open the debug panel; the options below
+        /// apply only while it is on.</summary>
         public static bool DevTools { get => B("devTools", false); set => Set("devTools", value); }
 
-        // Debug panel
+        // Debug panel (developer tools only)
         /// <summary>A second line on the FPS pill: frame time p95 and the quality tier.</summary>
-        public static bool TelemetryHud { get => B("telemetryHud", false); set => Set("telemetryHud", value); }
-        public static Overlay Overlay { get => (Overlay)I("overlay", (int)Overlay.Off); set => Set("overlay", (int)value); }
-        public static bool IntentArrows { get => B("intent", false); set => Set("intent", value); }
+        public static bool TelemetryHud { get => DevTools && B("telemetryHud", false); set => Set("telemetryHud", value); }
+        public static Overlay Overlay { get => DevTools ? (Overlay)Mathf.Clamp(I("overlay", (int)Overlay.Off), 0, 2) : Overlay.Off; set => Set("overlay", (int)value); }
+        public static bool IntentArrows { get => DevTools && B("intent", false); set => Set("intent", value); }
+        public static bool WinOdds { get => DevTools && B("winOdds", false); set => Set("winOdds", value); }
+        /// <summary>Caption lines from the Commentator.</summary>
+        public static bool Commentary { get => DevTools && B("commentary", false); set => Set("commentary", value); }
 
-        static readonly string[] Keys = { "rounds", "seaPace", "intro", "replays", "camera", "quality", "effects", "slowmo", "cutaways", "winOdds", "commentary",
-                                          "volume", "sfxVolume", "ambVolume", "targeting", "hazards", "stamina", "getup", "tactician", "devTools",
-                                          "telemetryHud", "overlay", "intent" };
+        static readonly string[] Keys = { "rounds", "seaPace", "intro", "replays", "getup", "targeting", "quality", "cinematic",
+                                          "volume", "sfxVolume", "ambVolume", "devTools", "telemetryHud", "overlay", "intent", "winOdds", "commentary",
+                                          // settings that were cut (2026-10-21): cleared by a reset too
+                                          "camera", "effects", "slowmo", "cutaways", "hazards", "stamina", "tactician" };
         /// <summary>Back to the defaults: deletes only this game's keys, never other PlayerPrefs.</summary>
         public static void ResetAll() { foreach (var k in Keys) PlayerPrefs.DeleteKey("koth." + k); PlayerPrefs.Save(); Changed?.Invoke(); }
 

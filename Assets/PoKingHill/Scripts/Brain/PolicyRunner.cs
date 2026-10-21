@@ -29,8 +29,6 @@ namespace PoKingHill
         [Tooltip("Network input size: 103 = locomotion state, 112 = state + 9 opponent/ring values (combat policies).")]
         public int policyObsDim = ObsBuilder.ObsDim;
         public bool paused;
-        [Tooltip("Where a fighting brain (GoalMode.Opponent) walks: Press = straight at the opponent, as trained. Set by Tactician and Vulture targeting.")]
-        public Tactic tactic = Tactic.Press;
         [Tooltip("Optional get-up brain (103 inputs, zero command; training rung getup) that takes over while the fighter is down")]
         public ModelAsset getupPolicy;
         [Tooltip("Shove style (mirror of SHOVE_* in training/koth/env.py): the arm rest pose moves to hands-forward as the opponent closes from 1.6 m to 1.0 m, and the action is low-passed before it becomes a joint target.")]
@@ -135,7 +133,6 @@ namespace PoKingHill
                 if (goal == GoalMode.Opponent && opponent != null && opponent.Map != null)
                 {
                     double* o = d->qpos + opponent.Map.RootQposAdr; gx = o[0] - q[0]; gy = o[1] - q[1];
-                    if (tactic != Tactic.Press) Tactics.Goal(tactic, q, o, goalStopDist, out gx, out gy, out stop);
                 }
                 GoalCommand.Compute(q + 3, gx, gy, stop, goalVmax, _cmd);
                 command = new Vector3(_cmd[0], _cmd[1], _cmd[2]);
@@ -251,7 +248,7 @@ namespace PoKingHill
         {
             _worker?.Dispose(); _input?.Dispose(); _worker = null; _input = null;
             policy = newPolicy; policyObsDim = obsDim; actionMap = action; goal = newGoal; goalStopDist = stopDist; goalVmax = vmax; command = Vector3.zero; shoveStyle = shove;
-            tactic = Tactic.Press; _getup = false;
+            _getup = false;
             if (pose != stylePose) { stylePose = pose; SetStyleOffsets(); }
             LoadBrain(); ResetClock();
         }

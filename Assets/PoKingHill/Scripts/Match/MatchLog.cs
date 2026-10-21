@@ -44,7 +44,7 @@ namespace PoKingHill
 
         /// <summary>Pairs are bodies, not agents, so a mirror match (the same agent on two bodies) counts correctly: the
         /// winning body beats every other body; pairs of the same agent and pairs that both lost to a third are skipped.</summary>
-        public static void Record(in RoundResult r, Fighter[] roster)
+        public static void Record(in RoundResult r, Agent[] roster)
         {
             int n = r.Agents.Length; var delta = new Dictionary<string, float>(); var seen = new HashSet<string>();
             for (int i = 0; i < n; i++)
@@ -85,7 +85,7 @@ namespace PoKingHill
     /// </summary>
     public unsafe class MatchLog : MonoBehaviour
     {
-        public DemoDirector director;
+        public MatchDirector director;
         public ContactLedger ledger;                    // optional: knock-out credits in the telemetry and the ladder
         public QualityTier perf;                        // optional: frame rate, frame time and quality tier per round
         const int Hz = 10, MaxSeconds = 90, MaxBodies = 8;
@@ -118,7 +118,7 @@ namespace PoKingHill
             _samples = 0; _tick = 0; _effortTicks = 0;
             for (int i = 0; i < MaxBodies; i++) { _path[i] = _topSpeed[i] = _effort[i] = 0; _koAt[i] = -1; _lastX[i] = double.NaN; }
         }
-        void OnKo(PolicyRunner r) { int i = Array.IndexOf(director.fighters, r); if (i >= 0 && i < MaxBodies) _koAt[i] = director.RoundTime; }
+        void OnKo(PolicyRunner r) { int i = Array.IndexOf(director.bodies, r); if (i >= 0 && i < MaxBodies) _koAt[i] = director.RoundTime; }
 
         void Post(object s, MjStepArgs a)
         {
@@ -127,7 +127,7 @@ namespace PoKingHill
             var d = MjScene.Instance.Data; int n = Mathf.Min(director.Playing, MaxBodies); bool room = _samples < MaxSeconds * Hz;
             for (int i = 0; i < n; i++)
             {
-                var r = director.fighters[i]; double* q = d->qpos + r.Map.RootQposAdr; double* v = d->qvel + r.Map.RootDofAdr;
+                var r = director.bodies[i]; double* q = d->qpos + r.Map.RootQposAdr; double* v = d->qvel + r.Map.RootDofAdr;
                 if (!double.IsNaN(_lastX[i])) _path[i] += Math.Sqrt((q[0] - _lastX[i]) * (q[0] - _lastX[i]) + (q[1] - _lastY[i]) * (q[1] - _lastY[i]));
                 _lastX[i] = q[0]; _lastY[i] = q[1];
                 _topSpeed[i] = Math.Max(_topSpeed[i], Math.Sqrt(v[0] * v[0] + v[1] * v[1]));
@@ -144,8 +144,8 @@ namespace PoKingHill
             Ladder.Record(r, director.roster);
             for (int i = 0; i < r.Agents.Length && i < MaxBodies; i++) _ratingDelta[i] += Ladder.Rating(director.NameOf(r.Agents[i], "Robot"));
             if (ledger != null)
-                for (int i = 0; i < r.Agents.Length && i < director.fighters.Length; i++)
-                    if (r.Agents[i] >= 0) Ladder.AddCredits(director.NameOf(r.Agents[i], "Robot"), ledger.Knockouts(director.fighters[i]), ledger.Assists(director.fighters[i]));
+                for (int i = 0; i < r.Agents.Length && i < director.bodies.Length; i++)
+                    if (r.Agents[i] >= 0) Ladder.AddCredits(director.NameOf(r.Agents[i], "Robot"), ledger.Knockouts(director.bodies[i]), ledger.Assists(director.bodies[i]));
             try { Write(r); } catch (Exception ex) { Debug.LogWarning("[MatchLog] " + ex.Message); }
         }
 
@@ -160,7 +160,7 @@ namespace PoKingHill
               .Append(",\"hz\":").Append(Hz).Append(",\"fighters\":[");
             for (int i = 0; i < r.Agents.Length && i < MaxBodies; i++)
             {
-                var f = director.fighters[i]; double* q = d->qpos + f.Map.RootQposAdr; int agent = r.Agents[i];
+                var f = director.bodies[i]; double* q = d->qpos + f.Map.RootQposAdr; int agent = r.Agents[i];
                 string name = director.NameOf(agent, "Robot");
                 if (i > 0) sb.Append(',');
                 sb.Append("{\"agent\":\"").Append(name).Append("\",\"body\":\"").Append(f.robotPrefix).Append("\",\"result\":\"")

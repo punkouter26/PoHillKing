@@ -6,23 +6,21 @@ using UnityEngine;
 namespace PoKingHill
 {
     /// <summary>
-    /// Broadcast direction with Cinemachine (GameSettings.CameraStyle = Broadcast; Classic hands the camera back to
-    /// MatchCamera). Shots, highest priority wins:
+    /// Broadcast direction with Cinemachine, the game's only camera. Shots, highest priority wins:
     ///   replay   slow orbit close to the fighter whose knock-out is being replayed
-    ///   faller   hard cut to a knocked-out fighter as it reaches the sea (once per faller, at most 3 s; cut-aways setting)
+    ///   faller   hard cut to a knocked-out fighter as it reaches the sea (once per faller, at most 3 s; Cinematic setting)
     ///   winner   orbit around the winner while the result is up
     ///   crane    intro: a dolly along a spline from low over the sea up to the summit (Splines + CinemachineSplineDolly)
     ///   intro    intro: a close, slow orbit of the fighter whose tale-of-the-tape card is up
     ///   summit   group framing of everyone still in, the fighter nearest the centre weighted double
     ///   menu     slow orbit of the empty summit
-    /// Big impacts shake the active camera through a Cinemachine impulse (Effects setting).
+    /// Big impacts shake the active camera through a Cinemachine impulse (Cinematic setting).
     /// Targets are the pelvis transforms the MuJoCo plugin moves (render side only, no physics).
     /// </summary>
     public unsafe class BroadcastCamera : MonoBehaviour
     {
-        public DemoDirector director;
+        public MatchDirector director;
         public CinemachineBrain brain;
-        public MatchCamera classic;
         public CinemachineCamera summit, faller, winner, replay, menu;
         [Tooltip("Intro shots (optional): the spline crane and the close orbit of the featured fighter")] public CinemachineCamera crane, intro;
         public CinemachineTargetGroup group;
@@ -41,17 +39,13 @@ namespace PoKingHill
 
         void OnImpact(Vector3 p, float strength, PolicyRunner r)
         {
-            if (impulse == null || !GameSettings.Effects || strength < 0.45f || !brain.enabled) return;
+            if (impulse == null || !GameSettings.Cinematic || strength < 0.45f) return;
             impulse.GenerateImpulseAt(p, new Vector3(0.2f, -1f, 0.1f) * (0.12f * strength));
         }
 
         void LateUpdate()
         {
-            if (director == null) return;
-            bool broadcast = GameSettings.CameraStyle == CameraStyle.Broadcast;
-            if (brain.enabled != broadcast) brain.enabled = broadcast;
-            if (classic != null && classic.enabled == broadcast) classic.enabled = !broadcast;
-            if (!broadcast || !MjScene.InstanceExists || MjScene.Instance.Data == null) return;
+            if (director == null || !MjScene.InstanceExists || MjScene.Instance.Data == null) return;
 
             var alive = director.Alive; var fallen = director.Fallen;
             // the summit group: everyone still in, the one nearest the centre counts double
@@ -63,8 +57,8 @@ namespace PoKingHill
             if (ReplaySystem.Active && Pelvis(ReplaySystem.Focus) != null) { Aim(replay, Pelvis(ReplaySystem.Focus)); Spin(replay, 0.5f); next = replay; }
             else if (director.State == MatchState.Menu || director.State == MatchState.Booting) { Spin(menu, 0.6f); next = menu; }
             else if (director.State == MatchState.Intro && crane != null && intro != null) next = IntroShot();
-            else if (director.State == MatchState.Result && director.LastResult.Winner >= 0 && director.LastResult.Winner < director.fighters.Length)
-            { Aim(winner, Pelvis(director.fighters[director.LastResult.Winner])); Spin(winner, 1f); next = winner; }
+            else if (director.State == MatchState.Result && director.LastResult.Winner >= 0 && director.LastResult.Winner < director.bodies.Length)
+            { Aim(winner, Pelvis(director.bodies[director.LastResult.Winner])); Spin(winner, 1f); next = winner; }
             else if (FallerShot(fallen)) next = faller;
             else next = summit;
             Activate(next);
@@ -79,7 +73,7 @@ namespace PoKingHill
                 if (dolly != null) dolly.CameraPosition = Mathf.SmoothStep(0f, 1f, Mathf.Clamp01(director.IntroElapsed / Mathf.Max(0.1f, director.introCrane)));
                 return crane;
             }
-            var p = f < director.Playing ? Pelvis(director.fighters[f]) : null;
+            var p = f < director.Playing ? Pelvis(director.bodies[f]) : null;
             if (p != null)
             {
                 Aim(intro, p);
@@ -94,7 +88,7 @@ namespace PoKingHill
         bool FallerShot(IReadOnlyList<PolicyRunner> fallen)
         {
             var sea = director.sea;
-            if (fallen.Count == 0 || sea == null || !GameSettings.CutAways) { _cut = null; return false; }
+            if (fallen.Count == 0 || sea == null || !GameSettings.Cinematic) { _cut = null; return false; }
             for (int i = 0; i < fallen.Count; i++)
             {
                 var t = Pelvis(fallen[i]);

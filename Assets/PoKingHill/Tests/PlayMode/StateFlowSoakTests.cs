@@ -23,7 +23,7 @@ namespace PoKingHill.Tests
             while (!ok()) { if (Time.realtimeSinceStartup > end) Assert.Fail("timed out waiting for " + what); yield return null; }
         }
 
-        static void Invariants(DemoDirector d, HudView hud, string after)
+        static void Invariants(MatchDirector d, HudView hud, string after)
         {
             string ctx = $" (state {d.State}, after {after})";
             Assert.AreEqual(d.State == MatchState.Replay, ReplaySystem.Active, "replay flag matches the director" + ctx);
@@ -38,9 +38,9 @@ namespace PoKingHill.Tests
         {
             using var guard = new ConsoleGuard();
             bool intro = GameSettings.Intro, replays = GameSettings.Replays;
-            SceneManager.LoadScene("Demo_duel");
-            yield return Until(() => DemoDirector.Instance != null && DemoDirector.Instance.State == MatchState.Menu, 60, "the menu");
-            var d = DemoDirector.Instance; var hud = Object.FindAnyObjectByType<HudView>(); var replay = Object.FindAnyObjectByType<ReplaySystem>();
+            SceneManager.LoadScene("Game");
+            yield return Until(() => MatchDirector.Instance != null && MatchDirector.Instance.State == MatchState.Menu, 60, "the menu");
+            var d = MatchDirector.Instance; var hud = Object.FindAnyObjectByType<HudView>(); var replay = Object.FindAnyObjectByType<ReplaySystem>();
             var rng = new System.Random(20261019);
             string[] names = { "quick", "launch all", "skip intro", "menu", "continue", "replay", "stop replay", "debug", "hide sheet", "peek", "restart", "tab", "puppet" };
             int menus = 0, steps = 0; var last = d.State; float since = Time.realtimeSinceStartup;
@@ -103,9 +103,9 @@ namespace PoKingHill.Tests
         {
             using var guard = new ConsoleGuard();
             bool intro = GameSettings.Intro;
-            SceneManager.LoadScene("Demo_duel");
-            yield return Until(() => DemoDirector.Instance != null && DemoDirector.Instance.State == MatchState.Menu, 60, "the menu");
-            var d = DemoDirector.Instance; var replay = Object.FindAnyObjectByType<ReplaySystem>();
+            SceneManager.LoadScene("Game");
+            yield return Until(() => MatchDirector.Instance != null && MatchDirector.Instance.State == MatchState.Menu, 60, "the menu");
+            var d = MatchDirector.Instance; var replay = Object.FindAnyObjectByType<ReplaySystem>();
             Assert.NotNull(replay, "the game scene has a ReplaySystem");
             try
             {
@@ -127,7 +127,7 @@ namespace PoKingHill.Tests
                 Assert.IsTrue(MjScene.Instance.enabled);
                 for (int i = 0; i < 2; i++)
                 {
-                    var p = d.fighters[i].PelvisTransform.position;
+                    var p = d.bodies[i].PelvisTransform.position;
                     Assert.Less(new Vector2(p.x, p.z).magnitude, 1.5f, $"fighter {i} stands where the menu placed it");
                 }
             }

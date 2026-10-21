@@ -13,7 +13,7 @@ namespace PoKingHill
     /// </summary>
     public unsafe class ReplaySystem : MonoBehaviour
     {
-        public DemoDirector director;
+        public MatchDirector director;
         public float seconds = 8f, before = 2f, after = 2.5f, speed = 0.35f, autoDelay = 0.8f;
 
         public static bool Active { get; private set; }

@@ -6,7 +6,7 @@ Each drop uses the training recipe (koth/env.py, rung getup): the robot at the k
 the floor with a uniformly random orientation, joints at default +- 0.6 rad (clamped to their ranges), zero velocity;
 then the get-up brain (103 inputs, zero command, ctrl = default + 0.5 action) runs with PolicyRunner's tick order. A drop
 is a success when the robot stands (pelvis up-axis z > 0.9 and height > 0.85 x the standing height, held 0.4 s, the
-game's DemoDirector rule) within --count seconds (the game's get-up count, 5 s). Writes training/assets/<robot>/
+game's MatchDirector rule) within --count seconds (the game's get-up count, 5 s). Writes training/assets/<robot>/
 getup_stats_python.json: success share, median and quartiles of the time to stand."""
 import argparse, json, os, sys
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))

@@ -6,7 +6,7 @@ EditorBuildSettings:
   serializedVersion: 2
   m_Scenes:
   - enabled: 1
-    path: Assets/PoKingHill/Scenes/Demo_duel.unity
+    path: Assets/PoKingHill/Scenes/Game.unity
     guid: 6264c38c1ed203b498927bf987c49245
   m_configObjects:
     com.unity.dt.app-ui: {fileID: 11400000, guid: 1b1c20d82303e4b5781c3ef50ac1449f, type: 2}

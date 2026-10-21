@@ -4,7 +4,7 @@ using UnityEngine;
 namespace PoKingHill
 {
     /// <summary>
-    /// Presentation time (GameSettings.SlowMotion):
+    /// Presentation time (GameSettings.Cinematic):
     ///   slow motion  0.3x for 0.7 s of real time, the first time in a round a fighter's capture point crosses the rim
     ///                heading out (Biometrics.doomed: it is going over unless something stops it)
     ///   hit stop     a 70 ms near-freeze on the hardest hits (MatchEvents.Impact strength 0.85 and up)
@@ -15,7 +15,7 @@ namespace PoKingHill
     /// </summary>
     public class TimeWarp : MonoBehaviour
     {
-        public DemoDirector director;
+        public MatchDirector director;
         public Biometrics bio;
         public float slowScale = 0.3f, slowSeconds = 0.7f, stopScale = 0.05f, stopSeconds = 0.07f, stopStrength = 0.85f, cooldownSeconds = 2.5f;
 
@@ -38,7 +38,7 @@ namespace PoKingHill
 
         void OnRound() { if (_warned.Length > 0) Array.Clear(_warned, 0, _warned.Length); }
 
-        bool Allowed => GameSettings.SlowMotion && director != null && director.statsRounds == 0 && director.State == MatchState.Fight && !ReplaySystem.Active;
+        bool Allowed => GameSettings.Cinematic && director != null && director.statsRounds == 0 && director.State == MatchState.Fight && !ReplaySystem.Active;
         // nobody else is using timeScale (gates run at 50x, the get-up probe too)
         bool Free => Time.timeScale == _written && (_written == 1f || _until > 0f);
 
@@ -75,10 +75,10 @@ namespace PoKingHill
             Muffle = Mathf.MoveTowards(Muffle, _until > 0f ? _muffle : 0f, Time.unscaledDeltaTime * 4f);
 
             if (bio == null || !Allowed) return;
-            int n = director.fighters.Length; if (_warned.Length != n) _warned = new bool[n];
+            int n = director.bodies.Length; if (_warned.Length != n) _warned = new bool[n];
             for (int i = 0; i < director.Playing && i < n; i++)
             {
-                var v = bio.Of(director.fighters[i]);
+                var v = bio.Of(director.bodies[i]);
                 if (v == null || !v.doomed || _warned[i]) continue;
                 _warned[i] = true;
                 if (Free && _until <= 0f && Time.unscaledTime >= _nextAllowed) { Begin(slowScale, slowSeconds, 0.6f); _nextAllowed = Time.unscaledTime + cooldownSeconds; SlowMos++; }

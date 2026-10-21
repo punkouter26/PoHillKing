@@ -14,14 +14,14 @@ The whole directory is pruned when any of these holds:
 Inside a finished run (one with model_final.pt), the intermediate model_<iteration>.pt checkpoints are pruned.
 A top-level runs/*.log is pruned when the run it is named after is finished or pruned, or after --log-days idle.
 Never pruned: runs/league, runs/overnight, runs/audits, anything named in runs/league/champion.txt, every runs/...
-path the queue scripts and the docs mention (scripts/**/*.sh, rl_optimization_log.md, STAGED_TRAINING.md, tasks.md,
+path the queue scripts and the docs mention (scripts/**/*.sh, DOCS/rl_optimization_log.md, STAGED_TRAINING.md, DOCS/tasks.md,
 CLAUDE.md), anything modified within --idle-minutes (a live run), and folders given with --keep."""
 import argparse, glob, json, os, re, shutil, sys, time
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 REPO = os.path.dirname(ROOT)
 PROTECTED_ROOTS = ("league", "overnight", "audits")
-REFERENCE_FILES = ["scripts/**/*.sh", "STAGED_TRAINING.md", "../rl_optimization_log.md", "../tasks.md", "../CLAUDE.md"]
+REFERENCE_FILES = ["scripts/**/*.sh", "STAGED_TRAINING.md", "../DOCS/rl_optimization_log.md", "../DOCS/tasks.md", "../CLAUDE.md"]
 CKPT = re.compile(r"model_(\d+)\.pt$")
 
 

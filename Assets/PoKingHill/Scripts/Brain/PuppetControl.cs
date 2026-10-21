@@ -11,7 +11,7 @@ namespace PoKingHill
     /// </summary>
     public class PuppetControl : MonoBehaviour
     {
-        public DemoDirector director;
+        public MatchDirector director;
         /// <summary>x = turn, y = forward, both -1..1. Written by the HUD stick.</summary>
         public static Vector2 Stick;
         public static float Side;
@@ -29,7 +29,7 @@ namespace PoKingHill
                 side += (k.qKey.isPressed ? 1 : 0) - (k.eKey.isPressed ? 1 : 0);
             }
             s = Vector2.ClampMagnitude(s, 1f);
-            director.fighters[director.PuppetBody].command = new Vector3(speed * s.y, sidestep * Mathf.Clamp(side, -1f, 1f), -turn * s.x);
+            director.bodies[director.PuppetBody].command = new Vector3(speed * s.y, sidestep * Mathf.Clamp(side, -1f, 1f), -turn * s.x);
         }
     }
 }

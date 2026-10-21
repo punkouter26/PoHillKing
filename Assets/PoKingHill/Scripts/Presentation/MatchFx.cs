@@ -6,14 +6,13 @@ using UnityEngine.Rendering.Universal;
 namespace PoKingHill
 {
     /// <summary>
-    /// Render-side reactions to the match (Effects setting; nothing here touches physics):
+    /// Render-side reactions to the match (Cinematic setting; nothing here touches physics):
     ///   impacts    dust burst sized by the hit, sparks on hard hits, a short chromatic/lens punch (post-process volume)
     ///   footfalls  small dust puffs; a scuff decal (URP Decal Projector) where a foot lands while still sliding
     ///   water      splash spray and a ripple ring where a body enters; the water shader's level and shoreline foam
     ///   light      a new time of day each round, the sky darkening toward a storm as the sea rises, and a spotlight
     ///              on the fighter nearest the centre
     ///   winner     confetti over the winner
-    ///   stamina    steam off fighters that are worn out, a spark burst on adrenaline (Stamina)
     ///   shockwave  a hard hit (strength 0.7+) sends a screen-space ring out from it (ShockwaveFeature) and a dust ring
     ///              along the ground
     ///   lightning  once the storm is past half way, a strike every 5-12 s
@@ -21,17 +20,16 @@ namespace PoKingHill
     ///              delayed by the distance
     ///   danger     a pulsing red light on the fighter whose capture point is closest past the rim (Biometrics)
     ///   drips      a fighter that has been in the sea drips for a few seconds once out of it
-    ///   wind       the global _KothWind the Mountain map's banners sway in (FX/Banner.shader): a steady breeze,
-    ///              a strong push along the gust during a Hazards gust
-    /// Budgets (particles, decals, shockwaves) follow QualityTier.
+    ///   wind       the global _KothWind the Mountain map's banners sway in (FX/Banner.shader): a steady breeze
+    /// Budgets (particles, decals, shockwaves) follow QualityTier. All of it follows GameSettings.Cinematic, except the
+    /// water, the light and the wind, which are part of the scene.
     /// The particle systems, decal pool, volume and lights are scene objects built by the editor builder, so they
     /// can be tuned by hand; this component only drives them.
     /// </summary>
     public unsafe class MatchFx : MonoBehaviour
     {
-        public DemoDirector director;
-        public ParticleSystem dust, sparks, splash, ripple, confetti, steam;
-        public Stamina stamina;
+        public MatchDirector director;
+        public ParticleSystem dust, sparks, splash, ripple, confetti;
         public DecalProjector[] scuffs = System.Array.Empty<DecalProjector>();
         public Volume hitVolume;
         public Light sun, kingSpot;
@@ -43,7 +41,6 @@ namespace PoKingHill
         public ImpactSynth synth;                 // optional: thunder
         public Biometrics bio;                    // optional: the danger light
         public QualityTier quality;               // optional: budgets
-        public Hazards hazards;                   // optional: gusts blow the map's banners
         Vector4 _wind = new(0.94f, 0f, 0.34f, 0.3f); static readonly int KothWind = Shader.PropertyToID("_KothWind");
         float _nextBolt = -1f, _boltAt = -10f; float[] _wetUntil = System.Array.Empty<float>(); float _nextDrip;
         readonly Vector3[] _boltPts = new Vector3[12];
@@ -58,8 +55,6 @@ namespace PoKingHill
             (new Vector3(12f, -120f, 0f), new Color(1.00f, 0.62f, 0.42f), 0.85f),    // sunset
             (new Vector3(35f, 150f, 0f), new Color(0.85f, 0.90f, 1.00f), 0.95f),     // overcast morning
         };
-        float _nextSteam;
-
         void OnEnable()
         {
             _scuffBorn = new float[scuffs.Length];
@@ -73,21 +68,15 @@ namespace PoKingHill
             _fogCalm = RenderSettings.fogColor;
             if (sun != null) { _sunCalm = sun.color; _sunCalmIntensity = sun.intensity; }
             MatchEvents.Impact += OnImpact; MatchEvents.Footfall += OnFootfall; MatchEvents.Splash += OnSplash;
-            MatchEvents.RoundStarted += OnRound; MatchEvents.RoundEnded += OnEnd; MatchEvents.Hyped += OnHype;
+            MatchEvents.RoundStarted += OnRound; MatchEvents.RoundEnded += OnEnd;
         }
         void OnDisable()
         {
             MatchEvents.Impact -= OnImpact; MatchEvents.Footfall -= OnFootfall; MatchEvents.Splash -= OnSplash;
-            MatchEvents.RoundStarted -= OnRound; MatchEvents.RoundEnded -= OnEnd; MatchEvents.Hyped -= OnHype;
+            MatchEvents.RoundStarted -= OnRound; MatchEvents.RoundEnded -= OnEnd;
         }
 
-        void OnHype(PolicyRunner r)
-        {
-            if (!On || r.PelvisTransform == null) return;
-            Burst(sparks, r.PelvisTransform.position + Vector3.up * 0.3f, 40, 2.5f); _punch = Mathf.Max(_punch, 0.5f);
-        }
-
-        bool On => GameSettings.Effects && director != null && director.statsRounds == 0;
+        bool On => GameSettings.Cinematic && director != null && director.statsRounds == 0;
 
         void Burst(ParticleSystem ps, Vector3 p, int count, float speed)
         {
@@ -151,8 +140,8 @@ namespace PoKingHill
 
         void OnEnd(RoundResult r)
         {
-            if (!On || confetti == null || r.Winner < 0 || r.Winner >= director.fighters.Length) return;
-            var t = director.fighters[r.Winner].PelvisTransform; if (t == null) return;
+            if (!On || confetti == null || r.Winner < 0 || r.Winner >= director.bodies.Length) return;
+            var t = director.bodies[r.Winner].PelvisTransform; if (t == null) return;
             confetti.transform.position = t.position + Vector3.up * 1.6f; confetti.Play();
         }
 
@@ -161,22 +150,13 @@ namespace PoKingHill
             if (director == null) return;
             // post-process punch decays over ~0.25 s
             _punch = Mathf.MoveTowards(_punch, 0f, Time.unscaledDeltaTime * 4f);
-            if (hitVolume != null) hitVolume.weight = GameSettings.Effects ? _punch : 0f;
+            if (hitVolume != null) hitVolume.weight = GameSettings.Cinematic ? _punch : 0f;
             for (int i = 0; i < scuffs.Length; i++)
                 if (scuffs[i] != null && scuffs[i].fadeFactor > 0) scuffs[i].fadeFactor = Mathf.Lerp(0.85f, 0f, (Time.time - _scuffBorn[i]) / scuffSeconds);
 
             var sea = director.sea;
             float storm = sea != null && director.State == MatchState.Fight ? Mathf.Clamp01((sea.Level + sea.startDepth) / sea.startDepth) : 0f;
             storm = storm * storm;
-            if (steam != null && stamina != null && GameSettings.Stamina && On && director.State == MatchState.Fight && Time.time >= _nextSteam)
-            {
-                _nextSteam = Time.time + 0.2f;
-                for (int i = 0; i < director.Playing; i++)
-                {
-                    var r = director.fighters[i]; float s = stamina.Level(r);
-                    if (s < 0.4f && !director.IsOut(i) && r.PelvisTransform != null) Burst(steam, r.PelvisTransform.position + Vector3.up * 0.55f, s < 0.2f ? 2 : 1, 0.25f);
-                }
-            }
             if (water != null && sea != null) { water.SetFloat(SeaLevel, sea.Level); water.SetFloat(Storm, storm); }
             if (sun != null)
             {
@@ -195,7 +175,7 @@ namespace PoKingHill
                         var t = alive[i].PelvisTransform; if (t == null) continue;
                         float d = new Vector2(t.position.x, t.position.z).magnitude; if (d < best) { best = d; king = t; }
                     }
-                kingSpot.enabled = king != null && GameSettings.Effects;
+                kingSpot.enabled = king != null && GameSettings.Cinematic;
                 if (king != null) { kingSpot.transform.position = king.position + new Vector3(0f, 4.5f, -0.8f); kingSpot.transform.LookAt(king.position); }
             }
 
@@ -210,7 +190,6 @@ namespace PoKingHill
         {
             const float breeze = 0.4f;
             Vector3 dir = new(_wind.x, 0f, _wind.z); float target = breeze;
-            if (hazards != null && hazards.Gusting) { var g = hazards.WindDir; dir = new Vector3(g.x, 0f, g.y); target = 1.3f; }      // MuJoCo x, y -> Unity x, z
             dir = Vector3.Slerp(new Vector3(_wind.x, 0f, _wind.z), dir.sqrMagnitude > 1e-4f ? dir.normalized : Vector3.right, Time.unscaledDeltaTime * 2f).normalized;
             _wind = new Vector4(dir.x, 0f, dir.z, Mathf.MoveTowards(_wind.w, target, Time.unscaledDeltaTime * 1.5f));
             Shader.SetGlobalVector(KothWind, _wind);
@@ -269,8 +248,8 @@ namespace PoKingHill
             if (fight && bio != null)
                 for (int i = 0; i < director.Playing; i++)
                 {
-                    if (director.IsOut(i)) continue; var v = bio.Of(director.fighters[i]); if (v == null) continue;
-                    float d = 0.12f - v.rim; if (d > best) { best = d; worst = director.fighters[i].PelvisTransform; }
+                    if (director.IsOut(i)) continue; var v = bio.Of(director.bodies[i]); if (v == null) continue;
+                    float d = 0.12f - v.rim; if (d > best) { best = d; worst = director.bodies[i].PelvisTransform; }
                 }
             danger.enabled = worst != null;
             if (worst == null) return;
@@ -282,11 +261,11 @@ namespace PoKingHill
         void Drips(bool fight)
         {
             if (drips == null || director.sea == null) return;
-            int n = director.fighters.Length; if (_wetUntil.Length != n) _wetUntil = new float[n];
+            int n = director.bodies.Length; if (_wetUntil.Length != n) _wetUntil = new float[n];
             bool emit = Time.unscaledTime >= _nextDrip; if (emit) _nextDrip = Time.unscaledTime + 0.08f;
             for (int i = 0; i < n && i < director.Playing; i++)
             {
-                var t = director.fighters[i].PelvisTransform; if (t == null) continue;
+                var t = director.bodies[i].PelvisTransform; if (t == null) continue;
                 if (t.position.y < director.sea.Level) { _wetUntil[i] = Time.unscaledTime + 6f; continue; }
                 if (emit && On && Time.unscaledTime < _wetUntil[i]) Burst(drips, t.position + new Vector3(0f, 0.2f, 0f), 2, 0.05f);
             }

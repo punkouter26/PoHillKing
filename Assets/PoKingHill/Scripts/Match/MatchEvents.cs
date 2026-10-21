@@ -11,7 +11,7 @@ namespace PoKingHill
     /// <summary>What the winner panel, the ladder, telemetry and the commentator are told when a round ends.</summary>
     public readonly struct RoundResult
     {
-        public readonly int Winner;            // body index in DemoDirector.fighters, -1 = no winner
+        public readonly int Winner;            // body index in MatchDirector.bodies, -1 = no winner
         public readonly string WinnerName, How;
         public readonly RoundEnd End;
         public readonly float Seconds;
@@ -36,7 +36,7 @@ namespace PoKingHill
         /// <summary>A foot coming to rest: position, strength 0..1, horizontal slip speed at touchdown (m/s).</summary>
         public static event Action<Vector3, float, float> Footfall;
         public static event Action<Vector3, float> Splash;
-        /// <summary>Free text for the caption line (commentary, hazards).</summary>
+        /// <summary>Free text for the caption line (commentary).</summary>
         public static event Action<string> Caption;
         /// <summary>Who knocked a fighter out (ContactLedger): victim, the fighter that pushed it most recently (null = it
         /// fell on its own), and the one before that (assist, may be null).</summary>
@@ -45,8 +45,6 @@ namespace PoKingHill
         public static event Action<PolicyRunner> Down;
         /// <summary>A fighter that was down stands again and fights on.</summary>
         public static event Action<PolicyRunner> Recovered;
-        /// <summary>Adrenaline for one fighter (a badge tap; Stamina applies it).</summary>
-        public static event Action<PolicyRunner> Hyped;
 
         public static void RaiseState(MatchState s) => StateChanged?.Invoke(s);
         public static void RaiseRoundStarted() => RoundStarted?.Invoke();
@@ -59,11 +57,10 @@ namespace PoKingHill
         public static void RaiseKnockoutCredited(PolicyRunner victim, PolicyRunner by, PolicyRunner assist) => KnockoutCredited?.Invoke(victim, by, assist);
         public static void RaiseDown(PolicyRunner r) => Down?.Invoke(r);
         public static void RaiseRecovered(PolicyRunner r) => Recovered?.Invoke(r);
-        public static void RaiseHyped(PolicyRunner r) => Hyped?.Invoke(r);
 
         // Domain reload is off in fast enter-play mode: listeners from the previous play session must not linger.
         [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.SubsystemRegistration)]
         static void Reset() { StateChanged = null; RoundStarted = null; Knockout = null; RoundEnded = null; Impact = null; Footfall = null; Splash = null; Caption = null;
-                           KnockoutCredited = null; Down = null; Recovered = null; Hyped = null; }
+                           KnockoutCredited = null; Down = null; Recovered = null; }
     }
 }

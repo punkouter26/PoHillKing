@@ -18,7 +18,7 @@ namespace PoKingHill
         }
 
         /// <summary>What kind of brain an agent has, from its input size and style.</summary>
-        public static string Brain(Fighter f)
+        public static string Brain(Agent f)
         {
             if (f == null) return "-";
             string kind = f.obsDim >= ObsBuilder.ObsDim + 18 ? "4-way" : f.obsDim > ObsBuilder.ObsDim ? "duel" : "walker";

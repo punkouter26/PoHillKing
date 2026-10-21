@@ -13,7 +13,7 @@ The script is the source of truth; this file is its archived output. To change t
 2. Run it headless: `blender -b --factory-startup --python tools/make_mountain_map.py` (with the Microsoft Store
    Blender: `%LOCALAPPDATA%/Microsoft/WindowsApps/blender-launcher.exe`). It rewrites `mountain.fbx` and the
    textures, re-bakes the ambient occlusion, and refreshes this archive and the GLB.
-3. In Unity: `ParityBatch.BuildDuelDemo` rebuilds the game scene with the new map.
+3. In Unity: the map is placed in `Scenes/Game.unity` by hand (the FBX import updates it in place).
 
 Everything here is render only. The collision shape stays the dome from `koth/build_mjcf.py`; inside 1.9 m the
 visible surface equals it in every level of detail, and no prop stands closer than 3.2 m to the centre

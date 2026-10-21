@@ -99,7 +99,8 @@ def goal_command(root_quat, goal_vec_xy, stop_dist: float, vmax: float = 0.8, se
                         (2.0 * ang).clamp(-1.0, 1.0) * moving], dim=1)
 
 
-# Tactics: goal points other than "straight at the opponent", mirrored from Unity's Tactics.Goal (index = C# enum Tactic).
+# Tactics: goal points other than "straight at the opponent", training only since 2026-10-21 (Unity's Tactics.Goal and Tactician were cut;
+# their sources are in archive/clean-261021/Scripts).
 # They only move the goal point fed to goal_command, so the commands stay inside the trained ranges.
 TACTICS = ("press", "flank_left", "flank_right", "regroup", "lurk")
 FLANK_OFFSET, LURK_RADIUS = 0.55, 0.6

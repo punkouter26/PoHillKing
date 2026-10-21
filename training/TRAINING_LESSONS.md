@@ -1,7 +1,7 @@
 # Training lessons (G1, Kim, Trump; 2026-10-07 to 2026-10-20)
 
 What three bodies taught us about getting a physics-simulated fighter to stand, walk and push, written for the next
-custom rigged mesh. Every claim points at the run or measurement in `rl_optimization_log.md` that showed it. The G1
+custom rigged mesh. Every claim points at the run or measurement in `DOCS/rl_optimization_log.md` that showed it. The G1
 left the game on 2026-10-20; its training code, checkpoints (`training/runs/`, `runs/league/`) and assets
 (`training/assets/g1`) stay, because the human recipes below were derived from it and the mixed-body scenes are built
 on it.

@@ -68,7 +68,6 @@ Button { font-size: var(--fs-m); }
 .badge.you { border-color: var(--accent); }
 .badge.down { border-color: var(--bad); }
 .badge.edge { border-color: var(--bad); background-color: rgba(120, 24, 20, 0.72); }
-.badge.hyped { border-color: var(--accent); background-color: rgba(120, 88, 10, 0.72); }
 .avatar-wrap { width: 60px; height: 60px; }
 .avatar { width: 60px; height: 60px; border-radius: 30px; align-items: center; justify-content: center; }
 .avatar Label { font-size: var(--fs-s); -unity-font-style: bold; color: var(--accent-ink); -unity-text-align: middle-center; }
@@ -89,7 +88,6 @@ Button { font-size: var(--fs-m); }
 .odds-seg { height: 100%; }
 .odds-label { font-size: var(--fs-xs); -unity-text-align: middle-center; margin-top: 4px; }
 
-.hazard-chip { align-self: center; margin-top: 12px; background-color: rgba(64, 140, 255, 0.85); border-radius: 30px; padding: 6px 22px; font-size: var(--fs-m); -unity-font-style: bold; }
 
 .spacer { flex-grow: 1; }
 .caption { align-self: stretch; font-size: var(--fs-l); -unity-font-style: bold; background-color: var(--glass); border-radius: 18px; padding: 10px 26px; margin: 0 4% 14px 4%; white-space: normal; -unity-text-align: middle-center; transition-property: opacity; transition-duration: 0.35s; }

@@ -9,11 +9,10 @@ namespace PoKingHill
     /// <summary>
     /// How the robots look, render side only:
     ///   paint      graphite metal with the seat colour on torso, pelvis and head, so a fighter matches its HUD badge
-    ///   overlays   (GameSettings.Overlay) Strain = actuator force over its limit as a glow per limb; Fatigue = the work
-    ///              each joint has done recently (|torque x speed|, 4 s decay) as heat; Colliders = the MuJoCo collision
-    ///              primitives as wireframes plus contact points with force arrows, to check the collision model
+    ///   overlays   (GameSettings.Overlay) Strain = actuator force over its limit as a glow per limb; Colliders = the
+    ///              MuJoCo collision primitives as wireframes plus contact points with force arrows, to check the collision model
     ///   intent     (GameSettings.IntentArrows) a line to the opponent each brain is pointed at, and its commanded velocity
-    ///   surface    (Effects) with fighterMaterial (FX/Fighter.mat, PoKingHill/Fighter) every opaque fighter material,
+    ///   surface    (Cinematic) with fighterMaterial (FX/Fighter.mat, PoKingHill/Fighter) every opaque fighter material,
     ///              G1 parts and the humans' skins, is rebuilt on that shader, which adds:
     ///              rim     a fresnel rim in the seat colour, turning a pulsing red as the fighter's capture point comes within 12 cm of
     ///                      the edge (Biometrics.rim)
@@ -27,10 +26,10 @@ namespace PoKingHill
     /// </summary>
     public unsafe class BodyLook : MonoBehaviour
     {
-        public DemoDirector director;
+        public MatchDirector director;
         [Tooltip("Material for the intent lines (URP Unlit, FX/IntentLine.mat). A player build strips shaders no asset references, so Shader.Find alone returned null there and Init never finished: no team paint in builds.")]
         public Material lineMaterial;
-        public float overlayHz = 15f, fatigueTau = 4f;
+        public float overlayHz = 15f;
         [Tooltip("Fighter surface (FX/Fighter.mat, shader PoKingHill/Fighter): rim, wear, wet, hit flash. Null keeps the imported materials.")]
         public Material fighterMaterial;
         public Biometrics bio;                    // optional: the rim turns red near the edge
@@ -44,7 +43,7 @@ namespace PoKingHill
         float[] _wear = Array.Empty<float>(), _wet = Array.Empty<float>(), _flash = Array.Empty<float>(), _danger = Array.Empty<float>();
         float[] _robotWet = Array.Empty<float>(), _robotFlash = Array.Empty<float>(), _hit = Array.Empty<float>(); bool[] _isFoot = Array.Empty<bool>(); float _nextSurface;
         readonly List<Part> _parts = new(); MaterialPropertyBlock _mpb;
-        float[] _bodyHeat; double[] _work; int[] _jointBody, _actJoint; int[] _robotOfBody;
+        float[] _bodyHeat; int[] _jointBody, _actJoint; int[] _robotOfBody;
         PolicyRunner[] _runners = Array.Empty<PolicyRunner>(); readonly List<int> _colliderGeoms = new();
         LineRenderer[] _toTarget = Array.Empty<LineRenderer>(), _command = Array.Empty<LineRenderer>();
         Material _lineMat; float _next; bool _ready;
@@ -73,7 +72,7 @@ namespace PoKingHill
         void Init()
         {
             var m = MjScene.Instance.Model; _mpb = new MaterialPropertyBlock();
-            _runners = (PolicyRunner[])director.fighters.Clone();     // fixed body order: the director reorders its own array at every launch
+            _runners = (PolicyRunner[])director.bodies.Clone();     // fixed body order: the director reorders its own array at every launch
             _robotOfBody = new int[(int)m->nbody]; for (int b = 0; b < (int)m->nbody; b++) _robotOfBody[b] = -1;
             for (int b = 1; b < (int)m->nbody; b++)
             {
@@ -107,7 +106,7 @@ namespace PoKingHill
             _wear = new float[nb]; _wet = new float[nb]; _flash = new float[nb]; _isFoot = new bool[nb];
             _danger = new float[_runners.Length]; _robotWet = new float[_runners.Length]; _robotFlash = new float[_runners.Length]; _hit = new float[_runners.Length];
             for (int b = 0; b < nb; b++) _isFoot[b] = Name(m, MujocoLib.mjtObj.mjOBJ_BODY, b).EndsWith("ankle_roll_link");
-            _bodyHeat = new float[(int)m->nbody]; _work = new double[(int)m->njnt];
+            _bodyHeat = new float[(int)m->nbody];
             _jointBody = new int[(int)m->njnt]; for (int j = 0; j < (int)m->njnt; j++) _jointBody[j] = m->jnt_bodyid[j];
             _actJoint = new int[(int)m->nu]; for (int a = 0; a < (int)m->nu; a++) _actJoint[a] = m->actuator_trntype[a] == (int)MujocoLib.mjtTrn.mjTRN_JOINT ? m->actuator_trnid[2 * a] : -1;
             _lineMat = new Material(Shader.Find("Hidden/Internal-Colored")) { hideFlags = HideFlags.HideAndDontSave };
@@ -154,16 +153,16 @@ namespace PoKingHill
         static string Name(MujocoLib.mjModel_* m, MujocoLib.mjtObj type, int id) =>
             System.Runtime.InteropServices.Marshal.PtrToStringAnsi((IntPtr)MujocoLib.mj_id2name(m, (int)type, id)) ?? "";
 
-        int SeatOf(int robot) => Array.IndexOf(director.fighters, _runners[robot]);
+        int SeatOf(int robot) => Array.IndexOf(director.bodies, _runners[robot]);
 
-        // Seat colours follow the bodies: the director reorders fighters[] at every launch.
+        // Seat colours follow the bodies: the director reorders bodies[] at every launch.
         void Repaint()
         {
             if (!_ready) return;
             foreach (var p in _parts)
             {
                 int seat = SeatOf(p.robot); bool seated = seat >= 0 && seat < director.Playing && !director.InMenu;
-                Color team = seated ? DemoDirector.SeatColors[seat % DemoDirector.SeatColors.Length] : new Color(0.75f, 0.75f, 0.78f);
+                Color team = seated ? MatchDirector.SeatColors[seat % MatchDirector.SeatColors.Length] : new Color(0.75f, 0.75f, 0.78f);
                 Color c = p.accent ? team : Color.Lerp(p.baseColor, new Color(0.16f, 0.17f, 0.19f), 0.55f);
                 p.r.GetPropertyBlock(_mpb); _mpb.SetColor(BaseColor, c); _mpb.SetFloat(Metallic, p.accent ? 0.2f : 0.65f); _mpb.SetFloat(Smooth, p.accent ? 0.45f : 0.6f);
                 _mpb.SetColor(Emission, Color.black); p.r.SetPropertyBlock(_mpb);
@@ -175,10 +174,6 @@ namespace PoKingHill
             if (director == null || !MjScene.InstanceExists || MjScene.Instance.Data == null) return;
             if (!_ready) { if (director.State >= MatchState.Menu) Init(); return; }
             var m = MjScene.Instance.Model; var d = MjScene.Instance.Data;
-            // fatigue integrates every frame (cheap): work = |actuator force x joint speed|
-            float dt = Time.deltaTime, decay = Mathf.Exp(-dt / fatigueTau);
-            for (int j = 0; j < _work.Length; j++) _work[j] *= decay;
-            for (int a = 0; a < (int)m->nu; a++) { int j = _actJoint[a]; if (j < 0) continue; _work[j] += Math.Abs(d->actuator_force[a] * d->qvel[m->jnt_dofadr[j]]) * dt; }
             Intent(d);
             if (Time.unscaledTime >= _nextSurface && director.statsRounds == 0)
             {
@@ -195,10 +190,8 @@ namespace PoKingHill
                     if (m->actuator_forcelimited[a] == 0) lim = 100;
                     int b = _jointBody[j]; _bodyHeat[b] = Mathf.Max(_bodyHeat[b], (float)(Math.Abs(d->actuator_force[a]) / lim));
                 }
-            else if (mode == Overlay.Fatigue)
-                for (int j = 0; j < _work.Length; j++) { int b = _jointBody[j]; _bodyHeat[b] = Mathf.Max(_bodyHeat[b], (float)(_work[j] / 400.0)); }   // 400 J of recent work = fully "hot"
-            bool glow = mode == Overlay.Strain || mode == Overlay.Fatigue;
-            Color hot = mode == Overlay.Strain ? new Color(1f, 0.15f, 0.1f) : new Color(1f, 0.55f, 0.05f);
+            bool glow = mode == Overlay.Strain;
+            Color hot = new(1f, 0.15f, 0.1f);
             foreach (var p in _parts)
             {
                 float h = glow ? Mathf.Clamp01(_bodyHeat[p.body]) : 0f;
@@ -210,7 +203,7 @@ namespace PoKingHill
         // Rim, wear, wet and flash, written with the overlay glow into each renderer's property block.
         void SurfaceLayers(MujocoLib.mjModel_* m, MujocoLib.mjData_* d, float dt)
         {
-            bool fx = GameSettings.Effects;
+            bool fx = GameSettings.Cinematic;
             // contacts: the force pushing on a part (from another fighter, or the ground for anything but a foot)
             double* f = stackalloc double[6];
             for (int i = 0; i < d->ncon; i++)
@@ -265,7 +258,7 @@ namespace PoKingHill
         Color Rim(int robot, float calm, float alarm)
         {
             int seat = SeatOf(robot); bool seated = seat >= 0 && seat < director.Playing && !director.InMenu;
-            Color team = seated ? DemoDirector.SeatColors[seat % DemoDirector.SeatColors.Length] : new Color(0.75f, 0.75f, 0.78f);
+            Color team = seated ? MatchDirector.SeatColors[seat % MatchDirector.SeatColors.Length] : new Color(0.75f, 0.75f, 0.78f);
             return Color.Lerp(new Color(team.r, team.g, team.b, calm), new Color(1f, 0.12f, 0.08f, alarm), _danger[robot]);
         }
 
@@ -277,7 +270,7 @@ namespace PoKingHill
                 var r = _runners[k]; int seat = SeatOf(k); bool show = on && seat >= 0 && seat < director.Playing && !director.IsOut(seat) && r.PelvisTransform != null;
                 _toTarget[k].enabled = show && r.opponent != null && r.opponent.PelvisTransform != null; _command[k].enabled = show;
                 if (!show) continue;
-                Color c = DemoDirector.SeatColors[seat % DemoDirector.SeatColors.Length];
+                Color c = MatchDirector.SeatColors[seat % MatchDirector.SeatColors.Length];
                 Vector3 p = r.PelvisTransform.position + Vector3.up * 0.35f;
                 if (_toTarget[k].enabled) { _toTarget[k].SetPosition(0, p); _toTarget[k].SetPosition(1, r.opponent.PelvisTransform.position + Vector3.up * 0.35f); _toTarget[k].material.color = c * 0.8f; }
                 double* q = d->qpos + r.Map.RootQposAdr; double yaw = Math.Atan2(2 * (q[3] * q[6] + q[4] * q[5]), 1 - 2 * (q[5] * q[5] + q[6] * q[6]));

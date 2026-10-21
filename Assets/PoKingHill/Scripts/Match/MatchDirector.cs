@@ -3,13 +3,16 @@ using System.Collections.Generic;
 using Mujoco;
 using Unity.InferenceEngine;
 using UnityEngine;
+using UnityEngine.Serialization;
 
 namespace PoKingHill
 {
+    /// <summary>One entry of the roster the menu offers: a brain and how it is driven. At launch an agent is seated on
+    /// a body of its own kind (MatchDirector.bodies).</summary>
     [Serializable]
-    public class Fighter
+    public class Agent
     {
-        public string name = "Fighter";
+        public string name = "Agent";
         [Tooltip("What fits on a badge, e.g. All-rounder")] public string shortName = "";
         [Tooltip("The kind of body this brain drives (g1, kim, trump, grandpa)")] public string body = "g1";
         public ModelAsset policy;
@@ -23,9 +26,7 @@ namespace PoKingHill
         [Tooltip("Ticked in the menu: this agent takes part in matches")] public bool inGame = true;
         [Tooltip("False = listed in the menu but cannot be ticked yet; note says why")] public bool available = true;
         public string note = "";
-        [Tooltip("Optional weights of the policy for Tactician rollouts (scripts/export_mlp.py, <file>_mlp.bytes)")] public TextAsset mlp;
         [Tooltip("Optional action path of the policy (<file>_action.json, training/koth/action_map.py); empty = the original clamp path")] public TextAsset action;
-        [Tooltip("Optional critic weights (<file>_value_mlp.bytes) that score Tactician rollouts")] public TextAsset valueMlp;
         public string Badge => shortName.Length > 0 ? shortName : name;
     }
 
@@ -42,13 +43,13 @@ namespace PoKingHill
     /// opponent (nearest, or the easiest to push off). Everything is done by writing mjData (no scene reload, no
     /// Instantiate/Destroy). Presentation listens to <see cref="MatchEvents"/>; the HUD is HudView.
     /// </summary>
-    public unsafe class DemoDirector : MonoBehaviour
+    public unsafe class MatchDirector : MonoBehaviour
     {
         [Tooltip("Every fighter body in the scene (a_, b_, ...). A match seats agents on the first ones.")]
-        public PolicyRunner[] fighters = Array.Empty<PolicyRunner>();
+        [FormerlySerializedAs("fighters")] public PolicyRunner[] bodies = Array.Empty<PolicyRunner>();
         public Sea sea;                                  // optional; without it the round lasts roundSeconds
         public ImpactSynth synth;                        // optional, for the audio counters in the verification file
-        public Fighter[] roster = Array.Empty<Fighter>();
+        public Agent[] roster = Array.Empty<Agent>();
         public int selectedA, selectedB;
         public string[] maps = { "Summit (baseline)" };
         [Tooltip("Render-only scenery per map, same order as maps. Physics is the same dome for every map.")]
@@ -72,15 +73,13 @@ namespace PoKingHill
         public float getupSeconds = 5f; public int maxGetups = 2;
         [Tooltip("The statistics gate plays with the get-up rule (duel_stats.py --getup)")] public bool getupInStats;
         [Tooltip("Tale of the tape: crane shot length, then this many seconds per fighter (clamped to fit about 7 s)")] public float introCrane = 1.6f, introPerFighter = 1.6f;
-        public ContactLedger ledger;                     // optional: Grudge / Vulture targeting
-        public Biometrics bio;                           // optional: Vulture targeting
 
-        /// <summary>Colour of each body's badge and team trim, in fighters[] order after seating.</summary>
+        /// <summary>Colour of each body's badge and team trim, in bodies[] order after seating.</summary>
         public static readonly Color[] SeatColors =
             { new(0.95f, 0.36f, 0.30f), new(0.27f, 0.62f, 0.98f), new(0.98f, 0.78f, 0.25f), new(0.45f, 0.85f, 0.45f), new(0.80f, 0.50f, 0.95f),
               new(0.30f, 0.85f, 0.85f), new(0.98f, 0.52f, 0.72f) };
 
-        public static DemoDirector Instance { get; private set; }
+        public static MatchDirector Instance { get; private set; }
         public MatchState State { get; private set; } = MatchState.Booting;
         public bool InMenu => State <= MatchState.Menu;
         /// <summary>The round is decided and the winner panel (or its replay) is up.</summary>
@@ -90,11 +89,11 @@ namespace PoKingHill
         /// <summary>Fighters knocked out of the current round, oldest first (the camera cuts to them at the water).</summary>
         public IReadOnlyList<PolicyRunner> Fallen => _fallen;
         public int Playing => _playing;
-        public int AgentOf(int body) => body >= 0 && body < _seat.Length ? _seat[body] : -1;
-        public int Wins(int agent) => agent >= 0 && agent < _score.Length ? _score[agent] : 0;
+        public int AgentOf(int body) => body >= 0 && body < _agentAt.Length ? _agentAt[body] : -1;
+        public int Wins(int agent) => agent >= 0 && agent < _agentWins.Length ? _agentWins[agent] : 0;
         /// <summary>Wins of one body this session; in a mirror match the badges show these, not the shared agent's.</summary>
-        public int BodyWins(int body) => body >= 0 && body < _wins.Length ? _wins[body] : 0;
-        public bool AgentSeatedTwice(int agent) { int n = 0; for (int i = 0; i < _playing; i++) if (_seat[i] == agent) n++; return n > 1; }
+        public int BodyWins(int body) => body >= 0 && body < _bodyWins.Length ? _bodyWins[body] : 0;
+        public bool AgentSeatedTwice(int agent) { int n = 0; for (int i = 0; i < _playing; i++) if (_agentAt[i] == agent) n++; return n > 1; }
         public int Draws => _draws;
         public bool IsOut(int body) => body >= 0 && body < _out.Length && _out[body];
         /// <summary>Fallen on the plateau, the get-up brain driving and the count running (still in the round).</summary>
@@ -109,10 +108,10 @@ namespace PoKingHill
         public double RoundTime => State >= MatchState.Fight && MjScene.InstanceExists && MjScene.Instance.Data != null ? MjScene.Instance.Data->time - _roundStart : 0;
         public float ResultSecondsLeft => Mathf.Max(0f, _resultUntil - Time.unscaledTime);
         public RoundResult LastResult { get; private set; }
-        public string Status => _last;
+        public string Status => _status;
         public double StepMs => _stepMs;
-        /// <summary>Plateau radius that counts as "still in" this round (a hazard may shrink it).</summary>
-        public float OutRadiusNow { get; set; }
+        /// <summary>Plateau radius that counts as "still in" this round.</summary>
+        public float OutRadiusNow { get; private set; }
         /// <summary>The player steers this body with the stick (walker brain, velocity commands), -1 = nobody.</summary>
         public int PuppetBody { get; private set; } = -1;
         /// <summary>Ticked in the menu: the next launch seats the player on the first body.</summary>
@@ -126,13 +125,13 @@ namespace PoKingHill
         readonly List<BracketMatch> _bracket = new(); int _bracketAt;
 
         readonly List<PolicyRunner> _alive = new(), _fallen = new();
-        int[] _seat = Array.Empty<int>(), _wins = Array.Empty<int>(), _score = Array.Empty<int>();   // roster index per body (-1 = parked); wins per body; wins per agent
+        int[] _agentAt = Array.Empty<int>(), _bodyWins = Array.Empty<int>(), _agentWins = Array.Empty<int>();   // roster index per body (-1 = parked); wins per body; wins per agent
         bool[] _out = Array.Empty<bool>(); int _playing;
-        double[] _downAt = Array.Empty<double>(), _stoodAt = Array.Empty<double>(), _lurkAt = Array.Empty<double>(); int[] _getups = Array.Empty<int>(); bool[] _steered = Array.Empty<bool>(), _lurking = Array.Empty<bool>();
+        double[] _downAt = Array.Empty<double>(), _stoodAt = Array.Empty<double>(); int[] _getups = Array.Empty<int>(); bool[] _steered = Array.Empty<bool>();
         float _introStart, _introPer, _introLength;
         PolicyRunner[] _target = Array.Empty<PolicyRunner>();
         readonly List<double> _times = new();
-        int _draws, _roundsThisMatch; double _roundStart; float _resultUntil; string _last = ""; bool _pending, _knockout;
+        int _draws, _roundsThisMatch; double _roundStart; float _resultUntil; string _status = ""; bool _pending, _knockout;
         readonly System.Diagnostics.Stopwatch _sw = new(); double _stepMs;
         string _shotDir; readonly HashSet<string> _shots = new(); float _menuShotAt = -1, _launchAt = -1;
         ArenaSpec _arena = new();
@@ -173,16 +172,16 @@ namespace PoKingHill
             if (_pending && Ready())
             {
                 _pending = false;
-                _seat = new int[fighters.Length]; _wins = new int[fighters.Length]; _out = new bool[fighters.Length]; _target = new PolicyRunner[fighters.Length];
-                _downAt = new double[fighters.Length]; _stoodAt = new double[fighters.Length]; _lurkAt = new double[fighters.Length]; _getups = new int[fighters.Length];
-                _steered = new bool[fighters.Length]; _lurking = new bool[fighters.Length];
-                _score = new int[Mathf.Max(1, roster.Length)];
-                _arena = fighters[0].Spec?.arena ?? new ArenaSpec();
+                _agentAt = new int[bodies.Length]; _bodyWins = new int[bodies.Length]; _out = new bool[bodies.Length]; _target = new PolicyRunner[bodies.Length];
+                _downAt = new double[bodies.Length]; _stoodAt = new double[bodies.Length]; _getups = new int[bodies.Length];
+                _steered = new bool[bodies.Length];
+                _agentWins = new int[Mathf.Max(1, roster.Length)];
+                _arena = bodies[0].Spec?.arena ?? new ArenaSpec();
                 if (autoLaunch) Launch(); else EnterMenu();
             }
-            if (!_pending && _seat.Length > 0)
+            if (!_pending && _agentAt.Length > 0)
             {
-                for (int i = _playing; i < fighters.Length; i++) Park(i);
+                for (int i = _playing; i < bodies.Length; i++) Park(i);
                 Retarget();
             }
             _sw.Restart();
@@ -190,45 +189,39 @@ namespace PoKingHill
 
         bool Ready()
         {
-            if (fighters.Length < 2) return false;
-            foreach (var f in fighters) if (f == null || f.Map == null) return false;
+            if (bodies.Length < 2) return false;
+            foreach (var f in bodies) if (f == null || f.Map == null) return false;
             return true;
         }
 
         // A body nobody is seated on waits far above the sea, re-pinned before every physics step.
         void Park(int i)
         {
-            fighters[i].ResetPose(100f + 2f * i, 0f, 0f);
-            MjScene.Instance.Data->qpos[fighters[i].Map.RootQposAdr + 2] = 50.0;
+            bodies[i].ResetPose(100f + 2f * i, 0f, 0f);
+            MjScene.Instance.Data->qpos[bodies[i].Map.RootQposAdr + 2] = 50.0;
         }
 
         // Each fighter is pointed at one opponent still in. With two fighters: always the other one. With more, either
         // the nearest (as trained) or, with Targeting.Opportunist, the one easiest to push off: near the rim or unsteady.
-        // Free-for-all modes beyond Opportunist (GameSettings.Targeting): Dogpile = everyone at the king (nearest the
-        // centre; the king itself takes the nearest), Grudge = whoever pushed me in the last 6 s (ContactLedger), Vulture =
-        // hold a spot out of the fight (Tactic.Lurk) while two others push each other, then go for the weakest
-        // (Biometrics stability, or the one nearest the rim). Brains still see one opponent, as trained.
+        // Brains still see one opponent, as trained.
         void Retarget()
         {
             var d = MjScene.Instance.Data;
-            var mode = _playing > 2 && statsRounds == 0 ? GameSettings.Targeting : Targeting.Nearest;
-            if (mode > Targeting.Opportunist && State == MatchState.Fight) { RetargetMode(d, mode); return; }
-            if (mode != Targeting.Vulture) for (int i = 0; i < _playing; i++) if (_lurking[i]) { _lurking[i] = false; fighters[i].tactic = Tactic.Press; }
-            bool opportunist = mode == Targeting.Opportunist;
+            bool opportunist = _playing > 2 && statsRounds == 0 && GameSettings.Targeting == Targeting.Opportunist;
             for (int i = 0; i < _playing; i++)
             {
-                double* q = d->qpos + fighters[i].Map.RootQposAdr; double best = double.MaxValue, current = double.MaxValue; PolicyRunner pick = null, any = null;
+                double* q = d->qpos + bodies[i].Map.RootQposAdr; double best = double.MaxValue, current = double.MaxValue; PolicyRunner pick = null, any = null;
                 // nearest and second-nearest still in, as training ranks them (koth/env.py _refresh_nbr): an eliminated
                 // fighter only when nobody else is left; with one opponent left the second is the first
                 double d1 = double.MaxValue, d2 = double.MaxValue, dAny = double.MaxValue; PolicyRunner n1 = null, n2 = null;
                 for (int j = 0; j < _playing; j++)
                 {
                     if (j == i) continue;
-                    double* o = d->qpos + fighters[j].Map.RootQposAdr;
+                    double* o = d->qpos + bodies[j].Map.RootQposAdr;
                     double dist = Math.Sqrt((o[0] - q[0]) * (o[0] - q[0]) + (o[1] - q[1]) * (o[1] - q[1]));
-                    if (dist < dAny) { dAny = dist; any = fighters[j]; }
+                    if (dist < dAny) { dAny = dist; any = bodies[j]; }
                     if (_out[j]) continue;
-                    if (dist < d1) { d2 = d1; n2 = n1; d1 = dist; n1 = fighters[j]; } else if (dist < d2) { d2 = dist; n2 = fighters[j]; }
+                    if (dist < d1) { d2 = d1; n2 = n1; d1 = dist; n1 = bodies[j]; } else if (dist < d2) { d2 = dist; n2 = bodies[j]; }
                     double score = dist;
                     if (opportunist)
                     {
@@ -236,8 +229,8 @@ namespace PoKingHill
                         score = dist - 1.2 * rim - 0.8 * (1 - ObsBuilder.Up(o + 3));
                     }
                     else score = dist * dist;          // nearest, compared exactly as before (squared distance)
-                    if (fighters[j] == _target[i]) current = score;
-                    if (score < best) { best = score; pick = fighters[j]; }
+                    if (bodies[j] == _target[i]) current = score;
+                    if (score < best) { best = score; pick = bodies[j]; }
                 }
                 // Keep the current target unless another is clearly better (no flicker between two).
                 if (opportunist && pick != null && _target[i] != null && current < double.MaxValue && best > current - 0.25) pick = _target[i];
@@ -245,69 +238,16 @@ namespace PoKingHill
                 n1 ??= any; n2 ??= n1;
                 // A free-for-all brain (121 inputs) gets what it was trained on: nearest and second-nearest. Two-fighter
                 // brains get the chosen target (nearest, or the opportunist pick).
-                bool ffaBrain = fighters[i].policyObsDim >= ObsBuilder.ObsDim + 18;
-                fighters[i].opponent = ffaBrain ? n1 : pick ?? any;
-                fighters[i].opponent2 = n2;
-            }
-        }
-
-        void RetargetMode(MujocoLib.mjData_* d, Targeting mode)
-        {
-            double R(int j) { double* o = d->qpos + fighters[j].Map.RootQposAdr; return Math.Sqrt(o[0] * o[0] + o[1] * o[1]); }
-            double Dist(int i, int j) { double* a = d->qpos + fighters[i].Map.RootQposAdr; double* b = d->qpos + fighters[j].Map.RootQposAdr; return Math.Sqrt((a[0] - b[0]) * (a[0] - b[0]) + (a[1] - b[1]) * (a[1] - b[1])); }
-            int king = -1; for (int j = 0; j < _playing; j++) if (!_out[j] && (king < 0 || R(j) < R(king))) king = j;
-            for (int i = 0; i < _playing; i++)
-            {
-                int nearest = -1, any = -1, second = -1;
-                for (int j = 0; j < _playing; j++)
-                {
-                    if (j == i) continue; if (any < 0 || Dist(i, j) < Dist(i, any)) any = j;
-                    if (_out[j]) continue;
-                    if (nearest < 0 || Dist(i, j) < Dist(i, nearest)) { second = nearest; nearest = j; } else if (second < 0 || Dist(i, j) < Dist(i, second)) second = j;
-                }
-                if (nearest < 0) nearest = any; if (second < 0) second = nearest;
-                int pick = nearest; bool lurk = false;
-                if (mode == Targeting.Dogpile)
-                {
-                    pick = king >= 0 && king != i ? king : nearest;
-                    int cur = Array.IndexOf(fighters, _target[i]);           // keep the current king unless the new one is clearly more central
-                    if (cur >= 0 && cur != i && cur < _playing && !_out[cur] && pick != cur && king != i && R(pick) > R(cur) - 0.15) pick = cur;
-                }
-                else if (mode == Targeting.Grudge && ledger != null)
-                {
-                    var by = ledger.LastPusher(fighters[i], 6.0); int j = Array.IndexOf(fighters, by);
-                    if (j >= 0 && j < _playing && !_out[j]) pick = j;
-                }
-                else if (mode == Targeting.Vulture)
-                {
-                    int weakest = -1, alive = 0; float weak = float.MaxValue;
-                    for (int j = 0; j < _playing; j++)
-                    {
-                        if (_out[j]) continue; alive++; if (j == i) continue;
-                        var v = bio != null ? bio.Of(fighters[j]) : null; float s = v != null ? Mathf.Min(v.stability, v.rim / 0.6f) : 1f;
-                        if (s < weak) { weak = s; weakest = j; }
-                    }
-                    bool engaged = ledger != null && ledger.Engaged(fighters[i], 0.8);
-                    if (weakest >= 0 && weak < 0.45f) { pick = weakest; _lurkAt[i] = -1; }  // someone is about to go: pounce
-                    else if (_lurking[i] && d->time - _lurkAt[i] < 1.5) { lurk = true; pick = Array.IndexOf(fighters, _target[i]); if (pick < 0 || pick >= _playing || _out[pick]) pick = nearest; }   // hold the lurk a moment: no flicker
-                    else if (!engaged && alive >= 3 && ledger != null)
-                        for (int a = 0; a < _playing && !lurk; a++)
-                            for (int b = a + 1; b < _playing && !lurk; b++)
-                                if (a != i && b != i && !_out[a] && !_out[b] && ledger.Fighting(fighters[a], fighters[b], 1.0))
-                                { lurk = true; var va = bio?.Of(fighters[a]); var vb = bio?.Of(fighters[b]); pick = va != null && vb != null && vb.stability < va.stability ? b : a; }
-                }
-                if (lurk != _lurking[i]) { _lurking[i] = lurk; fighters[i].tactic = lurk ? Tactic.Lurk : Tactic.Press; if (lurk) _lurkAt[i] = d->time; }
-                _target[i] = fighters[pick];
-                fighters[i].opponent = fighters[pick];
-                int other = second != pick ? second : nearest != pick ? nearest : pick;
-                fighters[i].opponent2 = fighters[other];
+                bool ffaBrain = bodies[i].policyObsDim >= ObsBuilder.ObsDim + 18;
+                bodies[i].opponent = ffaBrain ? n1 : pick ?? any;
+                bodies[i].opponent2 = n2;
             }
         }
 
         void Seat(int count)
         {
             _playing = count;
-            for (int i = 0; i < fighters.Length; i++) { fighters[i].paused = i >= count; if (i >= count) _seat[i] = -1; _target[i] = null; }
+            for (int i = 0; i < bodies.Length; i++) { bodies[i].paused = i >= count; if (i >= count) _agentAt[i] = -1; _target[i] = null; }
         }
 
         // ------------------------------------------------------------------ flow
@@ -316,12 +256,12 @@ namespace PoKingHill
             ReplaySystem.StopActive();          // a replay restores its saved state when it ends: end it before placing anyone
             _bracket.Clear(); PuppetBody = -1;
             _resultUntil = 0; _roundsThisMatch = 0;
-            foreach (var f in fighters) f.SetBrain(null, ObsBuilder.ObsDim, GoalMode.None, 0.3f, 0.8f);      // passive stance while the menu is up
+            foreach (var f in bodies) f.SetBrain(null, ObsBuilder.ObsDim, GoalMode.None, 0.3f, 0.8f);      // passive stance while the menu is up
             Seat(2);
-            for (int i = 0; i < 2 && i < fighters.Length; i++)
+            for (int i = 0; i < 2 && i < bodies.Length; i++)
             {
-                int a = Array.FindIndex(roster, r => r.body == fighters[i].body && !r.steerable);
-                _seat[i] = a >= 0 ? a : 0;
+                int a = Array.FindIndex(roster, r => r.body == bodies[i].body && !r.steerable);
+                _agentAt[i] = a >= 0 ? a : 0;
             }
             Place(); ClearOut();
             if (sea != null) sea.Park();
@@ -363,7 +303,7 @@ namespace PoKingHill
             var pool = InGame(); if (pool.Count < 2) { pool.Clear(); for (int i = 0; i < roster.Length; i++) if (roster[i].available) pool.Add(i); }
             for (int i = pool.Count - 1; i > 0; i--) { int k = UnityEngine.Random.Range(0, i + 1); (pool[i], pool[k]) = (pool[k], pool[i]); }
             if (pool.Count > 4) pool.RemoveRange(4, pool.Count - 4);
-            if (pool.Count < 2) { _last = "Need two agents with a brain for a tournament"; return; }
+            if (pool.Count < 2) { _status = "Need two agents with a brain for a tournament"; return; }
             _bracket.Clear(); TournamentChampion = "";
             if (pool.Count == 2) _bracket.Add(new BracketMatch { a = pool[0], b = pool[1], label = "Final" });
             else
@@ -379,7 +319,7 @@ namespace PoKingHill
         {
             var m = _bracket[_bracketAt];
             StartMatch(new List<int> { m.a, m.b }, false);
-            _last = m.label;
+            _status = m.label;
         }
 
         void StartMatch(List<int> agents, bool puppet)
@@ -391,19 +331,19 @@ namespace PoKingHill
                 int steer = Array.FindIndex(roster, f => f.steerable && f.available && f.policy != null);
                 if (puppet && steer >= 0) agents.Insert(0, steer);
                 if (agents.Count == 1) agents.Add(agents[0]);
-                // Each agent takes a free body of its own kind; the bodies in use move to the front of fighters[].
+                // Each agent takes a free body of its own kind; the bodies in use move to the front of bodies[].
                 var seats = new List<int>();
                 foreach (int agent in agents)
                 {
                     int k = -1;
-                    for (int i = seats.Count; i < fighters.Length && k < 0; i++) if (fighters[i].body == roster[agent].body) k = i;
+                    for (int i = seats.Count; i < bodies.Length && k < 0; i++) if (bodies[i].body == roster[agent].body) k = i;
                     if (k < 0) continue;
-                    (fighters[seats.Count], fighters[k]) = (fighters[k], fighters[seats.Count]); seats.Add(agent);
+                    (bodies[seats.Count], bodies[k]) = (bodies[k], bodies[seats.Count]); seats.Add(agent);
                 }
-                if (seats.Count < 2) { _last = "That selection has only one body to fight with: tick another agent"; return; }
+                if (seats.Count < 2) { _status = "That selection has only one body to fight with: tick another agent"; return; }
                 selectedA = seats[0]; selectedB = seats[1];
                 Seat(seats.Count);
-                for (int i = 0; i < _playing; i++) { _seat[i] = seats[i]; _steered[i] = puppet && steer >= 0 && i == 0; }
+                for (int i = 0; i < _playing; i++) { _agentAt[i] = seats[i]; _steered[i] = puppet && steer >= 0 && i == 0; }
                 if (puppet && steer >= 0) PuppetBody = 0;
             }
             else Seat(2);
@@ -418,12 +358,12 @@ namespace PoKingHill
         void ArmBrains()
         {
             if (roster.Length == 0) return;
-            for (int i = 0; i < fighters.Length; i++)
+            for (int i = 0; i < bodies.Length; i++)
             {
-                if (i >= _playing) { fighters[i].SetBrain(null, ObsBuilder.ObsDim, GoalMode.None, 0.3f, 0.8f); continue; }
-                var f = roster[_seat[i]];
-                fighters[i].SetBrain(f.policy, f.obsDim, _steered[i] ? GoalMode.None : f.goal, f.stopDist, f.vmax, f.shove, f.stylePose, f.action);
-                fighters[i].getupPolicy = Array.Find(getupBrains, b => b != null && b.body == fighters[i].body)?.policy;
+                if (i >= _playing) { bodies[i].SetBrain(null, ObsBuilder.ObsDim, GoalMode.None, 0.3f, 0.8f); continue; }
+                var f = roster[_agentAt[i]];
+                bodies[i].SetBrain(f.policy, f.obsDim, _steered[i] ? GoalMode.None : f.goal, f.stopDist, f.vmax, f.shove, f.stylePose, f.action);
+                bodies[i].getupPolicy = Array.Find(getupBrains, b => b != null && b.body == bodies[i].body)?.policy;
             }
         }
 
@@ -433,7 +373,7 @@ namespace PoKingHill
         // first round starts from a fresh placement, exactly as without the intro.
         void BeginIntro()
         {
-            for (int i = 0; i < fighters.Length; i++) fighters[i].SetBrain(null, ObsBuilder.ObsDim, GoalMode.None, 0.3f, 0.8f);
+            for (int i = 0; i < bodies.Length; i++) bodies[i].SetBrain(null, ObsBuilder.ObsDim, GoalMode.None, 0.3f, 0.8f);
             Place(); ClearOut();
             if (sea != null) sea.Park();
             _introPer = Mathf.Clamp(6f / Mathf.Max(1, _playing), 0.9f, introPerFighter);
@@ -464,18 +404,18 @@ namespace PoKingHill
             {
                 var band = i == 1 ? spawnRadiusB : spawnRadiusA; float lo = Mathf.Min(Mathf.Max(band.x, rMin), band.y);
                 float r = UnityEngine.Random.Range(lo, band.y), a = bearing + 2f * Mathf.PI * i / _playing;
-                fighters[i].ResetPose(r * Mathf.Cos(a), r * Mathf.Sin(a), UnityEngine.Random.Range(-Mathf.PI, Mathf.PI));
+                bodies[i].ResetPose(r * Mathf.Cos(a), r * Mathf.Sin(a), UnityEngine.Random.Range(-Mathf.PI, Mathf.PI));
             }
         }
 
         void ClearOut()
         {
             _alive.Clear(); _fallen.Clear();
-            for (int i = 0; i < fighters.Length; i++)
+            for (int i = 0; i < bodies.Length; i++)
             {
                 bool inPlay = i < _playing;
-                _out[i] = !inPlay; fighters[i].paused = !inPlay; if (inPlay) _alive.Add(fighters[i]);
-                _downAt[i] = -1; _stoodAt[i] = -1; _getups[i] = 0; _lurking[i] = false; fighters[i].tactic = Tactic.Press;
+                _out[i] = !inPlay; bodies[i].paused = !inPlay; if (inPlay) _alive.Add(bodies[i]);
+                _downAt[i] = -1; _stoodAt[i] = -1; _getups[i] = 0;
             }
         }
 
@@ -507,7 +447,7 @@ namespace PoKingHill
         // training/scripts/duel_stats.py --getup.
         bool OutWithGetUp(MujocoLib.mjData_* d, int i, double t)
         {
-            var r = fighters[i]; double* q = d->qpos + r.Map.RootQposAdr;
+            var r = bodies[i]; double* q = d->qpos + r.Map.RootQposAdr;
             double rad = Math.Sqrt(q[0] * q[0] + q[1] * q[1]), h = q[2] - _arena.Ground(rad), up = ObsBuilder.Up(q + 3);
             if (rad > OutRadiusNow) return true;
             if (_downAt[i] >= 0)
@@ -540,12 +480,12 @@ namespace PoKingHill
             int alive = 0, last = -1; bool getup = GetUpRule;
             for (int i = 0; i < _playing; i++)
             {
-                if (!_out[i] && (getup ? OutWithGetUp(d, i, t) : Out(d, fighters[i])))
+                if (!_out[i] && (getup ? OutWithGetUp(d, i, t) : Out(d, bodies[i])))
                 {
-                    if (_downAt[i] >= 0) { _downAt[i] = -1; fighters[i].SetGetUp(false); }
-                    _out[i] = true; _knockout = true; _alive.Remove(fighters[i]); _fallen.Add(fighters[i]);
-                    if (_playing > 2) fighters[i].paused = true;        // in a free-for-all an eliminated fighter goes limp
-                    MatchEvents.RaiseKnockout(fighters[i]);
+                    if (_downAt[i] >= 0) { _downAt[i] = -1; bodies[i].SetGetUp(false); }
+                    _out[i] = true; _knockout = true; _alive.Remove(bodies[i]); _fallen.Add(bodies[i]);
+                    if (_playing > 2) bodies[i].paused = true;        // in a free-for-all an eliminated fighter goes limp
+                    MatchEvents.RaiseKnockout(bodies[i]);
                 }
                 if (!_out[i]) { alive++; last = i; }
             }
@@ -562,7 +502,7 @@ namespace PoKingHill
             {
                 winner = last; end = RoundEnd.Knockout; _times.Add(t);
                 how = $"last one on the summit after {t:0.0} s";
-                _last = $"{(char)('A' + last)} ({BadgeOf(_seat[last])}) wins in {t:0.0} s";
+                _status = $"{(char)('A' + last)} ({BadgeOf(_agentAt[last])}) wins in {t:0.0} s";
             }
             else if (alive > 1 && sea != null)
             {
@@ -573,26 +513,26 @@ namespace PoKingHill
                     for (int i = 0; i < _playing; i++)
                     {
                         if (_out[i] || (pass == 0 && IsDown(i))) continue;
-                        double* q = d->qpos + fighters[i].Map.RootQposAdr; double r2 = q[0] * q[0] + q[1] * q[1];
+                        double* q = d->qpos + bodies[i].Map.RootQposAdr; double r2 = q[0] * q[0] + q[1] * q[1];
                         if (r2 < best) { best = r2; winner = i; }
                     }
                 end = RoundEnd.SeaArrived;
                 how = $"nearest the centre when the sea arrived ({Math.Sqrt(best):0.0} m, {alive} still standing)";
-                _last = $"{(char)('A' + winner)} ({BadgeOf(_seat[winner])}) holds the summit as the sea arrives";
+                _status = $"{(char)('A' + winner)} ({BadgeOf(_agentAt[winner])}) holds the summit as the sea arrives";
             }
             else
             {
                 end = alive > 1 ? RoundEnd.FullTime : RoundEnd.NobodyLeft;
                 how = alive > 1 ? "full time" : "nobody was left on the summit";
-                _last = alive > 1 ? "Tie: full time" : "Tie: nobody left on the summit";
+                _status = alive > 1 ? "Tie: full time" : "Tie: nobody left on the summit";
             }
             if (winner >= 0) Award(winner); else _draws++;
             _roundsThisMatch++;
-            var agents = new int[_playing]; for (int i = 0; i < _playing; i++) agents[i] = _seat[i];
-            LastResult = new RoundResult(winner, winner >= 0 ? BadgeOf(_seat[winner]) : "No winner", how, end, (float)t, agents);
+            var agents = new int[_playing]; for (int i = 0; i < _playing; i++) agents[i] = _agentAt[i];
+            LastResult = new RoundResult(winner, winner >= 0 ? BadgeOf(_agentAt[winner]) : "No winner", how, end, (float)t, agents);
             if (statsRounds > 0)
             {
-                if (_wins[0] + _wins[1] + _draws >= statsRounds) WriteStats(); else NewRound();
+                if (_bodyWins[0] + _bodyWins[1] + _draws >= statsRounds) WriteStats(); else NewRound();
                 return;
             }
             if (_bracket.Count > 0) RecordBracket(winner);
@@ -604,8 +544,8 @@ namespace PoKingHill
         void RecordBracket(int winnerBody)
         {
             var m = _bracket[_bracketAt];
-            if (winnerBody < 0 && m.tries++ == 0) { _last = m.label + ": tie, replayed once"; return; }
-            int w = winnerBody >= 0 ? _seat[winnerBody] : Ladder.Rating(roster[m.a].name) >= Ladder.Rating(roster[m.b].name) ? m.a : m.b;
+            if (winnerBody < 0 && m.tries++ == 0) { _status = m.label + ": tie, replayed once"; return; }
+            int w = winnerBody >= 0 ? _agentAt[winnerBody] : Ladder.Rating(roster[m.a].name) >= Ladder.Rating(roster[m.b].name) ? m.a : m.b;
             m.winner = w;
             if (m.label != "Final")
             {
@@ -630,7 +570,7 @@ namespace PoKingHill
                 var m = _bracket[_bracketAt];
                 if (m.winner < 0) { PlayBracketMatch(); return; }                  // replay a tied match
                 if (++_bracketAt < _bracket.Count) { PlayBracketMatch(); return; }
-                _last = "Tournament champion: " + TournamentChampion;
+                _status = "Tournament champion: " + TournamentChampion;
                 _bracket.Clear(); EnterMenu(); return;
             }
             if (LastRoundOfMatch && !(_shotDir != null && Cli.Exit)) EnterMenu(); else NewRound();
@@ -644,7 +584,7 @@ namespace PoKingHill
         List<int> FfaDraw()
         {
             var agents = new List<int> { statsCandidate };
-            for (int k = 0; k < Mathf.Min(3, fighters.Length - 1); k++) agents.Add(statsPool[UnityEngine.Random.Range(0, statsPool.Length)]);
+            for (int k = 0; k < Mathf.Min(3, bodies.Length - 1); k++) agents.Add(statsPool[UnityEngine.Random.Range(0, statsPool.Length)]);
             return agents;
         }
 
@@ -658,9 +598,9 @@ namespace PoKingHill
             string F(double v) => v.ToString("0.####", System.Globalization.CultureInfo.InvariantCulture);
             string json = $"{{\n \"candidate\": \"{NameOf(statsCandidate, "?")}\", \"rounds\": {n}, \"last_one_in\": {F((double)_ffaWin / n)}, \"out\": {F((double)_ffaLoss / n)}, " +
                           $"\"undecided\": {F((double)_ffaTie / n)}, \"median_win_time_s\": {F(median)}\n}}\n";
-            string path = System.IO.Path.GetFullPath(System.IO.Path.Combine(Application.dataPath, "..", "training", "assets", fighters[0].body, statsFile.Length > 0 ? statsFile : "ffa_stats_unity.json"));
-            System.IO.File.WriteAllText(path, json); Debug.Log("[DemoDirector] wrote " + path + "\n" + json);
-            foreach (var f in fighters) f.paused = true;
+            string path = System.IO.Path.GetFullPath(System.IO.Path.Combine(Application.dataPath, "..", "training", "assets", bodies[0].body, statsFile.Length > 0 ? statsFile : "ffa_stats_unity.json"));
+            System.IO.File.WriteAllText(path, json); Debug.Log("[MatchDirector] wrote " + path + "\n" + json);
+            foreach (var f in bodies) f.paused = true;
             StatsDone();
         }
 
@@ -676,7 +616,7 @@ namespace PoKingHill
 #endif
         }
 
-        void Award(int body) { _wins[body]++; if (_seat[body] >= 0 && _seat[body] < _score.Length) _score[_seat[body]]++; }
+        void Award(int body) { _bodyWins[body]++; if (_agentAt[body] >= 0 && _agentAt[body] < _agentWins.Length) _agentWins[_agentAt[body]]++; }
 
         public string NameOf(int agent, string fallback) => roster.Length > 0 && agent >= 0 ? roster[Mathf.Clamp(agent, 0, roster.Length - 1)].name : fallback;
         public string BadgeOf(int agent) => roster.Length > 0 && agent >= 0 ? roster[Mathf.Clamp(agent, 0, roster.Length - 1)].Badge : "Robot";
@@ -687,7 +627,7 @@ namespace PoKingHill
             if (_shotDir == null || !_shots.Add(name)) return;
             System.IO.Directory.CreateDirectory(_shotDir);
             ScreenCapture.CaptureScreenshot(System.IO.Path.Combine(_shotDir, name + ".png"));
-            Debug.Log("[DemoDirector] screenshot " + name);
+            Debug.Log("[MatchDirector] screenshot " + name);
         }
         // Automated capture run (-kothShots dir -kothExit): leave once menu, combat and ejection frames exist.
         bool ShotsDone()
@@ -706,17 +646,17 @@ namespace PoKingHill
 
         void WriteStats()
         {
-            _times.Sort(); int _winsA = _wins[0], _winsB = _wins[1], n = _winsA + _winsB + _draws;
+            _times.Sort(); int winsA = _bodyWins[0], winsB = _bodyWins[1], n = winsA + winsB + _draws;
             double Q(double f) => _times.Count == 0 ? -1 : _times[Math.Min(_times.Count - 1, (int)(f * _times.Count))];
             double mean = 0; foreach (var x in _times) mean += x; mean = _times.Count > 0 ? mean / _times.Count : -1;
             string F(double v) => v.ToString("0.##", System.Globalization.CultureInfo.InvariantCulture);
-            string json = $"{{\n \"rounds\": {n}, \"wins_a\": {_winsA}, \"wins_b\": {_winsB}, \"ties\": {_draws}, \"decided\": {F((double)(_winsA + _winsB) / n)},\n" +
+            string json = $"{{\n \"rounds\": {n}, \"wins_a\": {winsA}, \"wins_b\": {winsB}, \"ties\": {_draws}, \"decided\": {F((double)(winsA + winsB) / n)},\n" +
                           $" \"median_time_s\": {F(Q(0.5))}, \"mean_time_s\": {F(mean)}, \"p25_time_s\": {F(Q(0.25))}, \"p75_time_s\": {F(Q(0.75))}\n}}\n";
             // The player has no training folder beside it: it writes next to the executable, like perf_unity.json.
-            string path = System.IO.Path.GetFullPath(Application.isEditor ? System.IO.Path.Combine(Application.dataPath, "..", "training", "assets", fighters[0].body, statsFile.Length > 0 ? statsFile : "duel_stats_unity.json")
+            string path = System.IO.Path.GetFullPath(Application.isEditor ? System.IO.Path.Combine(Application.dataPath, "..", "training", "assets", bodies[0].body, statsFile.Length > 0 ? statsFile : "duel_stats_unity.json")
                                                                           : System.IO.Path.Combine(Application.dataPath, "..", "duel_stats_unity.json"));
-            System.IO.File.WriteAllText(path, json); Debug.Log("[DemoDirector] wrote " + path + "\n" + json);
-            fighters[0].paused = fighters[1].paused = true;      // seats A and B: the pair the two-fighter gate measures
+            System.IO.File.WriteAllText(path, json); Debug.Log("[MatchDirector] wrote " + path + "\n" + json);
+            bodies[0].paused = bodies[1].paused = true;      // seats A and B: the pair the two-fighter gate measures
             StatsDone();
         }
 

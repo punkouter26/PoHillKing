@@ -58,7 +58,7 @@ DEFAULT_POSE = {
 # PD gains (kp, kv). Measured on CPU with the gravity-compensated hold: Unitree/IsaacLab-level gains
 # (hips 100-150, knee 150-200, ankle 40) cannot hold ANY static pose (whole-leg chain too compliant vs m*g*h),
 # menagerie's 500 holds rigidly. 200/300/200 is the softest set that holds (pitch settles ~1.3 deg). Joint
-# actuatorfrcrange (88/139/50/25 Nm) still caps torque, so large errors behave torque-limited. See rl_optimization_log.md.
+# actuatorfrcrange (88/139/50/25 Nm) still caps torque, so large errors behave torque-limited. See DOCS/rl_optimization_log.md.
 # Base class g1 is (0, 0) on purpose and every joint group sets its own pair: MuJoCo's XML writer truncates a
 # child default's biasprm when its tail equals the parent's (knee kv == g1 kv gave biasprm="0 -300"), and the
 # Unity importer, which re-saves the model through MuJoCo before parsing, then reads the missing kv as 0.
@@ -377,7 +377,7 @@ def build_mixed(n_extra: int = 1):
                   bodies={e[0]: e[2] for e in extras})
 
 
-# The game's fighters (Demo_duel.unity, ParityBatch.BuildDuelDemo): two bodies of every human kind, so each brain can
+# The game's fighters (Game.unity, GameScene.RefreshBodies): two bodies of every human kind, so each brain can
 # meet its own body (the only opponent it was trained against) as well as the others. A new rigged mesh joins here.
 GAME_BODIES = ["kim", "kim", "trump", "trump", "grandpa", "grandpa"]
 

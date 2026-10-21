@@ -17,8 +17,7 @@ namespace PoKingHill
     /// </summary>
     public unsafe class WinOdds : MonoBehaviour
     {
-        public DemoDirector director;
-        public Stamina stamina;                          // optional: the critic sees each fighter's current kp scale
+        public MatchDirector director;
         public float criticTemperature = 6f, physicsTemperature = 2f, hz = 10f;
         public float[] Odds { get; private set; } = new float[8];
         public bool FromCritic { get; private set; }
@@ -37,7 +36,7 @@ namespace PoKingHill
             bool allCritic = true;
             for (int i = 0; i < n; i++)
             {
-                var r = director.fighters[i];
+                var r = director.bodies[i];
                 if (director.IsOut(i)) { _score[i] = float.NegativeInfinity; continue; }
                 int agent = director.AgentOf(i);
                 var value = agent >= 0 && agent < director.roster.Length ? director.roster[agent].value : null;
@@ -46,7 +45,7 @@ namespace PoKingHill
                 else _score[i] = v / criticTemperature;
             }
             FromCritic = allCritic && n > 0;
-            if (!FromCritic) for (int i = 0; i < n; i++) if (!float.IsNegativeInfinity(_score[i])) _score[i] = Physics(director.fighters[i], d) / physicsTemperature;
+            if (!FromCritic) for (int i = 0; i < n; i++) if (!float.IsNegativeInfinity(_score[i])) _score[i] = Physics(director.bodies[i], d) / physicsTemperature;
             float max = float.NegativeInfinity; for (int i = 0; i < n; i++) max = Mathf.Max(max, _score[i]);
             float sum = 0; for (int i = 0; i < n; i++) { Odds[i] = float.IsNegativeInfinity(_score[i]) ? 0 : Mathf.Exp(_score[i] - max); sum += Odds[i]; }
             for (int i = 0; i < Odds.Length; i++) Odds[i] = i < n && sum > 0 ? Odds[i] / sum : 0;
@@ -79,7 +78,7 @@ namespace PoKingHill
             var arena = r.Spec?.arena ?? new ArenaSpec(); double rad = Math.Sqrt(q[0] * q[0] + q[1] * q[1]);
             b[o + 3] = (float)(q[2] - arena.Ground(rad));
             FootContacts(r, d, out b[o + 4], out b[o + 5]);
-            b[o + 6] = 1f; b[o + 7] = 0.6f; b[o + 8] = stamina != null ? stamina.KpScale(r) : 1f;     // a tired fighter's servos are softer (Stamina)
+            b[o + 6] = 1f; b[o + 7] = 0.6f; b[o + 8] = 1f;
             if (b.Length > o + 9 && r.opponent != null && r.opponent.Map != null)
             {
                 ObsBuilder.FillCombat(b, o + 9, d, r.Map, r.opponent.Map);

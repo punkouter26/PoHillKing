@@ -1,0 +1,95 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Cleanup 261021</title>
+<style>
+  :root { --bg: #f6f5f2; --fg: #1d1d1b; --muted: #66645e; --card: #fff; --line: #dcd9d2; --mark: #e0453a; --ok: #2f8f4e; }
+  @media (prefers-color-scheme: dark) { :root { --bg: #161615; --fg: #ecebe7; --muted: #a3a19a; --card: #20201e; --line: #3a3935; } }
+  body { margin: 0; background: var(--bg); color: var(--fg); font: 15px/1.5 system-ui, sans-serif; }
+  main { max-width: 1100px; margin: 0 auto; padding: 24px 16px 48px; }
+  h1 { font-size: 26px; margin: 0 0 4px; } h2 { font-size: 19px; margin: 32px 0 8px; }
+  p.sub { color: var(--muted); margin: 0 0 16px; }
+  table { border-collapse: collapse; width: 100%; background: var(--card); }
+  th, td { border: 1px solid var(--line); padding: 6px 10px; text-align: left; font-variant-numeric: tabular-nums; vertical-align: top; }
+  .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 16px; }
+  figure { margin: 0; background: var(--card); border: 1px solid var(--line); border-radius: 8px; padding: 8px; }
+  figcaption { font-size: 13px; color: var(--muted); padding-top: 6px; }
+  .shot { position: relative; } .shot img { width: 100%; display: block; border-radius: 4px; }
+  .box { position: absolute; border: 3px solid var(--mark); border-radius: 4px; }
+  .box.ok { border-color: var(--ok); }
+  .tag { position: absolute; left: 0; top: -22px; background: var(--mark); color: #fff; font-size: 11px; padding: 1px 6px; border-radius: 3px; white-space: nowrap; }
+  .box.ok .tag { background: var(--ok); }
+  code { font-size: 13px; }
+</style>
+</head>
+<body>
+<main>
+<h1>Cleanup, 2026-10-21</h1>
+<p class="sub">Ten cleanup options from the CLEAN prompt: fewer settings and features, a hand-composed game scene, consistent names, unused files archived.
+Verified in the open editor: EditMode 46/46, PlayMode 7/7, Kim's 200-round duel gate through the new scene path, a played quick match with no errors in the log.</p>
+
+<h2>Settings: Picture</h2>
+<p>Camera (Broadcast / Classic) is gone with the Classic camera. Effects, Slow motion and Cut-aways are one <b>Cinematic</b> switch (on by default).
+Win odds and Captions moved to the developer panel.</p>
+<div class="grid">
+  <figure><div class="shot"><img src="before_settings_1.png" alt="Picture settings before">
+    <div class="box" style="left:5%;top:69.9%;width:89.5%;height:3.7%"><span class="tag">camera choice: cut</span></div>
+    <div class="box" style="left:5%;top:78.4%;width:89.5%;height:13.2%"><span class="tag">5 switches</span></div></div>
+    <figcaption>Before: 2 choices and 5 switches.</figcaption></figure>
+  <figure><div class="shot"><img src="after_settings_1.png" alt="Picture settings after">
+    <div class="box ok" style="left:5%;top:87.6%;width:44%;height:4%"><span class="tag">one switch</span></div></div>
+    <figcaption>After: Quality and Cinematic.</figcaption></figure>
+</div>
+
+<h2>Settings: Advanced</h2>
+<p>Targeting is down from five modes to two (Nearest, Weakest). Stamina + hype, Hazards and the Tactician (beta) are cut.</p>
+<div class="grid">
+  <figure><div class="shot"><img src="before_settings_3.png" alt="Advanced settings before">
+    <div class="box" style="left:5%;top:66.8%;width:89.5%;height:5.8%"><span class="tag">5 targeting modes + hint</span></div>
+    <div class="box" style="left:5%;top:73%;width:89.5%;height:8.7%"><span class="tag">3 cut features</span></div></div>
+    <figcaption>Before: 5 modes and 5 switches.</figcaption></figure>
+  <figure><div class="shot"><img src="after_settings_3.png" alt="Advanced settings after">
+    <div class="box ok" style="left:5%;top:78.2%;width:89.5%;height:3.7%"><span class="tag">2 modes</span></div></div>
+    <figcaption>After: 2 modes and 2 switches.</figcaption></figure>
+</div>
+
+<h2>Developer panel and play</h2>
+<div class="grid">
+  <figure><div class="shot"><img src="after_debug_view.png" alt="Debug panel View tab">
+    <div class="box ok" style="left:4%;top:87.6%;width:92%;height:4.4%"><span class="tag">moved here</span></div></div>
+    <figcaption>View tab during a quick match: the Fatigue overlay is gone (it was Stamina's); win odds and captions sit here now. The Hazards tab is now Tools (replay, restart round).</figcaption></figure>
+  <figure><div class="shot"><img src="after_result.png" alt="Round result"></div>
+    <figcaption>The round ended normally (B wins in 6.7 s). The telemetry line was written, at 59 FPS, p95 22 ms and 0 KB GC per frame.</figcaption></figure>
+  <figure><div class="shot"><img src="after_settings_0.png" alt="Match settings"></div>
+    <figcaption>Match is unchanged: Rounds, Sea, Map, Tale of the tape, Instant replays.</figcaption></figure>
+</div>
+
+<h2>What was done</h2>
+<table>
+<tr><th>#</th><th>Option</th><th>Result</th></tr>
+<tr><td>1</td><td>Commit the play-test work</td><td>Committed with its line endings intact.</td></tr>
+<tr><td>2</td><td>Duplicate get-up brains</td><td>3 <code>&lt;body&gt;_getup1_policy.onnx</code> archived (byte-identical to <code>getup_policy.onnx</code>; a one-off manual export, so no script change).</td></tr>
+<tr><td>3</td><td>Models diet</td><td>Kim's old gate brains and their reference trajectories archived. <b>Changed:</b> the G1 Duelist and Rammer stay, because the free-for-all gate's opponent pool (mirror of <code>eval.py --rung r5ffa</code>) looks them up by name.</td></tr>
+<tr><td>4</td><td>Retire G1 multi-body scenes</td><td><b>Narrowed:</b> <code>koth_5p</code>/<code>koth_6p</code> (old game scenes: testbeds, dumps, imports, 47 MB) archived. <code>koth_4p</code>/<code>koth_7p</code> stay: they are the free-for-all gate scenes.</td></tr>
+<tr><td>5</td><td>Disk</td><td><code>cleanup_unused.sh</code> now lists every <code>archive/*</code> and the CLI capture folder (824 files, 69 MB; <code>--builds</code> adds the 335 MB player build). Not done: <code>training/runs</code> holds only final, referenced checkpoints (CLAUDE.md keeps the G1's). <code>SCREENSHOTS</code> reports are linked by path from the run log, so they were not moved.</td></tr>
+<tr><td>6</td><td>Hand-composed game scene</td><td><code>GameSceneBuilder</code> (365 lines) and <code>BuildDuelDemo</code> removed. The new <code>Editor/GameScene.cs</code> provides <code>RefreshBrains</code> (roster only), <code>RefreshBodies</code> (MuJoCo tree, runners and skins only) and <code>Compose</code> (gate scenes as copies of the game scene). The prefab's unused Steam emitter is removed.</td></tr>
+<tr><td>7</td><td>Names and docs</td><td><code>DemoDirector</code> → <code>MatchDirector</code>, <code>Demo_duel.unity</code> → <code>Game.unity</code> (same GUIDs), roster class <code>Fighter</code> → <code>Agent</code>, field <code>fighters</code> → <code>bodies</code> (<code>FormerlySerializedAs</code>), private fields <code>_seat/_wins/_score/_last</code> → <code>_agentAt/_bodyWins/_agentWins/_status</code>. <code>tasks.md</code>, the run log and the training report moved to <code>DOCS/</code>. <code>privacy-policy.html</code> stays at the root (a public URL may point at it).</td></tr>
+<tr><td>8</td><td>Cut the Tactician</td><td><code>Tactician</code>, <code>Tactics</code>, <code>MlpNet</code>, 11 <code>_mlp.bytes</code>, <code>export_mlp.py</code>, its gate and tests archived; the training-side <code>r4tactic</code> rung is untouched.</td></tr>
+<tr><td>9</td><td>Advanced rules</td><td>Hazards and Stamina + hype cut (with hype events, steam, quake rumble, gust wind and the Fatigue overlay); Dogpile/Grudge/Vulture targeting cut, along with three ledger queries only they used. <b>Changed:</b> <code>ProjectilePool</code> stays, because the MJCF holds the boxes it parks and the hold-parity gate fires them.</td></tr>
+<tr><td>10</td><td>Picture settings</td><td>As above; the Classic camera (<code>MatchCamera</code>) is cut, so Broadcast is the only camera.</td></tr>
+<tr><td>+</td><td>Test fix</td><td><code>EveryComponentLivesInAFileOfItsOwnName</code> only read the top level of <code>Scripts/</code> and had checked nothing since the scripts moved into subfolders. It now reads them recursively.</td></tr>
+</table>
+
+<h2>Numbers</h2>
+<table>
+<tr><th></th><th>Before</th><th>After</th></tr>
+<tr><td>C# in Assets/PoKingHill</td><td>61 files, 8,535 lines</td><td>55 files, 7,194 lines (−16 %)</td></tr>
+<tr><td>Settings on the menu (Picture + Advanced)</td><td>7 choices and 10 switches</td><td>2 choices and 3 switches</td></tr>
+<tr><td>Set aside in archive/clean-261021</td><td colspan="2">410 files (824 with .meta), 69 MB: 6 scripts, the scene builder, 26 brains/weights/trajectories, 2 testbed scenes and their imports, 1 Python script</td></tr>
+<tr><td>Kim duel gate (200 rounds)</td><td>Python: decided 100 %, median 6.67 s (5.54 / 7.92)</td><td>Unity: decided 100 %, median 6.72 s (5.43 / 7.93): pass</td></tr>
+</table>
+</main>
+</body>
+</html>

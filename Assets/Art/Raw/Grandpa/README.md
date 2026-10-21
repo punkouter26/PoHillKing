@@ -13,7 +13,7 @@ everything derived from it:
    - `Assets/Art/Raw/Grandpa~/Grandpa.blend`: the rigged scene.
 2. `cd training && KOTH_ROBOT=grandpa .venv/Scripts/python.exe -m koth.build_mjcf`, then `python -m koth.build_mjcf 7p`
    rebuilds his physics body (profile: `koth/build_grandpa.py`) and scenes.
-3. In Unity: `ParityBatch.Import("flat_1p"|"koth_1p"|"koth_2p", "grandpa")` and `Import("koth_7p")`, then `BuildDuelDemo`.
+3. In Unity: `ParityBatch.Import("flat_1p"|"koth_1p"|"koth_2p", "grandpa")` and `Import("koth_7p")`, then `GameScene.RefreshBodies` (game scene) and `GameScene.RefreshBrains`.
 
 Joint positions come from adult proportions and the mesh (`landmarks` in `tools/make_grandpa.py`). Changing his
 proportions changes his physics body, so his brains have to be retrained; textures alone need step 1 only.

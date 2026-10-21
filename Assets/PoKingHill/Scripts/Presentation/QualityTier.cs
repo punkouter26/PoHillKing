@@ -19,7 +19,7 @@ namespace PoKingHill
     /// </summary>
     public class QualityTier : MonoBehaviour
     {
-        public DemoDirector director;
+        public MatchDirector director;
         public Camera cam;
         public Light sun;
         public float downgradeFps = 45f, downgradeSeconds = 4f;

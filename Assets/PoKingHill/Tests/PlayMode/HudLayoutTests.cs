@@ -42,9 +42,9 @@ namespace PoKingHill.Tests
         {
             using var guard = new ConsoleGuard();
             bool intro = GameSettings.Intro, replays = GameSettings.Replays, telemetry = GameSettings.TelemetryHud, dev = GameSettings.DevTools;
-            SceneManager.LoadScene("Demo_duel");
-            yield return Until(() => DemoDirector.Instance != null && DemoDirector.Instance.State == MatchState.Menu, 60, "the menu");
-            var d = DemoDirector.Instance; var hud = Object.FindAnyObjectByType<HudView>();
+            SceneManager.LoadScene("Game");
+            yield return Until(() => MatchDirector.Instance != null && MatchDirector.Instance.State == MatchState.Menu, 60, "the menu");
+            var d = MatchDirector.Instance; var hud = Object.FindAnyObjectByType<HudView>();
             var replay = Object.FindAnyObjectByType<ReplaySystem>(); if (replay != null) replay.autoDelay = 999f;
             try
             {
@@ -93,8 +93,8 @@ namespace PoKingHill.Tests
         public IEnumerator TopBarClearsCutouts()
         {
             using var guard = new ConsoleGuard();
-            SceneManager.LoadScene("Demo_duel");
-            yield return Until(() => DemoDirector.Instance != null && DemoDirector.Instance.State == MatchState.Menu, 60, "the menu");
+            SceneManager.LoadScene("Game");
+            yield return Until(() => MatchDirector.Instance != null && MatchDirector.Instance.State == MatchState.Menu, 60, "the menu");
             var hud = Object.FindAnyObjectByType<HudView>();
             bool dev = GameSettings.DevTools; GameSettings.DevTools = true;      // the FPS pill is a developer tool
             try
