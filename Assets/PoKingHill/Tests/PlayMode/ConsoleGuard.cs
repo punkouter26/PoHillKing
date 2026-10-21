@@ -23,6 +23,13 @@ namespace PoKingHill.Tests
         public ConsoleGuard() { Application.logMessageReceived += OnLog; }
         public void Dispose() { Application.logMessageReceived -= OnLog; }
 
+        // PlayerTestAssemblyProvider.ResetStaticsOnLoad (SubsystemRegistration) calls m_LoadedAssemblies?.Clear()
+        // instead of setting it to null, leaving it non-null and empty when Enter Play Mode skips domain reload.
+        [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.BeforeSceneLoad)]
+        static void ResetTestAssemblyCache() =>
+            typeof(UnityEngine.TestTools.UnityTestAttribute).Assembly.GetType("UnityEngine.TestTools.Utils.PlayerTestAssemblyProvider")
+                ?.GetField("m_LoadedAssemblies", System.Reflection.BindingFlags.Static | System.Reflection.BindingFlags.NonPublic)?.SetValue(null, null);
+
         void OnLog(string text, string stack, LogType type)
         {
             if (type == LogType.Exception || type == LogType.Error || type == LogType.Assert) { _found.Add($"{type}: {text}"); return; }

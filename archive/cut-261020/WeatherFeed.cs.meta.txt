@@ -1,2 +1,0 @@
-fileFormatVersion: 2
-guid: 1d6c4f111659a07419a57d43d2336ab6

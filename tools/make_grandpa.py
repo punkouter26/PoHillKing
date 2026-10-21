@@ -207,6 +207,41 @@ def owners(body):
     return owner
 
 
+def smooth_arms(body, passes=6):
+    """Smooth weights along mesh edges within each arm's four bones only (never across the touching inner thighs)."""
+    edges = np.array([e.vertices[:] for e in body.data.edges]); nv = len(body.data.vertices)
+    saved = {}
+    for s in "LR":
+        gnames = [f"{b}.{s}" for b in ("Shoulder", "UpperArm", "LowerArm", "Hand")]
+        gids = [body.vertex_groups[n].index for n in gnames]
+        W = np.zeros((nv, 4))
+        for v in body.data.vertices:
+            for g in v.groups:
+                if g.group in gids: W[v.index, gids.index(g.group)] = g.weight
+        saved[s] = (gnames, W.copy())
+        arm_v = W.sum(1) > 1e-4
+        for _ in range(passes):
+            nb_sum = np.zeros_like(W); deg = np.zeros((nv, 1))
+            for a, b in ((edges[:, 0], edges[:, 1]), (edges[:, 1], edges[:, 0])):
+                m = arm_v[a] & arm_v[b]
+                np.add.at(nb_sum, a[m], W[b[m]]); np.add.at(deg, a[m], 1.0)
+            has = (deg[:, 0] > 0) & arm_v
+            tot = W[has].sum(1, keepdims=True)
+            W[has] = 0.5 * W[has] + 0.5 * (nb_sum[has] / deg[has])
+            W[has] *= tot / np.maximum(W[has].sum(1, keepdims=True), 1e-8)
+        set_arm_weights(body, gnames, W, arm_v)
+    ops(body); bpy.ops.object.vertex_group_limit_total(group_select_mode="ALL", limit=4)
+    bpy.ops.object.vertex_group_normalize_all(group_select_mode="ALL", lock_active=False)
+    return saved
+
+
+def set_arm_weights(body, gnames, W, mask):
+    for vi in np.where(mask)[0]:
+        for k, name in enumerate(gnames):
+            if W[vi, k] > 1e-4: body.vertex_groups[name].add([int(vi)], float(W[vi, k]), "REPLACE")
+            else: body.vertex_groups[name].remove([int(vi)])
+
+
 # ---------------------------------------------------------------- posing
 def aim(rig, name, direction):
     """Turn a pose bone about its head so it points along direction (armature space); children follow."""
@@ -423,6 +458,7 @@ def main():
     rig = build_armature(body)
     report["skin"] = skin(body, rig)
     report["palm_turn_deg"] = t_pose(body, rig)
+    raw_arms = smooth_arms(body)
     report["tpose"] = render("1_tpose", view="front") + render("1_tpose", view="three_quarter")
     walk_cycle(rig)
     report["walk"] = check_walk(body, rig)
@@ -438,7 +474,9 @@ def main():
     rig.animation_data.action = None
     for pb in rig.pose.bones: pb.matrix_basis = Matrix.Identity(4)
     bpy.context.view_layer.update()
+    for gnames, W in raw_arms.values(): set_arm_weights(body, gnames, W, W.sum(1) > -1)
     co, bones = game_pose(body, rig)
+    smooth_arms(body)
     report["game_pose"] = render("3_game_rest", view="front") + render("3_game_rest", view="side")
     json.dump({"height": HEIGHT_M, "scale_from_scan": round(scale, 5), "lo": co.min(0).round(4).tolist(), "hi": co.max(0).round(4).tolist(), "bones": bones},
               open(OUT_RIG, "w"), indent=1)

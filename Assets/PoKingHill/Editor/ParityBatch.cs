@@ -117,6 +117,7 @@ namespace PoKingHill.EditorTools
             if (robot != "g1") { cam.transform.position = new Vector3(2.6f, 1.25f, -2.4f); cam.transform.LookAt(new Vector3(0f, 0.85f, 0f)); }   // humans face +X
             string path = SceneOf(robot, tag);
             EditorSceneManager.SaveScene(scene, path);
+            foreach (var g in Directory.GetFiles(SceneDir, "Gate_*.unity")) AssetDatabase.DeleteAsset(g.Replace('\\', '/'));
             Debug.Log($"[ParityBatch] imported {tag}: {UnityEngine.Object.FindObjectsByType<MjBody>(FindObjectsInactive.Include).Length} MjBody, " +
                       $"{UnityEngine.Object.FindObjectsByType<MjGeom>(FindObjectsInactive.Include).Length} MjGeom, " +
                       $"{UnityEngine.Object.FindObjectsByType<MjActuator>(FindObjectsInactive.Include).Length} MjActuator -> {path}");

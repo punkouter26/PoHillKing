@@ -130,6 +130,7 @@ namespace PoKingHill
 
         void Setup(MujocoLib.mjModel_* m, int n)
         {
+            robots = (PolicyRunner[])robots.Clone();
             _prevVel = new double[n][]; _prevFootVz = new double[2 * n]; _wasUnder = new bool[n]; _footBody = new int[2 * n]; _gruntAt = new double[n];
             for (int i = 0; i < n; i++)
             {

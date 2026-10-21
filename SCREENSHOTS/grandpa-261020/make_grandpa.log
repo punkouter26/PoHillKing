@@ -1,6 +1,6 @@
-16:49:01 | INFO: Data are loaded, start creating Blender stuff
-16:49:01 | INFO: Blender create Mesh node node_0
-16:49:01 | INFO: glTF import finished in 0.12s
+00:17:02 | INFO: Data are loaded, start creating Blender stuff
+00:17:02 | INFO: Blender create Mesh node node_0
+00:17:02 | INFO: glTF import finished in 0.19s
 Info: Removed 7738 vertices
 Info: Removed: 0 vertices, 0 edges, 0 faces
 1. mesh: 32722 -> 24984 vertices, 41716 faces (8284 quads), non-manifold edges 14420 -> 0, loose vertices 0, scale 1.6057, origin at the feet
@@ -12,20 +12,21 @@ Info: 7199 vertex weights limited
    palm R: no clear flat side (normal spread 384 vs 362), left as is
    grounded: raised 22.9 mm
 3. T-pose: arms horizontal, legs straight, palms turned down by {'L': 0.0, 'R': 0.0} degrees (L/R), made the rest pose
-   walk check: worst edge stretch x4.13, 99.9th percentile x1.782 over 32 frames; edges stretched over x1.5 (edge-frames by bone): {'Spine': 1149, 'UpperLeg.L': 774, 'UpperLeg.R': 669, 'LowerLeg.L': 378, 'LowerLeg.R': 217, 'UpperArm.R': 173} of 66716 edges
+Info: 1079 vertex weights limited
+   walk check: worst edge stretch x4.02, 99.9th percentile x1.785 over 32 frames; edges stretched over x1.5 (edge-frames by bone): {'Spine': 1182, 'UpperLeg.L': 774, 'UpperLeg.R': 669, 'LowerLeg.L': 378, 'LowerLeg.R': 217, 'UpperArm.R': 190} of 66716 edges
 
 FBX export starting... 'C:\\Users\\punko\\Downloads\\PoHillKing\\Assets\\Art\\Exports\\FBX\\Grandpa\\Character_TPose.fbx'
 (bpy.data.armatures['GrandpaRig'], 'POSE')
-export finished in 0.2286 sec.
+export finished in 0.2792 sec.
 INFO Draco is available, use library at C:\Program Files\WindowsApps\BlenderFoundation.Blender_5.2.2.0_x64__ppwjx1n5r4v9t\Blender\5.2\scripts\addons_core\io_scene_gltf2\bf_intern_draco_bridge.dll
 INFO MeshOptimizer is available, use library at C:\Program Files\WindowsApps\BlenderFoundation.Blender_5.2.2.0_x64__ppwjx1n5r4v9t\Blender\5.2\scripts\addons_core\io_scene_gltf2\bf_intern_meshopt_bridge.dll
-16:49:07 | INFO: Starting glTF 2.0 export
-16:49:07 | INFO: Extracting primitive: Grandpa
-16:49:08 | WARNING: More than one shader node tex image used for a texture. The resulting glTF sampler will behave like the first shader node tex image.
-16:49:08 | INFO: Primitives created: 1
-16:49:08 | INFO: Finished glTF 2.0 export in 0.8606982231140137 s
+00:17:11 | INFO: Starting glTF 2.0 export
+00:17:11 | INFO: Extracting primitive: Grandpa
+00:17:12 | WARNING: More than one shader node tex image used for a texture. The resulting glTF sampler will behave like the first shader node tex image.
+00:17:12 | INFO: Primitives created: 1
+00:17:12 | INFO: Finished glTF 2.0 export in 1.038954734802246 s
 
-   exported C:\Users\punko\Downloads\PoHillKing\Assets\Art\Exports\FBX\Grandpa\Character_TPose.fbx (28539 KB) and C:\Users\punko\Downloads\PoHillKing\Assets\Art\Exports\GLB\Grandpa.glb
+   exported C:\Users\punko\Downloads\PoHillKing\Assets\Art\Exports\FBX\Grandpa\Character_TPose.fbx (28554 KB) and C:\Users\punko\Downloads\PoHillKing\Assets\Art\Exports\GLB\Grandpa.glb
 4. game rest pose: arms 20.0 degrees out; bbox [-0.21  -0.446  0.   ] [0.256 0.422 1.743]
    Hips         head [0.0, 0.0, 0.9545000195503235]  r50 0.1609  r80 0.185  verts 164
    UpperLeg.L   head [-0.0, 0.10209999978542328, 0.934499979019165]  r50 0.1068  r80 0.1235  verts 2844
@@ -36,11 +37,11 @@ INFO MeshOptimizer is available, use library at C:\Program Files\WindowsApps\Ble
    LowerLeg.R   head [-0.0, -0.10890000313520432, 0.5295000076293945]  r50 0.0814  r80 0.098  verts 1815
    Foot.R       head [0.0, -0.10890000313520432, 0.1234000027179718]  r50 0.0578  r80 0.0873  verts 767
    Toe.R        head [0.17739999294281006, -0.10890000313520432, 0.07109999656677246]  r50 0.0331  r80 0.0475  verts 127
-   Spine        head [0.0, 0.0, 1.054900050163269]  r50 0.1896  r80 0.2022  verts 2801
-   Chest        head [0.0, 0.0, 1.2841999530792236]  r50 0.1632  r80 0.1816  verts 265
-   Neck         head [-0.019999999552965164, 0.0, 1.4819999933242798]  r50 0.0721  r80 0.0944  verts 296
+   Spine        head [0.0, 0.0, 1.054900050163269]  r50 0.1896  r80 0.2023  verts 2801
+   Chest        head [0.0, 0.0, 1.2841999530792236]  r50 0.1632  r80 0.1814  verts 266
+   Neck         head [-0.019999999552965164, 0.0, 1.4819999933242798]  r50 0.0716  r80 0.0939  verts 298
    Head         head [-0.010400000028312206, 0.0, 1.559399962425232]  r50 0.1129  r80 0.1365  verts 1799
-   Shoulder.L   head [-0.009999999776482582, 0.029999999329447746, 1.4089000225067139]  r50 0.1198  r80 0.1363  verts 681
+   Shoulder.L   head [-0.009999999776482582, 0.029999999329447746, 1.4089000225067139]  r50 0.1198  r80 0.1363  verts 678
    UpperArm.L   head [-0.019999999552965164, 0.1850000023841858, 1.398900032043457]  r50 0.0734  r80 0.099  verts 2000
    LowerArm.L   head [-0.019999999552965164, 0.28459998965263367, 1.125100016593933]  r50 0.0388  r80 0.0539  verts 390
    Hand.L       head [-0.019999999552965164, 0.3675000071525574, 0.8974999785423279]  r50 0.0485  r80 0.0654  verts 776
@@ -48,10 +49,11 @@ INFO MeshOptimizer is available, use library at C:\Program Files\WindowsApps\Ble
    UpperArm.R   head [-0.019999999552965164, -0.1850000023841858, 1.398900032043457]  r50 0.0811  r80 0.1214  verts 2064
    LowerArm.R   head [-0.019999999552965164, -0.28790000081062317, 1.1160999536514282]  r50 0.0424  r80 0.0603  verts 915
    Hand.R       head [-0.019999999552965164, -0.3727000057697296, 0.8830999732017517]  r50 0.0491  r80 0.0679  verts 990
+Info: 1077 vertex weights limited
 
 FBX export starting... 'C:\\Users\\punko\\Downloads\\PoHillKing\\Assets\\PoKingHill\\Fighters\\Grandpa\\grandpa.fbx'
 (bpy.data.armatures['GrandpaRig'], 'POSE')
-export finished in 0.2120 sec.
+export finished in 0.2873 sec.
    wrote C:\Users\punko\Downloads\PoHillKing\training\assets\grandpa\grandpa_rig.json, C:\Users\punko\Downloads\PoHillKing\Assets\PoKingHill\Fighters\Grandpa/grandpa.fbx, textures ['grandpa_albedo.png', 'grandpa_normal.png']
 Info: Saved as "Grandpa.blend"
 5. archived C:\Users\punko\Downloads\PoHillKing\Assets\Art\Raw\Grandpa~\Grandpa.blend

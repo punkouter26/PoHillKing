@@ -98,7 +98,7 @@ namespace PoKingHill
         public int Draws => _draws;
         public bool IsOut(int body) => body >= 0 && body < _out.Length && _out[body];
         /// <summary>Fallen on the plateau, the get-up brain driving and the count running (still in the round).</summary>
-        public bool IsDown(int body) => body >= 0 && body < _downAt.Length && _downAt[body] >= 0 && !_out[body];
+        public bool IsDown(int body) => body >= 0 && body < _playing && body < _downAt.Length && _downAt[body] >= 0 && !_out[body];
         /// <summary>Seconds left on a down fighter's count.</summary>
         public float DownLeft(int body) => IsDown(body) ? Mathf.Max(0f, (float)(_downAt[body] + getupSeconds - MjScene.Instance.Data->time)) : 0f;
         /// <summary>During the intro: the seat being presented (-1 during the crane shot), and how far into its card (0..1).</summary>
@@ -317,7 +317,12 @@ namespace PoKingHill
             _bracket.Clear(); PuppetBody = -1;
             _resultUntil = 0; _roundsThisMatch = 0;
             foreach (var f in fighters) f.SetBrain(null, ObsBuilder.ObsDim, GoalMode.None, 0.3f, 0.8f);      // passive stance while the menu is up
-            Seat(2); _seat[0] = _seat[1] = 0;
+            Seat(2);
+            for (int i = 0; i < 2 && i < fighters.Length; i++)
+            {
+                int a = Array.FindIndex(roster, r => r.body == fighters[i].body && !r.steerable);
+                _seat[i] = a >= 0 ? a : 0;
+            }
             Place(); ClearOut();
             if (sea != null) sea.Park();
             _menuShotAt = Time.unscaledTime + 1.5f;
@@ -466,9 +471,10 @@ namespace PoKingHill
         void ClearOut()
         {
             _alive.Clear(); _fallen.Clear();
-            for (int i = 0; i < _playing; i++)
+            for (int i = 0; i < fighters.Length; i++)
             {
-                _out[i] = false; fighters[i].paused = false; _alive.Add(fighters[i]);
+                bool inPlay = i < _playing;
+                _out[i] = !inPlay; fighters[i].paused = !inPlay; if (inPlay) _alive.Add(fighters[i]);
                 _downAt[i] = -1; _stoodAt[i] = -1; _getups[i] = 0; _lurking[i] = false; fighters[i].tactic = Tactic.Press;
             }
         }

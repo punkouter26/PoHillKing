@@ -100,7 +100,7 @@ namespace PoKingHill
             _sim = true; _simSize = new Vector2(width, height);
             _simSafe = safeArea.width > 0 ? safeArea : new Rect(0, 0, width, height);
             _simCutouts = cutouts ?? Array.Empty<Rect>();
-            _safeArea = default; FitColumn();
+            _safeArea = default; UpdateFps(); FitColumn();
         }
         public void ClearSimulation() { _sim = false; _safeArea = default; _fps.style.translate = StyleKeyword.Null; FitColumn(); }
 
@@ -180,6 +180,16 @@ namespace PoKingHill
             if (turnedOff && DebugShown) ToggleDebug();
         }
         bool _devTools;
+
+        void UpdateFps()
+        {
+            if (!_devTools || _fps == null || director == null) return;
+            string tier = quality != null && quality.Current == Quality.Medium ? "Med" : quality != null ? quality.Current.ToString() : "";
+            _fps.text = !GameSettings.TelemetryHud ? $"{_fpsAvg:0} FPS" : quality != null
+                // a second, smaller line: one long line spread over the title (physics and brain times are in the debug panel)
+                ? $"{quality.Fps:0} FPS\n<size=20>p95 {quality.FrameP95Ms:0} ms · {tier}</size>"
+                : $"{_fpsAvg:0} FPS · phys {director.StepMs:0.00} · brain {(director.fighters.Length > 0 ? director.fighters[0].LastInferenceMs : 0):0.00} ms";
+        }
 
         void FitColumn()
         {
@@ -378,7 +388,7 @@ namespace PoKingHill
         }
         void OnRoundEnded(RoundResult r) { }      // the Result state change rebuilds the sheet
         void OnCaption(string text) { _caption.text = text; _caption.style.opacity = 1; _captionUntil = Time.unscaledTime + 3.5f; }
-        void OnSettings() { ApplyDevTools(); if (_sheetKind == SheetKind.Menu) RebuildSheet(); }
+        void OnSettings() { ApplyDevTools(); UpdateFps(); if (_sheetKind == SheetKind.Menu) RebuildSheet(); }
 
         void ToggleMenu()
         {
@@ -449,10 +459,7 @@ namespace PoKingHill
             {
                 _nextSlow = Time.unscaledTime + 0.25f;
                 FitColumn();
-                if (_devTools) _fps.text = !GameSettings.TelemetryHud ? $"{_fpsAvg:0} FPS" : quality != null
-                    // a second, smaller line: one long line spread over the title (physics and brain times are in the debug panel)
-                    ? $"{quality.Fps:0} FPS\n<size=20>p95 {quality.FrameP95Ms:0} ms · {quality.Current}</size>"
-                    : $"{_fpsAvg:0} FPS · phys {director.StepMs:0.00} · brain {(director.fighters.Length > 0 ? director.fighters[0].LastInferenceMs : 0):0.00} ms";
+                if (!_sim) UpdateFps();
                 if (DebugShown && _debugTab == 0) _debugText.text = DebugText();
                 UpdateCountdown();
             }

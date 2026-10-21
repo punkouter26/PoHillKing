@@ -54,15 +54,15 @@
   "1_tpose_three_quarter_f01.png"
  ],
  "walk": {
-  "worst_stretch": 4.133,
-  "p999_stretch": 1.782,
+  "worst_stretch": 4.022,
+  "p999_stretch": 1.7851,
   "over_1_5_by_bone": {
-   "Spine": 1149,
+   "Spine": 1182,
    "UpperLeg.L": 774,
    "UpperLeg.R": 669,
    "LowerLeg.L": 378,
    "LowerLeg.R": 217,
-   "UpperArm.R": 173
+   "UpperArm.R": 190
   },
   "edges": 66716
  },
