@@ -1,0 +1,67 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Play test 261021</title>
+<style>
+  :root { --bg: #f6f5f2; --fg: #1d1d1b; --muted: #66645e; --card: #fff; --line: #dcd9d2; --mark: #e0453a; --ok: #2f8f4e; }
+  @media (prefers-color-scheme: dark) { :root { --bg: #161615; --fg: #ecebe7; --muted: #a3a19a; --card: #20201e; --line: #3a3935; } }
+  body { margin: 0; background: var(--bg); color: var(--fg); font: 15px/1.5 system-ui, sans-serif; }
+  main { max-width: 1100px; margin: 0 auto; padding: 24px 16px 48px; }
+  h1 { font-size: 26px; margin: 0 0 4px; } h2 { font-size: 19px; margin: 32px 0 8px; }
+  p.sub { color: var(--muted); margin: 0 0 16px; }
+  table { border-collapse: collapse; width: 100%; background: var(--card); }
+  th, td { border: 1px solid var(--line); padding: 6px 10px; text-align: left; font-variant-numeric: tabular-nums; }
+  .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 16px; }
+  figure { margin: 0; background: var(--card); border: 1px solid var(--line); border-radius: 8px; padding: 8px; }
+  figcaption { font-size: 13px; color: var(--muted); padding-top: 6px; }
+  .shot { position: relative; } .shot img { width: 100%; display: block; border-radius: 4px; }
+  .box { position: absolute; border: 3px solid var(--mark); border-radius: 4px; }
+  .box.ok { border-color: var(--ok); }
+  .tag { position: absolute; left: 0; top: -22px; background: var(--mark); color: #fff; font-size: 11px; padding: 1px 6px; border-radius: 3px; white-space: nowrap; }
+  .box.ok .tag { background: var(--ok); }
+  code { font-size: 13px; }
+</style>
+</head>
+<body>
+<main>
+<h1>Play test, 2026-10-21</h1>
+<p class="sub">Demo_duel rebuilt with the human get-up brains, played in the editor; one HUD text fix.</p>
+
+<h2>Fix: result names</h2>
+<p>The round result used the roster's full description as the winner's name. It now uses the badge name
+(<code>DemoDirector.BadgeOf</code>), as the badges and the result table already did.</p>
+<div class="grid">
+  <figure><div class="shot"><img src="before_result.png" alt="Result before the fix">
+    <div class="box" style="left:3%;top:56.5%;width:94%;height:7%"><span class="tag">full description as name</span></div>
+    <div class="box" style="left:12%;top:96%;width:76%;height:2.8%"><span class="tag">"C (Grandpa (86 kg, ...))"</span></div>
+  </div><figcaption>Before: Grandpa wins a 3-body free-for-all in 6.0 s.</figcaption></figure>
+  <figure><div class="shot"><img src="after_result.png" alt="Result after the fix">
+    <div class="box ok" style="left:3%;top:59%;width:40%;height:4.5%"><span class="tag">badge name</span></div>
+    <div class="box ok" style="left:36%;top:96%;width:28%;height:2.8%"><span class="tag">"B (Trump)"</span></div>
+  </div><figcaption>After: Trump wins in 4.1 s.</figcaption></figure>
+</div>
+
+<h2>Get-up gates (200 drops, Unity vs CPU MuJoCo)</h2>
+<table>
+  <tr><th>Body</th><th>Python: up within 5 s, median (p25 / p75)</th><th>Unity</th><th>Verdict</th></tr>
+  <tr><td>Kim</td><td>100 %, 1.76 s (1.66 / 2.10)</td><td>99 %, 1.70 s (1.60 / 2.06)</td><td>pass</td></tr>
+  <tr><td>Trump</td><td>99.5 %, 2.48 s (2.30 / 2.97)</td><td>96.5 %, 2.40 s (2.18 / 2.79)</td><td>borderline (share ~2 SE low)</td></tr>
+  <tr><td>Grandpa</td><td>100 %, 2.88 s (2.74 / 3.22)</td><td>98.5 %, 2.87 s (2.69 / 3.18)</td><td>pass</td></tr>
+</table>
+
+<h2>What was played</h2>
+<div class="grid">
+  <figure><div class="shot"><img src="01_menu.png" alt="Menu"></div><figcaption>Menu, 60 FPS (p95 18 ms, High).</figcaption></figure>
+  <figure><div class="shot"><img src="quick_fight.png" alt="Quick match"></div><figcaption>Quick match: Kim against herself, a series.</figcaption></figure>
+  <figure><div class="shot"><img src="quick_menu_return.png" alt="Back to menu"></div><figcaption>Round over (B wins in 6.6 s), back to the menu.</figcaption></figure>
+  <figure><div class="shot"><img src="custom_fight.png" alt="Custom match"></div><figcaption>Custom, 3 agents: Trump, Kim, Grandpa.</figcaption></figure>
+  <figure><div class="shot"><img src="custom_menu_return.png" alt="Menu after custom"></div><figcaption>Back to the menu with the bodies re-placed.</figcaption></figure>
+</div>
+
+<h2>Tests</h2>
+<p>EditMode 54/54, PlayMode 7/7 (match flow, HUD layout on three phones, 300-tap soak). No errors in the editor log during play.</p>
+</main>
+</body>
+</html>

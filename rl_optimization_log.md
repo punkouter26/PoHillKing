@@ -521,3 +521,22 @@ Demo_duel rebuilt (koth_game: Grandpa available with his fighter). EditMode 59/5
 PlayMode 7/7; HudLayoutTests failed once while training held the GPU (18 FPS: the telemetry pill's tier word grew from
 High to Medium and overflowed by 12 units), passes on an idle GPU. Report: `SCREENSHOTS/grandpa-261020/report.html`.
 Open: his self-ejection on r3 and the weaker attack (79 % vs Trump 97.5 %): more r4att iterations; no get-up brain yet.
+
+## 2026-10-21 — human get-up brains gated in Unity, game scene rebuilt with them, play test
+
+**Get-up gates** (`RunGetupStats(robot, drops)`, a new overload for CLI evals; 200 drops on `Testbed_<robot>_flat_1p`,
+training recipe, vs `getup_stats.py`; share up within the 5 s count, median time to stand and quartiles):
+
+| Body | Python | Unity | Verdict |
+|---|---|---|---|
+| Kim | 100 %, 1.76 s (1.66 / 2.10) | 99 %, 1.70 s (1.60 / 2.06) | pass |
+| Trump | 99.5 %, 2.48 s (2.30 / 2.97) | 96.5 %, 2.40 s (2.18 / 2.79) | borderline: times match, 7 drops vs 1 never stood (~2 standard errors) |
+| Grandpa | 100 %, 2.88 s (2.74 / 3.22) | 98.5 %, 2.87 s (2.69 / 3.18) | pass |
+
+Demo_duel rebuilt (`BuildDuelDemo`): `getupBrains` now holds kim, trump and grandpa `getup_policy.onnx`. Play test in the
+editor: quick match (Kim vs Kim, a best-of series), custom 3 agents (Kim, Trump, Grandpa free-for-all: knock-out feed,
+result table, Elo, replay bar, back to the menu), 60 FPS (p95 17-22 ms, High); no errors in the log. Fix: the round
+result and status line used the roster's full description ("Winner: Grandpa (86 kg, in his eighties, leans in and
+shoves)", "C (Grandpa (86 kg, ...)) wins"); they now use the badge name (`BadgeOf`); the Elo ladder still keys on the full
+name. EditMode 54/54 (fewer per-scene cases than 59 after the cleanup), PlayMode 7/7. Report:
+`SCREENSHOTS/playtest-261021/report.html`. Open: Trump's get-up share in Unity; the get-up rule stays off by default.

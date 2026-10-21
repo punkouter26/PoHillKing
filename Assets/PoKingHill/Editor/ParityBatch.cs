@@ -470,15 +470,18 @@ namespace PoKingHill.EditorTools
         /// <summary>Get-up gate: Testbed_flat_1p with the get-up brain (Models[/robot]/getup_policy.onnx, -kothRobot),
         /// -kothRounds N drops (default 200) with the training recipe; GetupProbe writes getup_stats_unity.json to compare
         /// with scripts/getup_stats.py (success share within the 5 s count and time-to-stand quartiles).</summary>
-        public static void RunGetupStats()
+        public static void RunGetupStats() => RunGetupStats(Robot, int.Parse(Cli.Arg("-kothRounds", "200")));
+
+        /// <summary>The get-up gate for a CLI eval, which cannot set -kothRobot / -kothRounds.</summary>
+        public static void RunGetupStats(string robot, int drops)
         {
-            EditorSceneManager.OpenScene(SceneOf(Robot, "flat_1p"), OpenSceneMode.Single);
-            var policy = AssetDatabase.LoadAssetAtPath<Unity.InferenceEngine.ModelAsset>($"{ModelsOf(Robot)}/getup_policy.onnx");
+            EditorSceneManager.OpenScene(SceneOf(robot, "flat_1p"), OpenSceneMode.Single);
+            var policy = AssetDatabase.LoadAssetAtPath<Unity.InferenceEngine.ModelAsset>($"{ModelsOf(robot)}/getup_policy.onnx");
             var runner = UnityEngine.Object.FindObjectsByType<PolicyRunner>(FindObjectsInactive.Include).FirstOrDefault();
             if (policy == null || runner == null) { Debug.LogError("[ParityBatch] RunGetupStats needs getup_policy.onnx and a PolicyRunner"); if (Cli.Exit) EditorApplication.Exit(3); return; }
             // the testbed's hold-parity probe writes unity_hold_trace_flat_1p.json whenever the scene plays: not in this gate
             foreach (var hold in UnityEngine.Object.FindObjectsByType<ParityProbe>(FindObjectsInactive.Include)) UnityEngine.Object.DestroyImmediate(hold);
-            var probe = runner.gameObject.AddComponent<GetupProbe>(); probe.runner = runner; probe.policy = policy; probe.drops = int.Parse(Cli.Arg("-kothRounds", "200"));
+            var probe = runner.gameObject.AddComponent<GetupProbe>(); probe.runner = runner; probe.policy = policy; probe.drops = drops;
             EditorApplication.EnterPlaymode();
         }
 

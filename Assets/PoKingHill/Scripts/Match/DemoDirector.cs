@@ -562,7 +562,7 @@ namespace PoKingHill
             {
                 winner = last; end = RoundEnd.Knockout; _times.Add(t);
                 how = $"last one on the summit after {t:0.0} s";
-                _last = $"{(char)('A' + last)} ({NameOf(_seat[last], "Robot")}) wins in {t:0.0} s";
+                _last = $"{(char)('A' + last)} ({BadgeOf(_seat[last])}) wins in {t:0.0} s";
             }
             else if (alive > 1 && sea != null)
             {
@@ -578,7 +578,7 @@ namespace PoKingHill
                     }
                 end = RoundEnd.SeaArrived;
                 how = $"nearest the centre when the sea arrived ({Math.Sqrt(best):0.0} m, {alive} still standing)";
-                _last = $"{(char)('A' + winner)} ({NameOf(_seat[winner], "Robot")}) holds the summit as the sea arrives";
+                _last = $"{(char)('A' + winner)} ({BadgeOf(_seat[winner])}) holds the summit as the sea arrives";
             }
             else
             {
@@ -589,7 +589,7 @@ namespace PoKingHill
             if (winner >= 0) Award(winner); else _draws++;
             _roundsThisMatch++;
             var agents = new int[_playing]; for (int i = 0; i < _playing; i++) agents[i] = _seat[i];
-            LastResult = new RoundResult(winner, winner >= 0 ? NameOf(_seat[winner], "Robot") : "No winner", how, end, (float)t, agents);
+            LastResult = new RoundResult(winner, winner >= 0 ? BadgeOf(_seat[winner]) : "No winner", how, end, (float)t, agents);
             if (statsRounds > 0)
             {
                 if (_wins[0] + _wins[1] + _draws >= statsRounds) WriteStats(); else NewRound();
