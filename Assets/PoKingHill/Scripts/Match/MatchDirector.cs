@@ -68,6 +68,7 @@ namespace PoKingHill
         [Tooltip("Free-for-all statistics gate: the candidate (roster index) on seat A against three opponents drawn from this pool every round (roster indices). Empty = the two-fighter gate.")]
         public int[] statsPool = Array.Empty<int>();
         public int statsCandidate = -1;
+        [Tooltip("Seat the pool as listed (one each) instead of drawing three from it: the humans' free-for-all gate")] public bool statsPoolInOrder;
         [Tooltip("Get-up brain per body kind (training rung getup): a fighter that falls gets up again with it")]
         public BodyBrain[] getupBrains = Array.Empty<BodyBrain>();
         [Tooltip("Seconds a fallen fighter has to stand up before it is out; 0 = no count (the game's hill rule)")] public float getupSeconds;
@@ -286,11 +287,14 @@ namespace PoKingHill
             StartMatch(agents);
         }
 
-        /// <summary>One tap from the menu: the champion against itself on the first map.</summary>
+        /// <summary>One tap from the menu: everyone with a brain at once, in random seats, on the first map.</summary>
         public void QuickMatch()
         {
             _bracket.Clear(); selectedMap = 0;
-            StartMatch(new List<int> { 0, 0 });
+            var all = new List<int>();
+            for (int i = 0; i < roster.Length; i++) if (roster[i].available) all.Add(i);
+            for (int i = all.Count - 1; i > 0; i--) { int k = UnityEngine.Random.Range(0, i + 1); (all[i], all[k]) = (all[k], all[i]); }
+            StartMatch(all.Count > 0 ? all : new List<int> { 0 });
         }
 
         /// <summary>Single elimination between up to four available agents (the ticked ones, or all when fewer than two
@@ -577,6 +581,7 @@ namespace PoKingHill
         List<int> FfaDraw()
         {
             var agents = new List<int> { statsCandidate };
+            if (statsPoolInOrder) { agents.AddRange(statsPool); return agents; }
             for (int k = 0; k < Mathf.Min(3, bodies.Length - 1); k++) agents.Add(statsPool[UnityEngine.Random.Range(0, statsPool.Length)]);
             return agents;
         }

@@ -72,6 +72,13 @@ after `record_reference.py` with `KOTH_ROBOT=kim`.
 > (`Models/<body>/ffa_policy.onnx`, gated), retire the G1 gates: the G1 testbeds and `Gate_ffa_4p`, the G1 roster in
 > `GameScene.G1Roster`, `RunFfaStats`' G1 opponent pool and the G1 ONNX brains (checkpoints in `runs/league` stay).
 > Until then the G1 pool is what the human free-for-all gate fights.
+>
+> **Human free-for-all (2026-10-21):** rung `<body>_hffa`, scene `scene_koth_3p_<body>_<other>_<other>_train.xml`
+> (`build_mjcf mix`), learner warm-started from the body's shipped fighter against the other two humans' shipped
+> fighters (`FrozenPool` `:slot1` / `:slot2`), `--critic-warmup 15` (without it two PPO updates against the unfitted critic
+> wrecked the warm-started actor in the smoke test). Queue: `scripts/queue_hffa.py` (1536 worlds, 400 iterations, about
+> 9 s per iteration on the RTX 2060). Bars: three-way last-one-in share at least 3 points above the fighter's, and a duel
+> against the fighter within 5 points of the fighter's mirror duel. Unity gate: `ParityBatch.RunHumanFfaStats(body)`.
 
 Four G1 on `scene_koth_4p_train.xml` (already generated, unchanged). Learner `a_`, frozen opponents on `b_ c_ d_`,
 each opponent drawn per world slot from the pool. "The opponent" of every robot is its nearest opponent still in

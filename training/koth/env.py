@@ -203,6 +203,13 @@ def default_cfg(rung: str = "r0") -> dict:
         me = rung[:-4]
         cfg.update(default_cfg("r5ffa")); cfg.update(scene=mix_scene([me, "g1", "g1", "g1"]))
         if me == "trump": cfg["reward"].update(push_out=1.0, belly_push=4.0, arm_contact=-1.0); cfg["goal_cmd"].update(vmax=0.7)
+    elif rung.endswith("_hffa") and rung[:-5] in HUMANS:   # the game's free-for-all (humans only since 2026-10-20)
+        # learner a_ = this body, b_ and c_ = the other two humans driven by their own frozen fighters (--opponent
+        # x.pt:slot1 y.pt:slot2, see FrozenPool); a three-body ring as in the game's quick match
+        me = rung[:-5]; bodies = [me] + [h for h in HUMANS if h != me]
+        cfg.update(default_cfg("r5ffa")); cfg.update(scene=mix_scene(bodies), robots=["a_", "b_", "c_"])
+        cfg["goal_cmd"].update(vmax=[0.7 if b == "trump" else 1.0 for b in bodies])      # Trump walks in at 0.7, as in his roster entry
+        if me == "trump": cfg["reward"].update(push_out=1.0, belly_push=4.0, arm_contact=-1.0)
     elif rung == "trump_bull":            # Trump's bull charge: trump_r4bull with the styled action path (obs.BULL_POSE)
         # trump_bull1 switched the pose on at once and learned to stay out of contact (11 % wins vs a standing Trump):
         # ease it in over 300 iterations from fight1's plain stance instead.
@@ -297,10 +304,12 @@ class FrozenPolicy(torch.nn.Module):
 
 class FrozenPool:
     """Several frozen opponents; each opponent row is assigned one of them, re-drawn whenever its world resets.
-    slots = frozen robots per world (1 in a duel: one row per world)."""
+    slots = frozen robots per world (1 in a duel: one row per world). An entry "path.pt:slot2" only drives frozen slot 2
+    (robot c_; slot 1 = b_): mixed-body scenes need each body driven by a brain of its own kind."""
     def __init__(self, ckpts, device, num_rows, stochastic=False, slots=1):
         # an entry "path.pt:stand" is an opponent that gets a zero command (holds its ground) instead of attacking
         specs = [opp_spec(c) for c in ckpts]
+        self.slot_of = [next((int(f[4:]) for f in fl if f.startswith("slot")), 0) for _, fl in specs]     # 0 = any slot
         self.stands = torch.tensor(["stand" in f for _, f in specs], device=device)
         self.shoves = torch.tensor(["shove" in f for _, f in specs], device=device)
         self.any_stand = any("stand" in f for _, f in specs); self.any_shove = any("shove" in f for _, f in specs)
@@ -312,12 +321,23 @@ class FrozenPool:
         self.slots = slots
         self.choice = torch.randint(0, len(self.nets), (num_rows,), device=device)
         self.weights = None                   # draw weights per entry (koth/curriculum.py); None = uniform
+        if any(self.slot_of):
+            assert all(any(s in (0, k + 1) for s in self.slot_of) for k in range(slots)), "every frozen slot needs an opponent"
+            self.resample(torch.arange(num_rows // slots, device=device))
 
     def set_weights(self, w):
         w = torch.tensor(w, dtype=torch.float32, device=self.choice.device); assert len(w) == len(self.nets) and w.sum() > 0
         self.weights = w / w.sum()
 
     def resample(self, world_ids):
+        if any(self.slot_of):                 # per slot, among the entries allowed there
+            for k in range(self.slots):
+                rows = world_ids * self.slots + k
+                idx = torch.tensor([i for i, s in enumerate(self.slot_of) if s in (0, k + 1)], device=self.choice.device)
+                if self.weights is None: pick = torch.randint(0, len(idx), (len(rows),), device=self.choice.device)
+                else: pick = torch.multinomial(self.weights[idx] + 1e-9, len(rows), replacement=True)
+                self.choice[rows] = idx[pick]
+            return
         rows = world_ids if self.slots == 1 else (world_ids[:, None] * self.slots + torch.arange(self.slots, device=world_ids.device)).reshape(-1)
         if self.weights is None: self.choice[rows] = torch.randint(0, len(self.nets), (len(rows),), device=self.choice.device)
         else: self.choice[rows] = torch.multinomial(self.weights, len(rows), replacement=True)

@@ -34,7 +34,10 @@ FFA_RUNGS = ("r5ffa",)
 
 def load_policy(env, ckpt):
     ck = torch.load(ckpt, map_location="cuda", weights_only=False)
-    if not ck.get("critic_state_dict"):     # rebuilt from a Unity ONNX (scripts/onnx_to_ckpt.py): actor only, deterministic
+    width = ck["actor_state_dict"]["obs_normalizer._mean"].shape[-1]
+    # rebuilt from a Unity ONNX (scripts/onnx_to_ckpt.py, actor only), or a 112-input brain judged in a 121-input rung
+    # (a fighter as the baseline of a free-for-all brain): the deterministic actor on the first columns it knows
+    if not ck.get("critic_state_dict") or width < env.get_observations()["policy"].shape[-1]:
         from koth.actor import Actor
         actor = Actor(ck["actor_state_dict"]).cuda().eval()
         return lambda obs: actor(obs["policy"][:, :actor.obs_dim])   # a 112-input brain reads the first 112 of a 121-wide observation
@@ -45,12 +48,12 @@ def load_policy(env, ckpt):
 
 
 def base_rung(rung: str) -> str:
-    """kim_r0b -> r0, trump_r4bull -> r4league, trump_vs_g1 -> r4league, kim_ffa -> r5ffa: the bar a rung is judged on."""
+    """kim_r0b -> r0, trump_r4bull -> r4league, trump_vs_g1 -> r4league, kim_ffa / kim_hffa -> r5ffa: the bar a rung is judged on."""
     if "_vs_" in rung: return "r4league"
     if "_att_" in rung: return "r4att"
     body, _, rest = rung.partition("_")
     if body not in HUMANS: return rung
-    if rest == "ffa": return "r5ffa"
+    if rest in ("ffa", "hffa"): return "r5ffa"
     return {"r4bull": "r4league", "bull": "r4league"}.get(rest, rest[:2])
 
 
