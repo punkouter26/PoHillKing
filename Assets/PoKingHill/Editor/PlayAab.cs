@@ -41,6 +41,30 @@ namespace PoKingHill.EditorTools
                 Run(File.ReadAllText(passFile).Trim());
         }
 
+        const string APK = "Builds/Android/PoHillKing.apk";
+
+        /// <summary>Side-load APK for a phone on USB (debug keystore, no versionCode bump, no Play upload), written to
+        /// Builds/Android/PoHillKing.apk; then: adb install -r Builds/Android/PoHillKing.apk. Logs "APK BUILD RESULT:".</summary>
+        [MenuItem("Tools/PoHillKing/Build Android APK (side-load)")]
+        public static void SideloadApk()
+        {
+            if (EditorApplication.isPlaying) { Debug.LogError("APK BUILD RESULT: aborted, exit Play mode first"); return; }
+            if (EditorUserBuildSettings.activeBuildTarget != BuildTarget.Android) { Debug.LogError("APK BUILD RESULT: aborted, switch the editor to Android first"); return; }
+            if (Prepare() is string missing) { Debug.LogError("APK BUILD RESULT: aborted, " + missing); return; }
+            PlayerSettings.SetApplicationIdentifier(NamedBuildTarget.Android, APP_ID);
+            PlayerSettings.Android.targetArchitectures = AndroidArchitecture.ARM64;
+            PlayerSettings.SetScriptingBackend(NamedBuildTarget.Android, ScriptingImplementation.IL2CPP);
+            bool wasCustomKeystore = PlayerSettings.Android.useCustomKeystore, wasBundle = EditorUserBuildSettings.buildAppBundle;
+            PlayerSettings.Android.useCustomKeystore = false; EditorUserBuildSettings.buildAppBundle = false;
+            string[] scenes = EditorBuildSettings.scenes.Where(s => s.enabled).Select(s => s.path).ToArray();
+            Directory.CreateDirectory(Path.GetDirectoryName(APK));
+            BuildSummary summary;
+            try { summary = BuildPipeline.BuildPlayer(scenes, APK, BuildTarget.Android, BuildOptions.None).summary; }
+            finally { PlayerSettings.Android.useCustomKeystore = wasCustomKeystore; EditorUserBuildSettings.buildAppBundle = wasBundle; }
+            string msg = $"APK BUILD RESULT: {summary.result} | {APP_ID} | {scenes.Length} scenes | {summary.totalErrors} errors | {summary.totalSize / (1024 * 1024)} MB | {APK} | {summary.totalTime.TotalMinutes:0.0} min";
+            if (summary.result == BuildResult.Succeeded) Debug.Log(msg); else Debug.LogError(msg);
+        }
+
         /// Project-specific setup before the build; returns what is missing, or null when ready.
         static string Prepare()
         {

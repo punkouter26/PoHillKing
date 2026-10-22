@@ -595,3 +595,15 @@ jitter. So the duel bar measured a match the recipe never practised (duel_share 
 Next: put the learner's own body into the opponent pool (four-body ring me, me, other, other). The Unity half of the
 `smooth` sidecar (ActionMap/PolicyRunner + test) is written but not compiled yet: the editor's CLI stopped answering
 during the run. Report: `SCREENSHOTS/training-261022/report.html`.
+
+**Same day: Kim's kim_hill2 shipped (user's choice) and the first Android build.** `Models/kim/fighter_policy.onnx` =
+kim_hill2 with `fighter_action.json` (smooth 0.6); Unity reads the low-pass (ActionMap.Smooth, EditMode 47/47) and the
+roster carries the sidecar (GameScene.RefreshBrains). Python mirror duel of the new brain (`duel_stats.py --policy
+fighter`, 200 rounds): decided 11 % (178 ties at the 25 s bell; kim_fight1: 100 %, median 6.7 s); three-ways stay 98-99 %
+decided and duels against the other bodies 95-96 %: two copies of the new brain hold off each other, the sea ends such
+rounds in the game. The Unity duel gate for it was stopped before a round to free the editor for the Android build and
+is still to run. Android: `PlayAab.SideloadApk` (debug-signed, IL2CPP ARM64, 129 MB, 16 min first build), re-signed with
+the upload key (the phone's 10-17 install was upload-signed) and installed on a Pixel 9 Pro: launches, ModelDumpCheck PASS
+on the device; logcat: Play Asset Delivery ClassNotFoundException (harmless probe) and an Input System
+"InputUpdateType.None is not a valid update mask" in onDeviceChange (package-internal); the phone disconnected before touch
+and frame times were checked.

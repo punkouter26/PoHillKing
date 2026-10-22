@@ -356,7 +356,8 @@ namespace PoKingHill.EditorTools
             {
                 var policy = AssetDatabase.LoadAssetAtPath<Unity.InferenceEngine.ModelAsset>($"{ModelsOf(b)}/{file}_policy.onnx");
                 if (policy == null) throw new Exception($"{ModelsOf(b)}/{file}_policy.onnx missing");
-                return new Agent { name = $"{b} {file}", shortName = b, body = b, policy = policy, obsDim = InputsOf(policy), goal = GoalMode.Opponent, vmax = b == "trump" ? 0.7f : 1f };
+                return new Agent { name = $"{b} {file}", shortName = b, body = b, policy = policy, obsDim = InputsOf(policy), goal = GoalMode.Opponent, vmax = b == "trump" ? 0.7f : 1f,
+                                   action = AssetDatabase.LoadAssetAtPath<TextAsset>($"{ModelsOf(b)}/{file}_action.json") };
             }
             var others = new[] { "kim", "trump", "grandpa" }.Where(h => h != body);
             dd.roster = new[] { Brain(body, "fighter") }.Concat(others.Select(o => Brain(o, "fighter"))).ToArray();
