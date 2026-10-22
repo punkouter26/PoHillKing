@@ -40,6 +40,14 @@ namespace PoKingHill.Tests
         }
 
         [Test]
+        public void SmoothIsReadAndCheckedAsActionMapPyWritesIt()
+        {
+            Assert.AreEqual(0.6f, ActionMap.Parse(Sidecar("{\"map\": \"clip\", \"scale\": null, \"window\": false, \"smooth\": 0.6}")).Smooth);
+            Assert.AreEqual(0f, ActionMap.Parse(Sidecar("{\"map\": \"tanh\", \"scale\": null, \"window\": false}")).Smooth, "older sidecars: no filter");
+            Assert.Throws<System.ArgumentException>(() => ActionMap.Parse(Sidecar("{\"map\": \"clip\", \"scale\": null, \"window\": false, \"smooth\": 1.0}")));
+        }
+
+        [Test]
         public void WrongScaleLengthIsRejected() =>
             Assert.Throws<System.ArgumentException>(() => ActionMap.Parse(Sidecar("{\"map\": \"tanh\", \"scale\": [0.1, 0.2], \"window\": false}")));
     }

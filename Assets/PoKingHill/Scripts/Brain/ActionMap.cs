@@ -10,15 +10,17 @@ namespace PoKingHill
     ///   map "tanh"   a = tanh(raw)
     ///   scale[29]    per-joint action scale instead of joint_map's single one
     ///   window       target clamped to the torque-feasible window q + (kv qd -+ tau) / kp (nominal gains)
+    ///   smooth k     action low-pass f = k f_prev + (1 - k) a before the scale (PolicyRunner; with the shove style the larger k)
     /// </summary>
     public sealed class ActionMap
     {
-        [Serializable] class Json { public string map = "clip"; public float[] scale; public bool window; }
+        [Serializable] class Json { public string map = "clip"; public float[] scale; public bool window; public float smooth; }
 
         public readonly bool Tanh, Window;
         public readonly float[] Scale;     // null = joint_map's action_scale for every joint
+        public readonly float Smooth;      // action low-pass k, 0 = off
 
-        ActionMap(bool tanh, float[] scale, bool window) { Tanh = tanh; Scale = scale; Window = window; }
+        ActionMap(bool tanh, float[] scale, bool window, float smooth) { Tanh = tanh; Scale = scale; Window = window; Smooth = smooth; }
 
         /// <summary>Parse a sidecar; null (the original path) for no file.</summary>
         public static ActionMap Parse(TextAsset json)
@@ -27,7 +29,8 @@ namespace PoKingHill
             var j = JsonUtility.FromJson<Json>(json.text);
             if (j.scale != null && j.scale.Length == 0) j.scale = null;
             if (j.scale != null && j.scale.Length != 29) throw new ArgumentException($"{json.name}: scale has {j.scale.Length} values, not 29");
-            return new ActionMap(j.map == "tanh", j.scale, j.window);
+            if (j.smooth < 0f || j.smooth >= 1f) throw new ArgumentException($"{json.name}: smooth {j.smooth} outside [0, 1)");
+            return new ActionMap(j.map == "tanh", j.scale, j.window, j.smooth);
         }
 
         public float ToAction(float raw) => Tanh ? (float)Math.Tanh(raw) : Mathf.Clamp(raw, -1f, 1f);

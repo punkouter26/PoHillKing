@@ -166,7 +166,8 @@ namespace PoKingHill
                 RawAction[i] = act[i];
                 float a = _amap != null ? _amap.ToAction(act[i]) : Mathf.Clamp(act[i], -1f, 1f);
                 LastAction[i] = a;
-                float f = shoveStyle ? ShoveSmooth * _actF[i] + (1f - ShoveSmooth) * a : a; _actF[i] = f;
+                float k = Mathf.Max(shoveStyle ? ShoveSmooth : 0f, _amap != null ? _amap.Smooth : 0f);     // action low-pass (action_map.py)
+                float f = k > 0f ? k * _actF[i] + (1f - k) * a : a; _actF[i] = f;
                 double rest = Map.DefaultPose[i] + blend * _shoveOffset[i];
                 Ctrl[i] = _amap == null ? System.Math.Clamp(rest + _spec.action_scale * f, Map.CtrlMin[i], Map.CtrlMax[i])
                     : _amap.Target(i, rest, f, _spec.action_scale, d->qpos[Map.QposAdr[i]], d->qvel[Map.DofAdr[i]], Map.Kp[i], Map.Kv[i], Map.Tau[i], Map.CtrlMin[i], Map.CtrlMax[i]);
