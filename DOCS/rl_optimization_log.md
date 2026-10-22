@@ -574,3 +574,24 @@ out radius; the sea still ends a round), mirrored by `duel_stats.py --getup --hi
 same method with hill false and now writes `duel_stats_getup_unity.json` (it used to overwrite `duel_stats_unity.json`).
 The player-steered walker (`PuppetControl`, the stick, `Agent.steerable`, the walker roster entry) moved to
 `archive/clean-261021`. EditMode 46/46, PlayMode 7/7.
+
+## 2026-10-22 — overnight: one brain per body with smooth motion (no promotion)
+
+`scripts/overnight_hill.py`, 10.1 h: rung `<body>_hill` (112 inputs, nearest opponent; three-body ring vs the other
+humans' fighters, half the worlds duels with one opponent benched; action low-pass `smooth` 0.6 and action_rate -0.03).
+Four runs of 400 iterations, 1536 worlds, about 1 h 50 min each. Bars vs the shipped fighters: three-way +0.03, duel vs
+own fighter within 0.05 of the mirror, jitter <= 0.75x.
+
+| Run | 3-way (fighter) | Duel vs own fighter (mirror) | Jitter rad/step (fighter) | Result |
+|---|---|---|---|---|
+| kim_hill2 | 0.474 (0.410) | 0.246 (0.507) | 0.055 (0.091) | kept as a run |
+| trump_hill2 | 0.441 (0.470) | 0.259 (0.504) | 0.025 (0.085) | kept as a run |
+| grandpa_hill2 | 0.168 (0.202) | 0.260 (0.496) | 0.053 (0.102) | kept as a run |
+| kim_hill3 (round 2, again from the fighter) | 0.410 (0.388) | 0.065 (0.507) | 0.044 (0.091) | kept as a run |
+
+Every brain is much smoother and every one loses the same-body mirror duel. Cross-body duels (Kim, 768 each):
+kim_hill2 vs Trump's fighter 0.838 decided share (kim_fight1 0.745), vs Grandpa's 0.358 (0.309), with about 30 % less
+jitter. So the duel bar measured a match the recipe never practised (duel_share benches b_ or c_, both other bodies).
+Next: put the learner's own body into the opponent pool (four-body ring me, me, other, other). The Unity half of the
+`smooth` sidecar (ActionMap/PolicyRunner + test) is written but not compiled yet: the editor's CLI stopped answering
+during the run. Report: `SCREENSHOTS/training-261022/report.html`.
