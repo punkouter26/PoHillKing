@@ -343,9 +343,9 @@ namespace PoKingHill.EditorTools
 
         const string GateHumanFfaScene = SceneDir + "/Gate_ffa_humans.unity";
 
-        /// <summary>The humans' free-for-all gate: the game's bodies (koth_game), &lt;body&gt;'s free-for-all brain
-        /// (Models/&lt;body&gt;/ffa_policy.onnx) against the other two humans' fighters, one each (as eval.py --rung
-        /// &lt;body&gt;_hffa with their fighter checkpoints :slot1 / :slot2), no sea, 20 s bell, falls are out (no get-up rule).
+        /// <summary>The humans' three-way gate: the game's bodies (koth_game), &lt;body&gt;'s fighter against the other two
+        /// humans' fighters, one each (as eval.py --rung &lt;body&gt;_hill with the shipped fighters' checkpoints :slot1 / :slot2),
+        /// no sea, 20 s bell, falls are out (no get-up rule).
         /// Writes training/assets/&lt;body&gt;/ffa_stats_unity.json: share of rounds the candidate is last one in / out / undecided.</summary>
         public static void RunHumanFfaStats(string body, int rounds = 200)
         {
@@ -359,7 +359,7 @@ namespace PoKingHill.EditorTools
                 return new Agent { name = $"{b} {file}", shortName = b, body = b, policy = policy, obsDim = InputsOf(policy), goal = GoalMode.Opponent, vmax = b == "trump" ? 0.7f : 1f };
             }
             var others = new[] { "kim", "trump", "grandpa" }.Where(h => h != body);
-            dd.roster = new[] { Brain(body, "ffa") }.Concat(others.Select(o => Brain(o, "fighter"))).ToArray();
+            dd.roster = new[] { Brain(body, "fighter") }.Concat(others.Select(o => Brain(o, "fighter"))).ToArray();
             dd.statsCandidate = 0; dd.statsPool = new[] { 1, 2 }; dd.statsPoolInOrder = true; dd.statsRounds = rounds;
             EditorApplication.EnterPlaymode();
         }

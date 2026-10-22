@@ -48,12 +48,12 @@ def load_policy(env, ckpt):
 
 
 def base_rung(rung: str) -> str:
-    """kim_r0b -> r0, trump_r4bull -> r4league, trump_vs_g1 -> r4league, kim_ffa / kim_hffa -> r5ffa: the bar a rung is judged on."""
+    """kim_r0b -> r0, trump_r4bull -> r4league, trump_vs_g1 -> r4league, kim_ffa / kim_hill -> r5ffa: the bar a rung is judged on."""
     if "_vs_" in rung: return "r4league"
     if "_att_" in rung: return "r4att"
     body, _, rest = rung.partition("_")
     if body not in HUMANS: return rung
-    if rest in ("ffa", "hffa"): return "r5ffa"
+    if rest in ("ffa", "hill"): return "r5ffa"
     return {"r4bull": "r4league", "bull": "r4league"}.get(rest, rest[:2])
 
 
@@ -173,6 +173,7 @@ def eval_cfg(rung, shove=False, rim_brake=None, slope=False, opponent=None, leg_
         from koth.action_map import ckpt_spec
         cfg["action"] = ckpt_spec(ckpt)
     if combat2: cfg["combat2"] = True
+    cfg["duel_share"] = 0.0                  # a rung that trains duels and three-ways is judged on its three-ways; duels on the duel rungs
     if decimation: cfg["decimation"] = decimation
     if fatigue != "off": cfg["fatigue"].update(enabled=True, obs=fatigue == "obs")
     duel = base in DUEL_RUNGS

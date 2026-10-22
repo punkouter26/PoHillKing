@@ -85,6 +85,8 @@ def default_cfg(rung: str = "r0") -> dict:
         reward_clip=True,          # clip each step's shaped sum at zero (terminal terms and the potential are outside the clip)
         potential_gamma=0.99,      # reward["potential"]: F = gamma * phi(s') - phi(s), phi = (opponent radius - my radius) / OUT_RADIUS
         tactics=None,              # dict(probs=[5], hold_s=[lo, hi]): learner goal points from obs.TACTICS (training only), held per segment
+        duel_share=0.0,            # > 2 robots: this share of worlds is a duel; one opponent, drawn per world, is benched (out from the
+                                   # start, re-pinned 50 m up off the mountain every control step, as Unity parks unused bodies)
         fatigue=dict(enabled=False, tau_s=10.0, min_scale=0.6, gain=2.0, omega_ref=10.0, obs=False),
         getup=None,                # dict (rung "getup"): episodes start from drops in random orientations and never end on a fall
     )
@@ -203,11 +205,14 @@ def default_cfg(rung: str = "r0") -> dict:
         me = rung[:-4]
         cfg.update(default_cfg("r5ffa")); cfg.update(scene=mix_scene([me, "g1", "g1", "g1"]))
         if me == "trump": cfg["reward"].update(push_out=1.0, belly_push=4.0, arm_contact=-1.0); cfg["goal_cmd"].update(vmax=0.7)
-    elif rung.endswith("_hffa") and rung[:-5] in HUMANS:   # the game's free-for-all (humans only since 2026-10-20)
+    elif rung.endswith("_hill") and rung[:-5] in HUMANS:   # the game's one brain per body: duels and three-ways (2026-10-21)
         # learner a_ = this body, b_ and c_ = the other two humans driven by their own frozen fighters (--opponent
-        # x.pt:slot1 y.pt:slot2, see FrozenPool); a three-body ring as in the game's quick match
+        # x.pt:slot1 y.pt:slot2, see FrozenPool), on a three-body ring. 112 inputs: the brain sees only the nearest
+        # opponent still in, so the same network plays a duel or a free-for-all. Half the worlds are duels (duel_share:
+        # one opponent benched, parked 50 m up as Unity does). (kim_hffa1, a 121-input three-way-only brain, won more
+        # three-ways but lost its duels against the fighter it started from: 7.6 % of the decided duels.)
         me = rung[:-5]; bodies = [me] + [h for h in HUMANS if h != me]
-        cfg.update(default_cfg("r5ffa")); cfg.update(scene=mix_scene(bodies), robots=["a_", "b_", "c_"])
+        cfg.update(default_cfg("r5ffa")); cfg.update(scene=mix_scene(bodies), robots=["a_", "b_", "c_"], combat2=False, duel_share=0.5)
         cfg["goal_cmd"].update(vmax=[0.7 if b == "trump" else 1.0 for b in bodies])      # Trump walks in at 0.7, as in his roster entry
         if me == "trump": cfg["reward"].update(push_out=1.0, belly_push=4.0, arm_contact=-1.0)
     elif rung == "trump_bull":            # Trump's bull charge: trump_r4bull with the styled action path (obs.BULL_POSE)
@@ -483,6 +488,7 @@ class KothEnv:
         self.style = torch.zeros(M, dtype=torch.bool, device=device)      # rows fighting in the shove style
         self.act_f = z(M, 29); self.pose_offset = z(M, 29)
         self.out = torch.zeros(M, dtype=torch.bool, device=device)        # > 2 robots: eliminated this round (latched)
+        self.bench = torch.zeros(N, dtype=torch.long, device=device)      # duel_share: the robot index sitting this world out, 0 = none
         self.stale_t = z(M); self.push_out_sum = z(M)                    # anti-stalemate timer, push_out paid this episode
         self.fatigue = z(M, 29)                                          # per-joint fatigue state in [0, 1]
         self.phi_prev = z(M)                                             # reward["potential"]: phi of the state the step started from
@@ -669,6 +675,15 @@ class KothEnv:
         v[:, self.dadr] = (torch.rand(n, A, 29, device=self.device) * 2 - 1) * rn["joint_vel"]
         yaw = self._rand((n, A), -rn["yaw"], rn["yaw"])
         xy = self._spawn_xy(n)
+        bench = torch.zeros(n, dtype=torch.long, device=self.device)
+        if A > 2 and self.cfg.get("duel_share", 0.0) > 0:      # a duel: one opponent sits out, the other starts across from a_
+            duel = torch.rand(n, device=self.device) < self.cfg["duel_share"]
+            bench = torch.where(duel, torch.randint(1, A, (n,), device=self.device), 0)
+            if xy is not None and duel.any():
+                ang = torch.atan2(xy[:, 0, 1], xy[:, 0, 0]) + math.pi + self._rand(n, -1.0, 1.0)
+                for k in range(1, A):
+                    fight = duel & (bench != k); rk = xy[:, k].norm(dim=1)
+                    xy[:, k] = torch.where(fight[:, None], torch.stack([rk * torch.cos(ang), rk * torch.sin(ang)], 1), xy[:, k])
         if xy is not None:
             slope = 2 * SLOPE_K * (xy.norm(dim=2) - PLATEAU_R).clamp(min=0)
             q[:, self.rq + 0] = xy[:, :, 0]; q[:, self.rq + 1] = xy[:, :, 1]
@@ -688,6 +703,8 @@ class KothEnv:
         self.last_action[rows] = 0; self.act_f[rows] = 0; self.pose_offset[rows] = 0; self.phase[rows] = 0; self.yaw_target[rows] = yaw.reshape(-1)
         self.feet_air_time[rows] = 0; self.feet_contact[rows] = True
         self.out[rows] = False; self.stale_t[rows] = 0; self.push_out_sum[rows] = 0; self.fatigue[rows] = 0
+        self.bench[ids] = bench
+        if bench.any(): b = ids[bench > 0]; self.out[b * A + bench[bench > 0]] = True; self._pin_benched()
         fxy = q[:, self.rq + 0], q[:, self.rq + 1]   # feet start under the pelvis; exact value only matters for one step of slip
         self.prev_feet_xy[rows] = torch.stack(fxy, 2).reshape(-1, 1, 2).expand(-1, 2, -1)
         self.episode_length_buf[ids] = 0
@@ -753,6 +770,17 @@ class KothEnv:
         parked = self.box_life <= 0                                                   # (N, boxes)
         self.qpos[:, self.box_qcols] = torch.where(parked.repeat_interleave(7, 1), self.box_qpark, self.qpos[:, self.box_qcols])
         self.qvel[:, self.box_dcols] = torch.where(parked.repeat_interleave(6, 1), 0.0, self.qvel[:, self.box_dcols])
+        self._pin_benched()
+
+    def _pin_benched(self):
+        """duel_share: each benched robot's root back to (100, 0, 50), upright, at rest (Unity MatchDirector.Park)."""
+        if not bool((self.bench > 0).any()): return
+        for k in range(1, self.A):
+            b = self.bench == k
+            if not bool(b.any()): continue
+            qa, da = self.rq[k], self.rd[k]
+            for j, v in enumerate((100.0, 0.0, 50.0, 1.0, 0.0, 0.0, 0.0)): self.qpos[:, qa + j] = torch.where(b, v, self.qpos[:, qa + j])
+            for j in range(6): self.qvel[:, da + j] = torch.where(b, 0.0, self.qvel[:, da + j])
 
     # ------------------------------------------------------------------ fatigue (opt-in)
     def _apply_fatigue_limits(self):
