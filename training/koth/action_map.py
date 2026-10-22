@@ -13,12 +13,15 @@ Options (env cfg "action", all off by default):
                 kp (target - q) - kv qd within +-forcerange, i.e. target in [q + (kv qd - tau) / kp, q + (kv qd + tau) / kp]
                 with the nominal kp, kv, tau. A target beyond the window asks for torque the motor does not have; it
                 would only wind up (a full-torque push that stays on after the joint has passed where it should stop).
-The style low-pass (shove) filters a, before the scale, exactly as before."""
+  smooth k      action low-pass, f = k f_prev + (1 - k) a, before the scale (0 = off; 0.6 at 50 Hz: about 40 ms). Brains
+                updating every 20 ms change their targets from step to step; the filter keeps the joints from twitching
+                and the brain learns with it, so it is part of the brain (added 2026-10-21 for human-like motion).
+The style low-pass (shove, k 0.5) filters a the same way; with both, the larger k applies."""
 from __future__ import annotations
 import json, os
 import numpy as np
 
-DEFAULT = dict(map="clip", scale=None, window=False)
+DEFAULT = dict(map="clip", scale=None, window=False, smooth=0.0)
 
 
 def spec_of(cfg_action: dict | None) -> dict:
@@ -26,11 +29,12 @@ def spec_of(cfg_action: dict | None) -> dict:
     s = dict(DEFAULT); s.update(cfg_action or {})
     assert s["map"] in ("clip", "tanh"), s["map"]
     if s["scale"] is not None: s["scale"] = [float(x) for x in s["scale"]]; assert len(s["scale"]) == 29
+    s["smooth"] = float(s["smooth"] or 0.0); assert 0.0 <= s["smooth"] < 1.0, s["smooth"]
     return s
 
 
 def is_default(s: dict) -> bool:
-    s = spec_of(s); return s["map"] == "clip" and s["scale"] is None and not s["window"]
+    s = spec_of(s); return s["map"] == "clip" and s["scale"] is None and not s["window"] and s["smooth"] == 0.0
 
 
 def sidecar_path(onnx_path: str) -> str:
@@ -43,7 +47,7 @@ def write_sidecar(onnx_path: str, s: dict) -> str | None:
     if is_default(s):
         if os.path.exists(p): os.remove(p)
         return None
-    json.dump(dict(map=s["map"], scale=s["scale"], window=bool(s["window"])), open(p, "w"), indent=1)
+    json.dump(dict(map=s["map"], scale=s["scale"], window=bool(s["window"]), smooth=s["smooth"]), open(p, "w"), indent=1)
     return p
 
 
@@ -63,7 +67,7 @@ class NumpyMap:
     one robot, from the compiled model (nominal values)."""
     def __init__(self, s: dict, base_scale: float, kp=None, kv=None, tau=None):
         self.s = spec_of(s); self.scale = np.asarray(self.s["scale"], dtype=np.float64) if self.s["scale"] is not None else float(base_scale)
-        self.kp, self.kv, self.tau = kp, kv, tau
+        self.kp, self.kv, self.tau = kp, kv, tau; self.smooth = self.s["smooth"]
         assert not self.s["window"] or kp is not None
 
     @staticmethod

@@ -178,6 +178,7 @@ def main():
     ap.add_argument("--action-map", choices=["clip", "tanh"], default=None, help="how the network output becomes an action (koth/action_map.py)")
     ap.add_argument("--action-scale", default=None, help="per-joint action scale: a json from scripts/action_scale.py (or 29 comma-separated values)")
     ap.add_argument("--torque-window", action="store_true", help="clamp targets to the torque-feasible window at the current state")
+    ap.add_argument("--action-smooth", type=float, default=None, help="action low-pass k (koth/action_map.py smooth; 0 = off)")
     ap.add_argument("--no-reward-clip", action="store_true", help="do not clip the per-step shaped reward at zero")
     ap.add_argument("--curriculum", default=None, help="koth/curriculum.py preset (ladder[:bar:demote]) or a spec json; needs --opponent (weakest first)")
     a = ap.parse_args()
@@ -193,7 +194,7 @@ def main():
     if a.rim_brake: cfg["goal_cmd"]["rim_brake"] = tuple(a.rim_brake)
     for kv in a.reward:
         k, v = kv.split("="); assert k in cfg["reward"], k; cfg["reward"][k] = float(v)
-    if a.action_map or a.action_scale or a.torque_window:
+    if a.action_map or a.action_scale or a.torque_window or a.action_smooth is not None:
         act = dict(cfg.get("action") or {})
         if a.action_map: act["map"] = a.action_map
         if a.action_scale:

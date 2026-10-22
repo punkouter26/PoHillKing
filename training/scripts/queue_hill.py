@@ -4,6 +4,9 @@ The brain sees only the nearest opponent still in (112 inputs), so the same netw
 each of Kim, Trump and Grandpa: learner a_ warm-started from the body's shipped fighter, against the other two humans'
 shipped fighters (one per frozen slot, FrozenPool ":slotN") on scene_koth_3p_<me>_<other>_<other>_train.xml
 (python -m koth.build_mjcf mix ..., KOTH_ROBOT=g1); half the worlds are duels (env duel_share: one opponent benched).
+Motion: the rung trains with the action low-pass (action_map smooth 0.6, exported in fighter_action.json) and a 3x
+action_rate penalty, for human-like movement; a pass also needs JITTER_RATIO less joint-target change per step than the
+fighter (eval.py jitter_rad, three-way rounds).
 Then eval.py: the three-way rung for the new brain and the fighter it started from, and duels of the new brain and of
 the fighter against the fighter (the mirror is the duel baseline: seat a_ carries a bias of its own). Exported over
 Models/<body>/fighter_policy.onnx (+ fighter_value.onnx) only when it wins the three-way PROMOTE_MARGIN more often than
@@ -11,7 +14,7 @@ the fighter and its duel share is within DUEL_SLACK of the mirror. Unity gates a
 RunHumanFfaStats against duel_stats.py and eval.py (see STAGED_TRAINING.md section 3).
 
   .venv/Scripts/python.exe scripts/queue_hill.py [--iters 400] [--num-envs 1536] [--bodies kim trump grandpa]
-Progress: runs/overnight/progress_hill.txt; eval rows: runs/overnight/<body>_hill1_eval.json; TensorBoard on :6006.
+Progress: runs/overnight/progress_hill.txt; eval rows: runs/overnight/<body>_hill2_eval.json; TensorBoard on :6006.
 """
 import argparse, json, os, socket, subprocess, sys
 from datetime import datetime
@@ -26,7 +29,8 @@ HUMANS = ("kim", "trump", "grandpa")
 FIGHTER = {"kim": "runs/r4league/kim_fight1/model_final.pt", "trump": "runs/trump_r4bull/trump_fight1/model_final.pt",
            "grandpa": "runs/r4league/grandpa_fight2/model_final.pt"}
 DUEL_RUNG = {"kim": "r4league", "trump": "trump_r4bull", "grandpa": "r4league"}
-PROMOTE_MARGIN, DUEL_SLACK = 0.03, 0.05
+PROMOTE_MARGIN, DUEL_SLACK, JITTER_RATIO = 0.03, 0.05, 0.75
+RUN = "hill2"          # hill1 (no low-pass) was stopped at iteration 330 when the user asked for smoother, human-like motion
 
 
 def note(msg):
@@ -75,7 +79,7 @@ def main():
         scene = os.path.join(ROOT, "assets", "g1", f"scene_koth_3p_{me}_{'_'.join(others)}_train.xml")
         if not os.path.exists(scene):
             run(["-m", "koth.build_mjcf", "mix", me] + others, "g1", os.path.join(LOG_DIR, f"build_mix_3p_{me}.log"))
-        rung, name = f"{me}_hill", f"{me}_hill1"
+        rung, name = f"{me}_hill", f"{me}_{RUN}"
         opp = [f"{FIGHTER[o]}:slot{i + 1}" for i, o in enumerate(others)]
         ckpt = f"runs/{rung}/{name}/model_final.pt"
         if not os.path.exists(os.path.join(ROOT, ckpt)):
@@ -91,12 +95,14 @@ def main():
         with open(os.path.join(LOG_DIR, f"{name}_eval.json"), "w", encoding="utf-8") as f: json.dump(ev, f, indent=1)
         new, base = mean(ev["three_new"], "learner_last_one_in"), mean(ev["three_fighter"], "learner_last_one_in")
         duel, mirror = share(ev["duel_vs_fighter"]), share(ev["duel_mirror"])
-        note(f"{name}: three-way last one in {new:.3f} (fighter {base:.3f}); duel vs fighter decided share {duel:.3f} (mirror {mirror:.3f})")
-        if new >= base + PROMOTE_MARGIN and duel >= mirror - DUEL_SLACK:
+        jit, jit0 = mean(ev["three_new"], "jitter_rad"), mean(ev["three_fighter"], "jitter_rad")
+        note(f"{name}: three-way last one in {new:.3f} (fighter {base:.3f}); duel vs fighter decided share {duel:.3f} (mirror {mirror:.3f}); "
+             f"jitter {jit:.4f} rad/step (fighter {jit0:.4f})")
+        if new >= base + PROMOTE_MARGIN and duel >= mirror - DUEL_SLACK and jit <= JITTER_RATIO * jit0:
             p = run(["scripts/export_policy.py", "--ckpt", ckpt, "--name", "fighter", "--value"], me, os.path.join(LOG_DIR, f"{name}_export.log"))
             note(f"{name}: PROMOTED -> Assets/PoKingHill/Models/{me}/fighter_policy.onnx" if p.returncode == 0 else f"{name}: export FAILED")
         else:
-            note(f"{name}: kept as a run, not exported (needs +{PROMOTE_MARGIN:.2f} three-way and a duel within {DUEL_SLACK:.2f} of the mirror)")
+            note(f"{name}: kept as a run, not exported (needs +{PROMOTE_MARGIN:.2f} three-way, a duel within {DUEL_SLACK:.2f} of the mirror and jitter <= {JITTER_RATIO} x the fighter's)")
     note("=== queue_hill done ===")
 
 

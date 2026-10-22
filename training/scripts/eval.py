@@ -122,11 +122,13 @@ def eval_duel(env, policy, steps, league=False):
     N = env.N; obs = env.reset()
     open_ = torch.ones(N, dtype=torch.bool, device=env.device); win = torch.zeros_like(open_); lose = torch.zeros_like(open_)
     t_win = torch.full((N,), float('nan'), device=env.device); touch = torch.zeros((), device=env.device); open_t = torch.zeros((), device=env.device)
+    jit = torch.zeros((), device=env.device)
     for t in range(steps):
         with torch.no_grad():
             act = policy(obs)
         obs, _, done, extras = env.step(act)
         sep = extras["sep"].view(N, 2)[:, 0]; touch += ((sep < 0.7) & open_).sum(); open_t += open_.sum()
+        jit += (extras["jitter"].view(N, -1)[:, 0] * open_).sum()
         out = (extras["radius"] > OUT_RADIUS) | extras["fallen"]; out = out.view(N, 2)
         b_out = out[:, 1] & open_; a_out = out[:, 0] & open_ & ~b_out
         win |= b_out; lose |= a_out; t_win = torch.where(b_out, t * env.ctrl_dt, t_win)
@@ -134,6 +136,7 @@ def eval_duel(env, policy, steps, league=False):
     w = win.float().mean().item(); l = lose.float().mean().item(); contact = float(touch / open_t.clamp(min=1))
     return dict(duels=N, attacker_ejects_defender=round(w, 4), attacker_lost=round(l, 4), undecided=round(1 - w - l, 4),
                 median_time_s=round(float(t_win[win].median()) if win.any() else -1.0, 2), contact_share=round(contact, 4),
+                jitter_rad=round(float(jit / open_t.clamp(min=1)), 5),
                 flags=hack_flags(1 - w - l, contact, w, l, standing_opponent=not league),
                 **{"pass": w >= 0.7 if not league else (w / max(w + l, 1e-9) > 0.55 and 1 - w - l < 0.15)})
 
@@ -151,17 +154,18 @@ def eval_ffa(env, policy, steps):
     """Free-for-all (> 2 robots): per world, the first of: the learner is last one in (win), the learner is out (loss)."""
     N = env.N; obs = env.reset()
     open_ = torch.ones(N, dtype=torch.bool, device=env.device); win = torch.zeros_like(open_); lose = torch.zeros_like(open_)
-    t_win = torch.full((N,), float('nan'), device=env.device)
+    t_win = torch.full((N,), float('nan'), device=env.device); jit = torch.zeros((), device=env.device); open_t = torch.zeros((), device=env.device)
     for t in range(steps):
         with torch.no_grad():
             act = policy(obs)
         obs, _, done, extras = env.step(act)
+        jit += (extras["jitter"].view(N, -1)[:, 0] * open_).sum(); open_t += open_.sum()
         w_ = extras["world_won"] & open_; l_ = extras["world_lost"] & open_
         win |= w_; lose |= l_; t_win = torch.where(w_, t * env.ctrl_dt, t_win)
         open_ &= ~(w_ | l_ | done)
     w = win.float().mean().item(); l = lose.float().mean().item()
     return dict(rounds=N, learner_last_one_in=round(w, 4), learner_out=round(l, 4), undecided=round(1 - w - l, 4),
-                median_time_s=round(float(t_win[win].median()) if win.any() else -1.0, 2), flags=hack_flags(1 - w - l, None, w, l), **{"pass": w >= 0.4})
+                median_time_s=round(float(t_win[win].median()) if win.any() else -1.0, 2), jitter_rad=round(float(jit / open_t.clamp(min=1)), 5), flags=hack_flags(1 - w - l, None, w, l), **{"pass": w >= 0.4})
 
 
 def eval_cfg(rung, shove=False, rim_brake=None, slope=False, opponent=None, leg_contact_rule="train", push_vel=None, noise=True,

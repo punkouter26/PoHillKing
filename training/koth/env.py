@@ -206,6 +206,8 @@ def default_cfg(rung: str = "r0") -> dict:
         cfg.update(default_cfg("r5ffa")); cfg.update(scene=mix_scene([me, "g1", "g1", "g1"]))
         if me == "trump": cfg["reward"].update(push_out=1.0, belly_push=4.0, arm_contact=-1.0); cfg["goal_cmd"].update(vmax=0.7)
     elif rung.endswith("_hill") and rung[:-5] in HUMANS:   # the game's one brain per body: duels and three-ways (2026-10-21)
+        # Motion: the action low-pass (action_map "smooth" 0.6, carried in the exported brain's _action.json) and a 3x
+        # action_rate penalty, for human-like movement instead of the fighters' step-to-step twitching.
         # learner a_ = this body, b_ and c_ = the other two humans driven by their own frozen fighters (--opponent
         # x.pt:slot1 y.pt:slot2, see FrozenPool), on a three-body ring. 112 inputs: the brain sees only the nearest
         # opponent still in, so the same network plays a duel or a free-for-all. Half the worlds are duels (duel_share:
@@ -213,6 +215,7 @@ def default_cfg(rung: str = "r0") -> dict:
         # three-ways but lost its duels against the fighter it started from: 7.6 % of the decided duels.)
         me = rung[:-5]; bodies = [me] + [h for h in HUMANS if h != me]
         cfg.update(default_cfg("r5ffa")); cfg.update(scene=mix_scene(bodies), robots=["a_", "b_", "c_"], combat2=False, duel_share=0.5)
+        cfg["action"] = dict(cfg.get("action") or {}, smooth=0.6); cfg["reward"].update(action_rate=-0.03)
         cfg["goal_cmd"].update(vmax=[0.7 if b == "trump" else 1.0 for b in bodies])      # Trump walks in at 0.7, as in his roster entry
         if me == "trump": cfg["reward"].update(push_out=1.0, belly_push=4.0, arm_contact=-1.0)
     elif rung == "trump_bull":            # Trump's bull charge: trump_r4bull with the styled action path (obs.BULL_POSE)
@@ -458,13 +461,13 @@ class KothEnv:
             self.win_kp = rows(T(mjm.actuator_gainprm[aid, 0], torch.float32)); self.win_kv = rows(T(-mjm.actuator_biasprm[aid, 2], torch.float32))
             self.win_tau = rows(T(mjm.actuator_forcerange[aid, 1], torch.float32))
             to_t = lambda x: (torch.tensor(x["map"] == "tanh", device=device), torch.tensor(x["scale"] if x["scale"] is not None else [self.action_scale] * 29, dtype=torch.float32, device=device),
-                              torch.tensor(bool(x["window"]), device=device))
+                              torch.tensor(bool(x["window"]), device=device), torch.tensor(float(x["smooth"]), device=device))
             self._amap_t = [to_t(x) for x in maps]                     # 0 = learner, 1.. = pool entries
-            lt, ls, lw = self._amap_t[0]
-            self.row_tanh = lt.repeat(M).clone(); self.row_scale = ls.repeat(M, 1).clone(); self.row_window = lw.repeat(M).clone()
+            lt, ls, lw, lk = self._amap_t[0]
+            self.row_tanh = lt.repeat(M).clone(); self.row_scale = ls.repeat(M, 1).clone(); self.row_window = lw.repeat(M).clone(); self.row_smooth = lk.repeat(M).clone()
             if self.frozen is not None:
-                self.pool_tanh = torch.stack([t for t, _, _ in self._amap_t[1:]]); self.pool_scale = torch.stack([s_ for _, s_, _ in self._amap_t[1:]])
-                self.pool_window = torch.stack([w_ for _, _, w_ in self._amap_t[1:]])
+                self.pool_tanh = torch.stack([x[0] for x in self._amap_t[1:]]); self.pool_scale = torch.stack([x[1] for x in self._amap_t[1:]])
+                self.pool_window = torch.stack([x[2] for x in self._amap_t[1:]]); self.pool_smooth = torch.stack([x[3] for x in self._amap_t[1:]])
         rest = lambda f: float(mjd.xpos[f][2] - (0.0 if not self.arena else float(terrain_height(torch.tensor(mjd.xpos[f][:2], dtype=torch.float32), True))))
         self.foot_rest_z = rows(T([rest(int(self.feet_body[a, 0])) for a in range(A)], torch.float32))[:, None]
 
@@ -716,7 +719,7 @@ class KothEnv:
             self.frozen.resample(ids)
             if self.any_amap:                       # frozen rows take the action path of the opponent just drawn
                 ch = self.frozen.choice
-                self.row_tanh[self.orows] = self.pool_tanh[ch]; self.row_scale[self.orows] = self.pool_scale[ch]; self.row_window[self.orows] = self.pool_window[ch]
+                self.row_tanh[self.orows] = self.pool_tanh[ch]; self.row_scale[self.orows] = self.pool_scale[ch]; self.row_window[self.orows] = self.pool_window[ch]; self.row_smooth[self.orows] = self.pool_smooth[ch]
         self._randomize(ids)
 
     def reset(self):
@@ -833,16 +836,18 @@ class KothEnv:
         if self.any_amap: self.action = torch.where(self.row_tanh[:, None], torch.tanh(raw), torch.clamp(raw, -1, 1))
         else: self.action = torch.clamp(raw, -1, 1)
         act = self.action
+        k = self.row_smooth if self.any_amap else None          # action low-pass per row (action_map.py "smooth")
         if self.cfg["shove"] or (self.frozen is not None and self.frozen.any_shove):
             self.style[:] = self.cfg["shove"]
             if self.frozen is not None: self.style[self.orows] = self.frozen.shoves[self.frozen.choice]
             ramp_it = self.cfg.get("style_ramp_iters", 0)
             ramp = min(1.0, self.common_step / 24 / ramp_it) if ramp_it else 1.0      # 24 env steps per PPO iteration
-            k = SHOVE_SMOOTH * ramp
-            self.act_f = torch.where(self.style[:, None], k * self.act_f + (1 - k) * self.action, self.action)
-            act = self.act_f
+            ks = self.style.float() * (SHOVE_SMOOTH * ramp)
+            k = ks if k is None else torch.maximum(k, ks)
             p = self._root()[0]; dist = (self._opp(p)[:, :2] - p[:, :2]).norm(dim=1)
             self.pose_offset = (((SHOVE_FAR - dist) / (SHOVE_FAR - SHOVE_NEAR)).clamp(0, 1) * self.style.float() * ramp)[:, None] * self.shove_offset
+        if k is not None and bool((k > 0).any()):
+            self.act_f = k[:, None] * self.act_f + (1 - k[:, None]) * self.action; act = self.act_f
         if not self.any_amap: target = torch.clamp(self.default_pose + self.pose_offset + self.action_scale * act, self.ctrl_lo, self.ctrl_hi)
         else:
             target = self.default_pose + self.pose_offset + self.row_scale * act
@@ -851,6 +856,7 @@ class KothEnv:
             target = torch.clamp(torch.where(self.row_window[:, None], windowed, target), self.ctrl_lo, self.ctrl_hi)
         if A > 2: target = torch.where(self.out[:, None], 0.0, target)   # eliminated: limp, as Unity's paused runner (ctrl 0)
         # one-step actuation latency on a random subset of robots (DR)
+        self._jitter = (target - self.pending_ctrl).abs().mean(1)      # mean joint-target change this step (rad), eval's jitter
         apply = torch.where(self.latency[:, None], self.pending_ctrl, target); self.pending_ctrl = target
         self.ctrl[:, self.aid.reshape(-1)] = apply.reshape(N, A * 29)
         self._disturb()
@@ -915,6 +921,7 @@ class KothEnv:
         self.extras["log"]["ep/leg_contact_term"] = leg.float().mean(); self.extras["log"]["ep/fallen"] = fallen.float().mean()
         self.extras["cause"] = torch.stack([tipped, low, leg], 1)          # why a row counted as fallen (besides ring-out)
         if A >= 2: self.extras["sep"] = self._sep
+        self.extras["jitter"] = self._jitter
         if A > 2: self.extras["out"] = self.out.clone(); self.extras["world_won"] = won_w; self.extras["world_lost"] = lost
         if self.arena: self.extras["log"]["ep/on_plateau"] = (radius < PLATEAU_R).float().mean()
         if self.cfg.get("getup"):

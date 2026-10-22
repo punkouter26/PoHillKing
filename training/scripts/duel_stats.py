@@ -88,8 +88,9 @@ for rnd in range(a.rounds):
             obs = cpu_sim.observe(d, s, default, cmd, s["phase"], other=o)[0].numpy().astype(np.float32)
             act = s["amap"].to_action(cpu_sim.infer(sess, obs))
             f = act.astype(np.float64); off = 0.0
+            k = max(SHOVE_SMOOTH if a.shove else 0.0, s["amap"].smooth)       # action low-pass (action_map.py smooth)
+            if k > 0: f = s["f"] = k * s["f"] + (1 - k) * f
             if a.shove:
-                f = s["f"] = SHOVE_SMOOTH * s["f"] + (1 - SHOVE_SMOOTH) * f
                 dist = np.hypot(d.qpos[o["rq"]] - d.qpos[rq], d.qpos[o["rq"] + 1] - d.qpos[rq + 1])
                 off = np.clip((SHOVE_FAR - dist) / (SHOVE_FAR - SHOVE_NEAR), 0, 1) * shove_offset
             s["ctrl"] = s["amap"].target(default + off, f, d.qpos[s["qadr"]], d.qvel[s["dadr"]], s["lo"], s["hi"]); s["last"] = act
